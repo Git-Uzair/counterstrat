@@ -1283,7 +1283,7 @@ card: adjacency, rotate ordering, earliest-arrival comparisons. Grades any
   before 18 — define the 3-method protocol here in `llm/base.py` stub, see
   Task 18 Interfaces; Task 18 fills the real adapters in).
 
-- [ ] **Step 1: Failing test** — deterministic generation + fake grading:
+- [x] **Step 1: Failing test** — deterministic generation + fake grading:
 
 ```python
 class ScriptedClient:                # answers everything with option "A"
@@ -1304,9 +1304,9 @@ def test_grading_counts_correct(anubis_card):
     assert res.accuracy == 1.0
 ```
 
-- [ ] **Step 2–4: implement + PASS.** Multiple-choice format, answers
+- [x] **Step 2–4: implement + PASS.** Multiple-choice format, answers
   extracted by exact option-letter match; malformed reply = wrong.
-- [ ] **Step 5: Commit** `"feat: map quiz harness"`
+- [x] **Step 5: Commit** `"feat: map quiz harness"`
 
 **Done when:** quiz is deterministic per seed, self-grades correctly with
 scripted clients. (Live model runs happen via
