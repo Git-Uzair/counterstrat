@@ -1,0 +1,20 @@
+map: de_anubis
+zones:
+  BombsiteA:  {aliases: [A site], tags: [site]}
+  BombsiteB:  {aliases: [B site], tags: [site]}
+  Middle:     {aliases: [mid], tags: [mid_control]}
+  Connector:  {aliases: [connector, con], tags: [connector]}
+  Water:      {aliases: [water, canal-water], tags: [mid_control]}
+  Bridge:     {aliases: [mid bridge], tags: [choke]}
+  MidDoors:   {aliases: [mid doors], tags: [choke]}
+  Main:       {aliases: [A main], tags: [t_side_entry, choke]}
+  Walkway:    {aliases: [A long, walkway], tags: [t_side_entry]}
+  Heaven:     {aliases: [heaven], tags: [power_position, ct_side]}
+  Street:     {aliases: [street], tags: [ct_side]}
+  Canal:      {aliases: [canals], tags: [connector]}
+  Tunnel:     {aliases: [B tunnels, upper tunnel], tags: [t_side_entry]}
+  LowerTunnel: {aliases: [lower tunnel], tags: [connector]}
+  Ruins:      {aliases: [ruins], tags: [b_side]}
+  Alley:      {aliases: [alley], tags: [b_side, choke]}
+  CTSpawn:    {aliases: [ct spawn], tags: [spawn, ct_side]}
+  TSpawn:     {aliases: [t spawn], tags: [spawn]}

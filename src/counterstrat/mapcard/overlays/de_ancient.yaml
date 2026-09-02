@@ -1,0 +1,6 @@
+map: de_ancient
+zones:
+  BombsiteA:  {aliases: [A site], tags: [site]}
+  BombsiteB:  {aliases: [B site], tags: [site]}
+  CTSpawn:    {aliases: [ct spawn], tags: [spawn, ct_side]}
+  TSpawn:     {aliases: [t spawn], tags: [spawn]}

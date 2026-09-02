@@ -1148,7 +1148,7 @@ zones:
 # zones omitted here inherit defaults: no aliases, no tags
 ```
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_lexicon_engine_base_plus_overlay(tmp_path):
@@ -1173,11 +1173,11 @@ def test_lexicon_overlay_unknown_zone_rejected(tmp_path):
         build_lexicon("m", ["A"], overlay)
 ```
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement** (yaml.safe_load; overlay
+- [x] **Step 2: fails.** - [x] **Step 3: implement** (yaml.safe_load; overlay
   keys must be a subset of engine places — subdivision zones come later as
   `parent:` entries, rejected for now with a clear message; canonical dump =
   `json.dumps(..., sort_keys=True)`).
-- [ ] **Step 4: PASS.** - [ ] **Step 5: Commit** `"feat: zone lexicon"`
+- [x] **Step 4: PASS.** - [x] **Step 5: Commit** `"feat: zone lexicon"`
 
 **Done when:** Anubis lexicon builds from the 28 verified names + the
 seeded overlay; unknown overlay zones raise.
