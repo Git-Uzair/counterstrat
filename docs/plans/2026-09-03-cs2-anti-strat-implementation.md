@@ -472,7 +472,7 @@ derived team keys — the join key for every downstream artifact.
 - Consumes: `demoparser2.DemoParser(path).parse_header()` (verified keys:
   `map_name`, `patch_version`, `demo_version_guid`, `server_name`).
 
-- [ ] **Step 1: Failing test** (`tests/test_corpus.py`)
+- [x] **Step 1: Failing test** (`tests/test_corpus.py`)
 
 ```python
 import json
@@ -493,8 +493,8 @@ def test_register_demo_idempotent(demo_path, tmp_path):
     assert json.loads(lines[0])["match_id"] == rec1.match_id
 ```
 
-- [ ] **Step 2: Run, verify fails** (`ModuleNotFoundError`).
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run, verify fails** (`ModuleNotFoundError`).
+- [x] **Step 3: Implement**
 
 ```python
 """Corpus manifest: content-addressed demo registry."""
@@ -557,8 +557,8 @@ def load_manifest(manifest: Path) -> dict[str, DemoRecord]:
     return out
 ```
 
-- [ ] **Step 4: Run test — PASS.** `uv run pytest tests/test_corpus.py -q`
-- [ ] **Step 5: Commit** `git commit -m "feat: corpus manifest"`
+- [x] **Step 4: Run test — PASS.** `uv run pytest tests/test_corpus.py -q`
+- [x] **Step 5: Commit** `git commit -m "feat: corpus manifest"`
 
 **Done when:** registering the fixture demo twice yields one manifest line
 with `map_name=de_anubis`.
@@ -602,7 +602,7 @@ Implementation notes (verified constraints):
   `team_name` (`CT`/`TERRORIST`), `team_key = sha1(",".join(sorted(ids)))[:12]`.
   Sides swap at halftime and in OT — derive per round, never assume.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 import polars as pl
@@ -627,8 +627,8 @@ def test_extract_lake(demo_path, tmp_path):
     assert rosters["team_key"].n_unique() == 2      # two teams, PUG-verified
 ```
 
-- [ ] **Step 2: Run — fails (module missing).**
-- [ ] **Step 3: Implement `extract.py`** — skeleton the implementer fills
+- [x] **Step 2: Run — fails (module missing).**
+- [x] **Step 3: Implement `extract.py`** — skeleton the implementer fills
   strictly within these verified APIs:
 
 ```python
@@ -702,8 +702,8 @@ def extract_lake(record: DemoRecord, out_root: Path) -> LakePaths:
   ticks=rounds["freeze_end"].to_list())`, group by (tick→round_num,
   team_name), aggregate sorted steamid list → sha1[:12].
 
-- [ ] **Step 4: Run test — PASS** (allow ~30 s; it parses the demo twice).
-- [ ] **Step 5: Commit** `git commit -m "feat: extraction lake"`
+- [x] **Step 4: Run test — PASS** (allow ~30 s; it parses the demo twice).
+- [x] **Step 5: Commit** `git commit -m "feat: extraction lake"`
 
 **Done when:** the fixture demo yields 11 parquet files; rounds=30; two
 distinct team_keys; `clock_s` bounded by round clock + bomb time.
