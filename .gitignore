@@ -1,0 +1,15 @@
+.venv/
+data/
+tools/
+scratch/
+demos/
+maps/
+.env
+__pycache__/
+*.parquet
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+exceptions.txt
