@@ -926,7 +926,7 @@ game-version drift (spec risk #10).
   non-empty → `ok=False` (demo speaks names the card lacks = fatal);
   `in_vpk_not_demo` is a warning only (unvisited zones are legal).
 
-- [ ] **Step 1: Failing test** — unit (fake lists) + integration:
+- [x] **Step 1: Failing test** — unit (fake lists) + integration:
 
 ```python
 def test_reconcile_policy():
@@ -943,10 +943,10 @@ def test_reconcile_anubis(demo_path, anubis_vpk, vrf_cli, tmp_path):
     assert report.ok and not report.in_vpk_not_demo
 ```
 
-- [ ] **Step 2–4: implement `reconcile_names(vpk, demo)` (set diff) and the
+- [x] **Step 2–4: implement `reconcile_names(vpk, demo)` (set diff) and the
   duckdb-backed `reconcile` (`select distinct last_place_name from ticks
   where last_place_name is not null and last_place_name != ''`); PASS.**
-- [ ] **Step 5: Commit** `"feat: place reconciliation gate"`
+- [x] **Step 5: Commit** `"feat: place reconciliation gate"`
 
 **Done when:** Anubis reconciles exactly (verified ground truth); a
 synthetic ghost name flips `ok=False`.
