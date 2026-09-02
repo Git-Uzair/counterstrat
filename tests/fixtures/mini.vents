@@ -1,0 +1,28 @@
+====0====
+place_name                     "TSpawn"
+classname                      "env_cs_place"
+compile_source_id              10473
+origin                         [ -16.0, -1520.0, 104.0 ]
+angles                         [ 0.0, 0.0, 0.0 ]
+scales                         [ 1.0, 1.0, 1.0 ]
+hammeruniqueid                 "2:31046:5"
+model                          resource_name:"maps/de_anubis/entities/unnamed_2_31046_5.vmdl"
+
+====1====
+place_name                     "Street"
+classname                      "env_cs_place"
+compile_source_id              10475
+origin                         [ 100.0, 200.0, 50.0 ]
+angles                         [ 0.0, 0.0, 0.0 ]
+scales                         [ 1.0, 1.0, 1.0 ]
+hammeruniqueid                 "2:31046:8"
+model                          resource_name:"maps/de_anubis/entities/unnamed_2_31046_8.vmdl"
+
+====2====
+classname                      "func_nav_markup"
+compile_source_id              10472
+origin                         [ 324.0, -1573.0, 12.0 ]
+angles                         [ 0.0, 0.0, 0.0 ]
+scales                         [ 1.0, 1.0, 1.0 ]
+hammeruniqueid                 "2:31046:2"
+model                          resource_name:"maps/de_anubis/entities/unnamed_2_31046_2.vmdl"

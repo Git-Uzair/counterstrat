@@ -796,7 +796,7 @@ invocation verified in Context.
   hammer_id: str, model: str)`; `vents.unique_places(vols) -> list[str]`
   (sorted unique names).
 
-- [ ] **Step 1: Failing unit test** (no VPK needed — uses `mini.vents`):
+- [x] **Step 1: Failing unit test** (no VPK needed — uses `mini.vents`):
 
 ```python
 from counterstrat.mapcard.vents import parse_places, unique_places
@@ -822,8 +822,8 @@ def test_extract_anubis(anubis_vpk, vrf_cli, tmp_path):
     assert assets.nav.stat().st_size == 495_530    # verified size
 ```
 
-- [ ] **Step 2: fails.**
-- [ ] **Step 3: Implement.** `vrf.py`:
+- [x] **Step 2: fails.**
+- [x] **Step 3: Implement.** `vrf.py`:
 
 ```python
 import subprocess
@@ -899,8 +899,8 @@ def unique_places(vols: list[PlaceVolume]) -> list[str]:
     return sorted({v.place_name for v in vols})
 ```
 
-- [ ] **Step 4: PASS both tests.**
-- [ ] **Step 5: Commit** `"feat: VPK place extraction via VRF"`
+- [x] **Step 4: PASS both tests.**
+- [x] **Step 5: Commit** `"feat: VPK place extraction via VRF"`
 
 **Done when:** Anubis yields 62 volumes / 28 names; Ancient VPK also
 extracts (add a second `@pytest.mark.demo` assert: names non-empty and

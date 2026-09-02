@@ -5,6 +5,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 DEMO = REPO / "demos" / "1-7065ab7c-bc8f-4995-adf1-ac774327c5db-1-1.dem"
 ANUBIS_VPK = REPO / "maps" / "de_anubis" / "de_anubis.vpk"
+ANCIENT_VPK = REPO / "maps" / "de_ancient" / "de_ancient.vpk"
 VRF = REPO / "tools" / "vrf" / "Source2Viewer-CLI.exe"
 
 
@@ -20,6 +21,13 @@ def anubis_vpk() -> Path:
     if not ANUBIS_VPK.exists():
         pytest.skip("anubis vpk not present")
     return ANUBIS_VPK
+
+
+@pytest.fixture(scope="session")
+def ancient_vpk() -> Path:
+    if not ANCIENT_VPK.exists():
+        pytest.skip("ancient vpk not present")
+    return ANCIENT_VPK
 
 
 @pytest.fixture(scope="session")
