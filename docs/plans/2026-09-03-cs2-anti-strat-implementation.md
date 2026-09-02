@@ -326,7 +326,7 @@ git history started.
 - Produces: `counterstrat.constants` — `TICK_RATE=64`, `ROUND_SECONDS=115`,
   `BOMB_SECONDS=40`, `BUY_BINS` (see code), used by every later task.
 
-- [ ] **Step 1: Write `pyproject.toml`**
+- [x] **Step 1: Write `pyproject.toml`**
 
 ```toml
 [project]
@@ -371,11 +371,11 @@ addopts = "-m 'not live'"
 line-length = 100
 ```
 
-- [ ] **Step 2: Write `.gitignore`** (`.venv/`, `data/`, `tools/`,
+- [x] **Step 2: Write `.gitignore`** (`.venv/`, `data/`, `tools/`,
   `scratch/`, `demos/`, `maps/`, `.env`, `__pycache__/`, `*.parquet`) and
   `.env.example` with `ANTHROPIC_API_KEY=` and `GEMINI_API_KEY=` lines.
 
-- [ ] **Step 3: Write `src/counterstrat/constants.py`**
+- [x] **Step 3: Write `src/counterstrat/constants.py`**
 
 ```python
 """Game + pipeline constants. Sources: CS2 defaults; spec §6.5 objectives."""
@@ -397,7 +397,7 @@ BUY_BINS = {                 # upper bounds, USD equip value
 }
 ```
 
-- [ ] **Step 4: Write `tests/conftest.py`**
+- [x] **Step 4: Write `tests/conftest.py`**
 
 ```python
 from pathlib import Path
@@ -442,9 +442,9 @@ def test_constants():
     assert list(BUY_BINS) == ["full_eco", "semi_eco", "semi_buy", "full_buy"]
 ```
 
-- [ ] **Step 5: Install + run**
+- [x] **Step 5: Install + run**
 Run: `uv sync; uv run pytest -q` — expect 1 pass. `uv run ruff check .` clean.
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 `git init; git add -A; git commit -m "feat: scaffold counterstrat package"`
 (also commit the two docs under `docs/` and `docs/NEEDS-FROM-YOU.md`).
 
