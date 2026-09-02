@@ -81,7 +81,13 @@ def _sample_ticks(parser: DemoParser, rounds: pl.DataFrame, step: int = 4) -> pl
         ticks_pl.sort("tick")
         .join_asof(rounds_sub, left_on="tick", right_on="start", strategy="backward")
         .filter(pl.col("tick") <= pl.col("end"))
-        .with_columns(((pl.col("tick") - pl.col("freeze_end")) / 64.0).alias("clock_s"))
+        .with_columns(
+            ((pl.col("tick") - pl.col("freeze_end")) / 64.0).alias("clock_s"),
+            pl.when(pl.col("last_place_name") == "")
+            .then(None)
+            .otherwise(pl.col("last_place_name"))
+            .alias("last_place_name"),
+        )
         .drop(["start", "freeze_end", "end"])
     )
     return ticks_joined

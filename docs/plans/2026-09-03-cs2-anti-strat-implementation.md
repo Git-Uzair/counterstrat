@@ -724,7 +724,7 @@ the text-to-SQL tool surface for the interactive analyst).
   registering views `rounds, kills, ticks, ...` (glob over
   `lake_root/*/<table>.parquet`, so multi-demo unions are automatic).
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 from counterstrat.lake.duck import connect_lake
@@ -743,8 +743,8 @@ def test_duck_views(demo_path, tmp_path):
     assert places == 28        # verified inventory
 ```
 
-- [ ] **Step 2: fails.**
-- [ ] **Step 3: Implement**
+- [x] **Step 2: fails.**
+- [x] **Step 3: Implement**
 
 ```python
 import duckdb
@@ -765,7 +765,7 @@ def connect_lake(lake_root: Path) -> duckdb.DuckDBPyConnection:
     return con
 ```
 
-- [ ] **Step 4: PASS.**  - [ ] **Step 5: Commit** `"feat: duckdb lake views"`
+- [x] **Step 4: PASS.**  - [x] **Step 5: Commit** `"feat: duckdb lake views"`
 
 **Done when:** the two asserts above hold against the fixture lake.
 
