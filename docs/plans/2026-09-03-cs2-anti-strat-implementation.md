@@ -1340,7 +1340,7 @@ equipment values, plus round economy summary for RoundScript headers
   `cash_spent_this_round`.
 - Consumes: Task 3 ticks.
 
-- [ ] **Step 1: Failing tests** — bin edges + fixture spot check:
+- [x] **Step 1: Failing tests** — bin edges + fixture spot check:
 
 ```python
 def test_classify_buy_bins():
@@ -1357,8 +1357,8 @@ def test_round_economy_pistol(anubis_lake):
     assert econ["CT"].equip > 0
 ```
 
-- [ ] **Step 2–4: implement + PASS.**
-- [ ] **Step 5: Commit** `"feat: buy classifier + economy summary"`
+- [x] **Step 2–4: implement + PASS.**
+- [x] **Step 5: Commit** `"feat: buy classifier + economy summary"`
 
 **Done when:** pistol rounds classify eco-tier on the fixture; bins match
 `constants.BUY_BINS` exactly. **Calibration note (spec §6.7 spirit):** when
