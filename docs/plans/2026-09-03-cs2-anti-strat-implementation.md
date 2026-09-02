@@ -1478,7 +1478,7 @@ marks (spec §6.6 View B): `donk(T): TSpawn > Tunnel(20s) > ~Ruins > BombsiteB k
   else `"pack"` — a heuristic the miner refines later.
 - Consumes: Task 13 models, Task 3 ticks/kills tables.
 
-- [ ] **Step 1: Failing test** — synthetic walk with a border flicker:
+- [x] **Step 1: Failing test** — synthetic walk with a border flicker:
 
 ```python
 def test_movement_dwell_merge_and_marks():
@@ -1496,7 +1496,7 @@ def test_movement_dwell_merge_and_marks():
     assert "k(e1)" in s
 ```
 
-- [ ] **Step 2–4: implement + PASS.** - [ ] **Step 5: Commit**
+- [x] **Step 2–4: implement + PASS.** - [x] **Step 5: Commit**
   `"feat: movement sentences"`
 
 **Done when:** border flickers merge; marks land in the right visit;
