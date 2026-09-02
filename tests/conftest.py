@@ -38,6 +38,13 @@ def vrf_cli() -> Path:
 
 
 @pytest.fixture(scope="session")
+def anubis_assets(tmp_path_factory, anubis_vpk, vrf_cli):
+    from counterstrat.mapcard.vrf import extract_map_assets
+
+    return extract_map_assets(anubis_vpk, vrf_cli, tmp_path_factory.mktemp("assets"))
+
+
+@pytest.fixture(scope="session")
 def anubis_lake(tmp_path_factory, demo_path):
     from counterstrat.corpus import register_demo
     from counterstrat.lake.extract import extract_lake

@@ -1049,7 +1049,7 @@ the reader behind `NavUnsupportedError` and proceed on the fallback — the
 Map Card compiler (Task 10) accepts either source and records which one it
 used in the card metadata.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 @pytest.mark.demo
@@ -1075,13 +1075,22 @@ def test_zone_graph_synthetic():
     assert ("A", "C") not in g.edges           # no skip edges
 ```
 
-- [ ] **Step 2: fails.**
-- [ ] **Step 3: Implement `transitions.py` first** (deterministic, pure
+- [x] **Step 2: fails.**
+- [x] **Step 3: Implement `transitions.py` first** (deterministic, pure
   polars: sort by steamid, round, tick; window over consecutive rows; emit
   edge when zone changes and gap == one sample; aggregate n + median).
-- [ ] **Step 4: Implement `nav36.py` by porting** (sources above). Track
+  Sample interval is derived as the smallest positive per-player tick gap
+  (4 ticks in the fixture lake), so gaps left by dropped samples are skipped
+  rather than turned into skip edges.
+- [x] **Step 4: Implement `nav36.py` by porting** (sources above). Track
   actual v36 layout findings as comments citing the C# lines used.
-- [ ] **Step 5: PASS; commit** `"feat: nav v36 reader + demo transition graph"`
+  **v36 delta found:** two binary KV3 v5 documents (`KV3\x05`), 8-byte
+  aligned — one right after the `unk1` flags dword, one between the
+  movable-mesh table and the area table. Skipped by size from the KV3 header
+  (`BinaryKV3.ReadBuffer`) without decoding; area layout is unchanged from
+  v35. Anubis: reader returns version 36, 2,633 areas — **nav is the primary
+  source, no `NavUnsupportedError`.**
+- [x] **Step 5: PASS; commit** `"feat: nav v36 reader + demo transition graph"`
 
 **Done when:** synthetic graph test green; Anubis nav test green **or**
 reader raises `NavUnsupportedError` and the transitions fallback is the
