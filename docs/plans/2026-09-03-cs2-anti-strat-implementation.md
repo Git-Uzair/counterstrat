@@ -1430,7 +1430,7 @@ class RoundScript(BaseModel):
 - Consumes: Task 3 ticks (columns `last_place_name, team_name, is_alive,
   clock_s, round_num, name`), Task 1 `BEAT_INTERVAL_S`.
 
-- [ ] **Step 1: Failing test** (synthetic 10-player frame + fixture):
+- [x] **Step 1: Failing test** (synthetic 10-player frame + fixture):
 
 ```python
 def test_formation_rle_ordering():
@@ -1448,8 +1448,8 @@ def test_beats_round1(anubis_lake):
     assert all(b.t <= 120 for b in beats)
 ```
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement.** - [ ] **Step 4: PASS.**
-- [ ] **Step 5: Commit** `"feat: roundscript models + beat frames"`
+- [x] **Step 2: fails.** - [x] **Step 3: implement.** - [x] **Step 4: PASS.**
+- [x] **Step 5: Commit** `"feat: roundscript models + beat frames"`
 
 **Done when:** deterministic beats for fixture round 1; RLE ordering exact.
 
