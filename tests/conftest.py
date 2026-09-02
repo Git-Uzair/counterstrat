@@ -35,3 +35,13 @@ def vrf_cli() -> Path:
     if not VRF.exists():
         pytest.skip("VRF CLI not vendored (see plan Context for URL+sha256)")
     return VRF
+
+
+@pytest.fixture(scope="session")
+def anubis_lake(tmp_path_factory, demo_path):
+    from counterstrat.corpus import register_demo
+    from counterstrat.lake.extract import extract_lake
+
+    bdir = tmp_path_factory.mktemp("lake_session")
+    rec = register_demo(demo_path, bdir / "corpus.jsonl")
+    return extract_lake(rec, bdir / "lake")

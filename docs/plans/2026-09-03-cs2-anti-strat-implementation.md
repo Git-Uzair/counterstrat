@@ -973,7 +973,7 @@ z-weighted for multilevel correctness — the demo-derived mapper the spec's
   `sklearn.neighbors.KNeighborsClassifier(n_neighbors=5)`.
 - Consumes: lake `ticks` (Task 3) filtered `is_alive & last_place_name != ''`.
 
-- [ ] **Step 1: Failing test** — synthetic + held-out accuracy:
+- [x] **Step 1: Failing test** — synthetic + held-out accuracy:
 
 ```python
 def test_zone_mapper_synthetic():
@@ -998,12 +998,12 @@ def test_zone_mapper_holdout(anubis_lake):     # fixture built once per session
     assert acc >= 0.97       # spec Phase-2a exit: round-trip spot check
 ```
 
-- [ ] **Step 2: fails.**
-- [ ] **Step 3: Implement** — subsample fit input to ≤300k rows
+- [x] **Step 2: fails.**
+- [x] **Step 3: Implement** — subsample fit input to ≤300k rows
   (deterministic seed 0) for tractability; scale z by `z_scale` before fit
   and query; store `z_scale` with the model.
-- [ ] **Step 4: PASS (holdout run ~1 min).**
-- [ ] **Step 5: Commit** `"feat: KNN zone mapper"`
+- [x] **Step 4: PASS (holdout run ~1 min).**
+- [x] **Step 5: Commit** `"feat: KNN zone mapper"`
 
 **Done when:** held-out agreement ≥97% on the fixture lake; mapper
 round-trips synthetic clusters exactly.
