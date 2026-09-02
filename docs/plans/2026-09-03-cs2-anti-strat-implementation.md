@@ -1225,7 +1225,7 @@ pathfinds, spec §5.2b):
 - Token budget: `len(yaml) / 4 <= 4000` enforced by test; trim `timings`
   first, then untagged-zone alias lists, if over.
 
-- [ ] **Step 1: Failing test** — build the card for the fixture corpus:
+- [x] **Step 1: Failing test** — build the card for the fixture corpus:
 
 ```python
 @pytest.mark.demo
@@ -1248,8 +1248,8 @@ def test_card_determinism_synthetic(synthetic_bundle):
     assert a == b
 ```
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement.**
-- [ ] **Step 4: PASS.** - [ ] **Step 5: commit** `"feat: map card compiler"`
+- [x] **Step 2: fails.** - [x] **Step 3: implement.**
+- [x] **Step 4: PASS.** - [x] **Step 5: commit** `"feat: map card compiler"`
   (the web ingest job persists cards to `data/mapcards/<map>/card.yaml` in
   Task 21).
 
