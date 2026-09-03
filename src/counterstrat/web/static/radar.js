@@ -120,9 +120,13 @@
     const params = new URLSearchParams();
     if (el.side.value) params.set("side", el.side.value);
     if (el.round.value) params.set("rounds", el.round.value);
-    params.set("trail_rounds", el.trailRounds.value);
     if (selectionFilterActive()) {
+      // Tracing specific players wants their whole match, both halves - not
+      // the default 4-round window.
+      params.set("trail_rounds", "30");
       params.set("players", Array.from(state.selected).join(","));
+    } else {
+      params.set("trail_rounds", el.trailRounds.value);
     }
     const multiLevel = state.info && state.info.levels.length > 1;
     params.set("level", multiLevel ? state.level : "all");
@@ -488,9 +492,19 @@
     };
   }
 
-  function resetView() {
+  function resetZoom() {
     state.view = { k: 1, tx: 0, ty: 0 };
     draw();
+  }
+
+  function resetView() {
+    // Full reset: zoom/pan AND every filter (side, round, player selection).
+    state.view = { k: 1, tx: 0, ty: 0 };
+    state.selected = null;
+    el.side.value = "";
+    el.round.value = "";
+    hideTooltip();
+    load();
   }
 
   function onWheel(ev) {
@@ -678,7 +692,7 @@
       hideTooltip();
       onPointerUp(ev);
     });
-    el.canvas.addEventListener("dblclick", resetView);
+    el.canvas.addEventListener("dblclick", resetZoom);
     el.image.addEventListener("load", draw);
   }
 

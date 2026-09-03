@@ -188,6 +188,21 @@ def heatmap_layer(
     }
 
 
+def _spread_indices(total: int, want: int) -> list[int]:
+    """``want`` row indices spread evenly across ``total`` rows (always incl. ends).
+
+    ``head(want)`` would take the first rounds of the match - one half only -
+    so a side-agnostic view would never show the other half's trails.
+    """
+    if total <= 0 or want <= 0:
+        return []
+    if total <= want:
+        return list(range(total))
+    if want == 1:
+        return [0]
+    return sorted({round(i * (total - 1) / (want - 1)) for i in range(want)})
+
+
 def trails_layer(
     ticks: pl.LazyFrame | None, cal: RadarCalibration, scope: TeamScope, f: LayerFilters
 ) -> list[dict[str, Any]]:
@@ -196,8 +211,9 @@ def trails_layer(
         return []
 
     keep = scope.rounds.select("match_id", "round_num").unique().sort("match_id", "round_num")
-    if f.trail_rounds is not None:
-        keep = keep.head(f.trail_rounds)
+    if f.trail_rounds is not None and keep.height > f.trail_rounds:
+        idx = _spread_indices(keep.height, f.trail_rounds)
+        keep = keep.with_row_index("__i").filter(pl.col("__i").is_in(idx)).drop("__i")
     members = scope.members.join(keep, on=["match_id", "round_num"], how="semi")
     if members.is_empty():
         return []

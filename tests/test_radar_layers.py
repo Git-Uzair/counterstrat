@@ -41,6 +41,28 @@ def test_team_scope_side_filter_keeps_one_round(frames) -> None:
     assert scope.rounds.row(0, named=True)["round_num"] == 1
 
 
+def test_spread_indices_covers_both_halves() -> None:
+    """Trail sampling must span the match, not take the first N rounds."""
+    from counterstrat.radar.layers import _spread_indices
+
+    idx = _spread_indices(24, 4)
+    assert len(idx) == 4
+    assert idx[0] == 0 and idx[-1] == 23  # first and last round included
+    assert any(i >= 12 for i in idx), "second half must be represented"
+    assert _spread_indices(2, 4) == [0, 1]  # fewer rounds than requested
+    assert _spread_indices(5, 1) == [0]
+    assert _spread_indices(0, 4) == []
+
+
+def test_trails_spread_across_rounds(frames, cal) -> None:
+    """With trail_rounds=1 both fixture rounds compete; the spread picks round 1,
+    and trail_rounds=None returns every round's trails."""
+    one = build_layers(frames, cal, "teamA", LayerFilters(trail_rounds=1))["layers"]["trails"]
+    assert {t["round_num"] for t in one} == {1}
+    both = build_layers(frames, cal, "teamA", LayerFilters(trail_rounds=None))["layers"]["trails"]
+    assert {t["round_num"] for t in both} == {1, 2}
+
+
 def test_players_filter_scopes_member_layers(frames, cal) -> None:
     """Task 9: a players filter isolates one player's trails/heatmap/utility."""
     payload = build_layers(frames, cal, "teamA", LayerFilters(players=[1]))

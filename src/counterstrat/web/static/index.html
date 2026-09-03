@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
 <body>
   <div class="app-shell">
@@ -123,6 +123,8 @@
                 <option value="2">2 rounds</option>
                 <option value="4" selected>4 rounds</option>
                 <option value="8">8 rounds</option>
+                <option value="12">12 rounds</option>
+                <option value="30">All rounds</option>
               </select>
               <div id="radar-level-toggle" class="radar-level-toggle hidden">
                 <button type="button" id="radar-level-default" class="btn btn-sm btn-outline active">Upper</button>
@@ -130,7 +132,7 @@
               </div>
               <button type="button" id="radar-refresh" class="btn btn-sm btn-outline">Reload</button>
               <button type="button" id="radar-reset-view" class="btn btn-sm btn-outline"
-                      title="Reset zoom and pan (double-click the map does the same)">Reset view</button>
+                      title="Reset zoom, pan, side/round filters and player selection (double-click the map resets zoom only)">Reset view</button>
             </div>
           </div>
 
@@ -235,7 +237,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
-  <script src="/static/radar.js"></script>
+  <script src="/static/app.js?v=3"></script>
+  <script src="/static/radar.js?v=3"></script>
 </body>
 </html>
