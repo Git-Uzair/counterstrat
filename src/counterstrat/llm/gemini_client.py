@@ -30,18 +30,43 @@ def _response_payload(text: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"result": parsed}
 
 
-def _contents(turns: list[ChatTurn]) -> list[dict[str, Any]]:
-    """Normalized turns -> Gemini contents (function responses ride on user turns).
+def _synth_call_id(name: str, index: int) -> str:
+    """The id we mint when a Gemini function_call has no `id` of its own."""
+    return f"{name}:{index}"
 
-    Outbound parts carry no call ids: our ids for Gemini calls are synthesized
-    (`name:index`), and Gemini matches responses to calls by function name.
+
+def _calls_by_id(turns: list[ChatTurn]) -> dict[str, tuple[str, str | None]]:
+    """tool_call_id -> (function name, provider call id or None) from the calling turns.
+
+    A tool turn carries only `tool_call_id`, so the function name a
+    function_response must name comes from the assistant turn that requested the
+    call. Ids matching `_synth_call_id` are ours, not the provider's, and are not
+    echoed back; a populated `FunctionCall.id` is, since Gemini matches responses
+    to calls by id whenever the model sends one.
     """
+    lookup: dict[str, tuple[str, str | None]] = {}
+    for turn in turns:
+        for index, call in enumerate(turn.tool_calls):
+            provider_id = None if call.id == _synth_call_id(call.name, index) else call.id
+            lookup[call.id] = (call.name, provider_id)
+    return lookup
+
+
+def _contents(turns: list[ChatTurn]) -> list[dict[str, Any]]:
+    """Normalized turns -> Gemini contents (function responses ride on user turns)."""
+    lookup = _calls_by_id(turns)
     contents: list[dict[str, Any]] = []
     prev_tool = False
     for turn in turns:
         if turn.role == "tool":
-            name = (turn.tool_call_id or "").rsplit(":", 1)[0]
-            part = {"function_response": {"name": name, "response": _response_payload(turn.text)}}
+            call_id = turn.tool_call_id or ""
+            # No calling turn in `turns` (a bare tool turn): fall back to our own id form.
+            name, provider_id = lookup.get(call_id, (call_id.rsplit(":", 1)[0], None))
+            response: dict[str, Any] = {"name": name}
+            if provider_id:
+                response["id"] = provider_id
+            response["response"] = _response_payload(turn.text)
+            part = {"function_response": response}
             if prev_tool:
                 contents[-1]["parts"].append(part)
             else:
@@ -55,8 +80,11 @@ def _contents(turns: list[ChatTurn]) -> list[dict[str, Any]]:
         parts: list[dict[str, Any]] = []
         if turn.text:
             parts.append({"text": turn.text})
-        for call in turn.tool_calls:
-            parts.append({"function_call": {"name": call.name, "args": call.arguments}})
+        for index, call in enumerate(turn.tool_calls):
+            function_call: dict[str, Any] = {"name": call.name, "args": call.arguments}
+            if call.id != _synth_call_id(call.name, index):
+                function_call["id"] = call.id
+            parts.append({"function_call": function_call})
         contents.append({"role": "model", "parts": parts})
     return contents
 
@@ -198,7 +226,7 @@ class GeminiClient:
             name = fc.get("name") or ""
             calls.append(
                 ToolCall(
-                    id=fc.get("id") or f"{name}:{len(calls)}",
+                    id=fc.get("id") or _synth_call_id(name, len(calls)),
                     name=name,
                     arguments=fc.get("args") or {},
                 )

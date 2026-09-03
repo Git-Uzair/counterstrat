@@ -218,7 +218,7 @@ def test_gemini_chat_tool_roundtrip():
     turn, _ = client.chat(system="s", turns=[ChatTurn(role="user", text="q")], tools=[TOOL])
     assert turn.tool_calls and turn.tool_calls[0].name == "get_tendency"
     assert turn.tool_calls[0].arguments == {"team": "NAVI", "metric": "site_split"}
-    # Gemini function calls carry no id in the response: we synthesize name:index.
+    # This fixture's function_call carries no id, so we synthesize name:index.
     assert turn.tool_calls[0].id == "get_tendency:0"
     assert transport.requests[0]["config"]["tools"] == [
         {
@@ -248,6 +248,31 @@ def test_gemini_chat_tool_roundtrip():
     }
     assert contents[2]["parts"] == [
         {"function_response": {"name": "get_tendency", "response": {"rows": []}}}
+    ]
+
+
+def test_gemini_chat_tool_roundtrip_with_provider_call_id():
+    """A populated FunctionCall.id must not displace the function name on the way back."""
+    transport = ReplayTransport("gemini_chat_tool_use_id", "gemini_chat_final")
+    client = GeminiClient(api_key="k", model="m", transport=transport)
+    turn, _ = client.chat(system="s", turns=[ChatTurn(role="user", text="q")], tools=[TOOL])
+    assert turn.tool_calls and turn.tool_calls[0].name == "get_tendency"
+    assert turn.tool_calls[0].id == "fc_9xyz"
+
+    turns = [
+        ChatTurn(role="user", text="q"),
+        turn,
+        ChatTurn(role="tool", tool_call_id=turn.tool_calls[0].id, text='{"rows": []}'),
+    ]
+    client.chat(system="s", turns=turns, tools=[TOOL])
+
+    contents = transport.requests[1]["contents"]
+    assert [c["role"] for c in contents] == ["user", "model", "user"]
+    assert contents[1]["parts"][1] == {
+        "function_call": {"name": "get_tendency", "args": {"team": "NAVI"}, "id": "fc_9xyz"}
+    }
+    assert contents[2]["parts"] == [
+        {"function_response": {"name": "get_tendency", "id": "fc_9xyz", "response": {"rows": []}}}
     ]
 
 
