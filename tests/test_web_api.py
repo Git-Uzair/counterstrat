@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 
+import polars as pl
 import pytest
 import zstandard
 from fastapi.testclient import TestClient
@@ -55,6 +56,9 @@ def test_upload_ingest_end_to_end(client_app: TestClient, demo_path: Path):
     assert state["stage"] == "done" and state["map_name"] == "de_anubis"
     teams = client_app.get("/api/teams").json()
     assert len(teams) == 2 and all(t["rounds"] > 0 for t in teams)
+    assert all("map_stats" in t and "de_anubis" in t["map_stats"] for t in teams)
+    assert all(t["map_stats"]["de_anubis"]["rounds"] == t["rounds"] for t in teams)
+    assert all(t["map_stats"]["de_anubis"]["demos"] == t["demos"] for t in teams)
     tb = client_app.get(f"/api/teams/{teams[0]['team_key']}/de_anubis/teambook")
     assert tb.status_code == 200
 
@@ -208,3 +212,71 @@ def test_find_vpk_and_vrf_from_other_working_directory(
 
     found_vrf = _find_vrf_cli()
     assert found_vrf == vrf_file
+
+
+def test_list_teams_map_stats(client_app: TestClient, test_cfg: AppConfig):
+    from counterstrat.corpus import DemoRecord
+
+    rec1 = DemoRecord(
+        match_id="m1",
+        path="/fake/m1.dem",
+        map_name="de_anubis",
+        patch_version="14178",
+        demo_version_guid="guid1",
+        server_name="Server1",
+        registered_at="2026-09-03T00:00:00Z",
+    )
+    rec2 = DemoRecord(
+        match_id="m2",
+        path="/fake/m2.dem",
+        map_name="de_mirage",
+        patch_version="14178",
+        demo_version_guid="guid2",
+        server_name="Server2",
+        registered_at="2026-09-03T00:00:00Z",
+    )
+    corpus_file = test_cfg.data_root / "corpus.jsonl"
+    corpus_file.write_text(
+        rec1.model_dump_json() + "\n" + rec2.model_dump_json() + "\n",
+        encoding="utf-8",
+    )
+
+    lake_m1 = test_cfg.data_root / "lake" / "m1"
+    lake_m1.mkdir(parents=True, exist_ok=True)
+    df_m1 = pl.DataFrame(
+        {
+            "team_key": ["team_a", "team_a", "team_b"],
+            "clan_name": ["Team Alpha", "Team Alpha", "Team Beta"],
+            "round_num": [1, 2, 1],
+        }
+    )
+    df_m1.write_parquet(lake_m1 / "rosters.parquet")
+
+    lake_m2 = test_cfg.data_root / "lake" / "m2"
+    lake_m2.mkdir(parents=True, exist_ok=True)
+    df_m2 = pl.DataFrame(
+        {
+            "team_key": ["team_a", "team_c"],
+            "clan_name": ["Team Alpha", "Team Gamma"],
+            "round_num": [1, 1],
+        }
+    )
+    df_m2.write_parquet(lake_m2 / "rosters.parquet")
+
+    r = client_app.get("/api/teams")
+    assert r.status_code == 200
+    teams_by_key = {t["team_key"]: t for t in r.json()}
+
+    team_a = teams_by_key["team_a"]
+    assert team_a["demos"] == 2
+    assert team_a["rounds"] == 3
+    assert "map_stats" in team_a
+    assert team_a["map_stats"]["de_anubis"] == {"demos": 1, "rounds": 2}
+    assert team_a["map_stats"]["de_mirage"] == {"demos": 1, "rounds": 1}
+
+    team_b = teams_by_key["team_b"]
+    assert team_b["demos"] == 1
+    assert team_b["rounds"] == 1
+    assert "map_stats" in team_b
+    assert team_b["map_stats"]["de_anubis"] == {"demos": 1, "rounds": 1}
+    assert "de_mirage" not in team_b["map_stats"]

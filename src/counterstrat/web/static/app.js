@@ -267,6 +267,7 @@
 
       maps.forEach(function (mapName) {
         totalPairs++;
+        const mStats = (team.map_stats && team.map_stats[mapName]) || { rounds: team.rounds, demos: team.demos };
         const card = document.createElement("div");
         card.className = "team-card";
         card.dataset.teamKey = team.team_key;
@@ -278,8 +279,8 @@
             <span class="team-card-map">${escapeHtml(mapName)}</span>
           </div>
           <div class="team-card-stats">
-            <span class="stat-tag"><strong class="stat-n">n=${team.rounds}</strong> rounds</span>
-            <span class="stat-tag">${team.demos} demo${team.demos === 1 ? "" : "s"}</span>
+            <span class="stat-tag"><strong class="stat-n">n=${mStats.rounds}</strong> rounds</span>
+            <span class="stat-tag">${mStats.demos} demo${mStats.demos === 1 ? "" : "s"}</span>
           </div>
         `;
 
@@ -305,9 +306,11 @@
     state.currentMapName = mapName;
     state.currentTeamData = team;
 
+    const mStats = (team.map_stats && team.map_stats[mapName]) || { rounds: team.rounds, demos: team.demos };
+
     // Update Header
     el.targetTitle.textContent = `${displayName} - ${mapName}`;
-    el.targetMeta.innerHTML = `Sample size: <strong class="stat-n">n = ${team.rounds} rounds</strong> across ${team.demos} demo${team.demos === 1 ? "" : "s"} (${escapeHtml(team.team_key)})`;
+    el.targetMeta.innerHTML = `Sample size: <strong class="stat-n">n = ${mStats.rounds} rounds</strong> across ${mStats.demos} demo${mStats.demos === 1 ? "" : "s"} (${escapeHtml(team.team_key)})`;
 
     // Enable Dossier button
     el.dossierBtn.disabled = false;

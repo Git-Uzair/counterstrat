@@ -219,6 +219,7 @@ def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
             "maps": set(),
             "demos": set(),
             "rounds": set(),
+            "map_stats": defaultdict(lambda: {"demos": set(), "rounds": set()}),
         }
     )
 
@@ -239,9 +240,11 @@ def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
                     entry["names"].add(str(clan).strip())
                 entry["maps"].add(rec.map_name)
                 entry["demos"].add(match_id)
+                entry["map_stats"][rec.map_name]["demos"].add(match_id)
                 r_num = row.get("round_num")
                 if r_num is not None:
                     entry["rounds"].add((match_id, r_num))
+                    entry["map_stats"][rec.map_name]["rounds"].add((match_id, r_num))
         except Exception:  # noqa: BLE001, S112
             continue
 
@@ -255,6 +258,13 @@ def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
                 "maps": sorted(data["maps"]),
                 "demos": len(data["demos"]),
                 "rounds": len(data["rounds"]),
+                "map_stats": {
+                    m: {
+                        "demos": len(s["demos"]),
+                        "rounds": len(s["rounds"]),
+                    }
+                    for m, s in data["map_stats"].items()
+                },
             }
         )
     return result
