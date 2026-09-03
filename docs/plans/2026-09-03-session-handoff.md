@@ -81,6 +81,21 @@ once already.
 > Every LLM prompt (chat/dossier/First Read) now embeds
 > `format_zone_map(map_zone_anchors(...))` - the editor's exact source -
 > renamed to user callouts at the existing boundary. Item 4 debts remain.
+>
+> **Update 2 (same day): custom callout zones landed** (plan
+> `docs/plans/2026-09-03-custom-callout-zones.md`, commits 5bb0f66..adb4647,
+> 320 tests green). Users point at the radar (+ Add callout) and name a
+> spot; the zone is a world-space sphere in `data/mapcards/<map>/zones.json`
+> (`customzones.py`), grounded by nearby tick Z, validated against game
+> zones/aliases/overlaps. Saving triggers a background job
+> (`rebuild_map_zones`): ticks re-zoned in place (`last_place_name` =
+> effective, `place_default` preserves game names - idempotent, reversible),
+> card recompiled (vocabulary unions VPK places + effective + default tick
+> places), scripts re-serialized, teambooks re-mined, per-map
+> `dossier.md`/`insights.json` deleted. duckdb views now
+> `union_by_name=true`. Custom zones anchor at the USER'S click point in
+> both the editor and `format_zone_map`. Measured rebuild: 5.1s per match
+> (real anubis demo, e2e test prints it).
 
 ## OPEN ISSUES - pick up here
 
