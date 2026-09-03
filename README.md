@@ -70,7 +70,7 @@ The application starts on `http://127.0.0.1:8710`.
    - *"What are their early round defaults on T side?"*
    - *"Where do they throw smokes on B site?"*
    
-   The ReAct analyst agent uses inspection tools (`search_tendencies`, `get_round_script`, `sql_query`, `inspect_utility`) to retrieve verified evidence, cites specific `match:round` examples, and reports exact sample sizes.
+   The ReAct analyst agent uses inspection tools (`get_tendencies`, `get_playbook`, `get_utility_book`, `get_gap_report`, `get_economy_read`, `get_player_profile`, `list_rounds`, `get_round_script`, `get_role_cards`, `sql_query`) to retrieve verified evidence, cites specific `match:round` examples, and reports exact sample sizes.
 6. **Download Dossier**: Click **Generate Dossier** to produce and download a structured Markdown scouting dossier (`.md`) summarizing defaults, setups, execute timing, economy patterns, and counter-strat recommendations.
 
 ---
@@ -160,4 +160,4 @@ Aggregates round scripts across matches into structured opponent `TeamBook` reco
 Provides unified client abstraction for Anthropic Claude (with prompt caching and structured outputs) and Google Gemini. Manages token budget guards, per-round prediction evaluations, and automated scouting dossier generation verified against AST and markdown linters.
 
 ### 6. Web (`counterstrat.web`)
-FastAPI application serving a responsive HTML5/CSS3 frontend. Includes background ingestion queues, REST endpoints for matches and dossiers, settings management, and a multi-turn ReAct analyst chat agent equipped with analytical tools (`search_tendencies`, `get_round_script`, `sql_query`, `inspect_utility`).
+FastAPI application serving a responsive HTML5/CSS3 frontend. Includes background ingestion queues, REST endpoints for matches, scout briefs and dossiers, settings management, a zoomable radar viewer with per-player tracing, and a multi-turn ReAct analyst chat agent equipped with analytical tools (`get_tendencies`, `get_playbook`, `get_utility_book`, `get_gap_report`, `get_economy_read`, `get_player_profile`, `list_rounds`, `get_round_script`, `get_role_cards`, `sql_query`).

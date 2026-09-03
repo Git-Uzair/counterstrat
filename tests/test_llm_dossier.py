@@ -179,6 +179,7 @@ def test_prompt_construction():
         "Identity & Overview",
         "Defaults & Roles",
         "Execute Repertoire with Counters",
+        "Gaps & Triggers",
         "Economy Policy with Exploit",
         "Player-Specific Weaknesses",
         "Round-State Playbook Table",
@@ -186,12 +187,33 @@ def test_prompt_construction():
     ]
     for sec in required_sections:
         assert sec in system_prompt
+    assert "Exploit:" in system_prompt
 
     exemplars = select_exemplars(teambook, scripts, cap=6)
     user_prompt = build_user(teambook, exemplars)
     assert teambook.team_key in user_prompt
     assert "## Exemplar Round Scripts" in user_prompt
     assert f"Round {exemplars[0].match_id}:{exemplars[0].round_num}" in user_prompt
+
+
+def test_build_user_includes_mined_artifacts():
+    from counterstrat.mining.econ_policy import build_econ_policy
+    from counterstrat.mining.gaps import build_gap_report
+    from counterstrat.mining.utility_book import build_utility_book
+
+    scripts, teambook, _, _ = _mk_synthetic_bundle()
+    user_prompt = build_user(
+        teambook,
+        [],
+        utility_book=build_utility_book(scripts, teambook.team_key),
+        gap_report=build_gap_report(scripts, teambook.team_key),
+        econ_policy=build_econ_policy(scripts, teambook.team_key),
+    )
+    assert "## Utility Book (top patterns)" in user_prompt
+    assert "## Economy Policy" in user_prompt
+    # Gap findings need >= 3 rounds per (side, window, zone); the synthetic
+    # bundle carries plants so at least a base coverage section appears.
+    assert "## Gap Findings" in user_prompt
 
 
 def test_dossier_lint_catches_fabrication():
@@ -300,11 +322,11 @@ def test_live_dossier():
         "Identity & Overview",
         "Defaults & Roles",
         "Execute Repertoire with Counters",
+        "Gaps & Triggers",
         "Economy Policy with Exploit",
         "Player-Specific Weaknesses",
         "Round-State Playbook Table",
         "Confidence & Evidence Appendix",
     ]
     for sec in required_sections:
-        assert sec.lower() in dossier.text.lower(), f"Missing section: {sec}"
         assert sec.lower() in dossier.text.lower(), f"Missing section: {sec}"

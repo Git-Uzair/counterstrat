@@ -1,6 +1,9 @@
 """System and user prompt construction and exemplar round selection for LLM scouting dossiers."""
 
+from counterstrat.mining.econ_policy import EconPolicy
+from counterstrat.mining.gaps import GapReport
 from counterstrat.mining.tendencies import TeamBook
+from counterstrat.mining.utility_book import UtilityBook
 from counterstrat.roundscript.models import RoundScript
 
 
@@ -13,20 +16,24 @@ def build_system(card_yaml: str) -> str:
 </map_card>
 
 Output Contract & Required Sections:
-You must structure the dossier using the following exact seven sections:
+You must structure the dossier using the following exact eight sections:
 1. Identity & Overview
 2. Defaults & Roles
 3. Execute Repertoire with Counters
-4. Economy Policy with Exploit
-5. Player-Specific Weaknesses
-6. Round-State Playbook Table
-7. Confidence & Evidence Appendix
+4. Gaps & Triggers
+5. Economy Policy with Exploit
+6. Player-Specific Weaknesses
+7. Round-State Playbook Table
+8. Confidence & Evidence Appendix
 
 Mandatory Rules:
+- Exploit-first: open every section with a single bold **Exploit:** sentence - the one
+  thing an IGL should do with that section - before any analysis.
 - Zone formatting: Wrap EVERY zone name in backticks, e.g. `Middle`, `BombsiteA`. Only use valid zones defined in the Map Card. Do NOT invent zone names.
 - Evidence citations: You must cite evidence as `match_id:round_num` (e.g. `deadbeefcafe1234:7`) for every specific pattern, round outcome, or tactical claim.
 - Frequencies: Quote frequencies and percentages verbatim from the TeamBook profile. Do not round differently or hallucinate numbers.
-- Sample sizes & confidence: Explicitly hedge any tendency marked `low_n` or based on a small sample size.
+- Sample sizes & confidence: Explicitly hedge any tendency marked `low_n` or based on a small sample size, and prefer rows marked signal over noise rows.
+- Gaps & Triggers: build section 4 from the Gap Findings data (zone, beat window, trigger, lift); when no finding exists, say the defense shows no systematic hole at 15s resolution.
 - Timings: Express round timings in seconds (e.g. 15s, 45s) rather than MM:SS notation to prevent citation ambiguity.
 """
 
@@ -117,8 +124,14 @@ def select_exemplars(
     return [script_map[eid] for eid in selected_ids]
 
 
-def build_user(teambook: TeamBook, exemplars: list[RoundScript]) -> str:
-    """Build the user turn containing the TeamBook tables, sentences, and exemplar scripts."""
+def build_user(
+    teambook: TeamBook,
+    exemplars: list[RoundScript],
+    utility_book: UtilityBook | None = None,
+    gap_report: GapReport | None = None,
+    econ_policy: EconPolicy | None = None,
+) -> str:
+    """Build the user turn: TeamBook tables, mined artifacts, and exemplar scripts."""
     sections = [
         "## Team Profile & Tendencies",
         teambook.to_table_text(),
@@ -126,8 +139,32 @@ def build_user(teambook: TeamBook, exemplars: list[RoundScript]) -> str:
         "## Key Tendency Summaries",
         "\n".join(f"- {s}" for s in teambook.to_sentences()),
         "",
-        "## Exemplar Round Scripts",
     ]
+    if utility_book is not None and utility_book.patterns:
+        sections.append("## Utility Book (top patterns)")
+        for p in utility_book.top_patterns(limit=10):
+            lineup = f" [{p.lineup_id}]" if p.lineup_id else ""
+            sections.append(
+                f"- {p.side} {p.nade} -> `{p.to_zone}`{lineup}: {p.count}/{p.rounds_seen} rounds, "
+                f"median {p.median_t:.0f}s (evidence: {', '.join(p.evidence[:3])})"
+            )
+        sections.append("")
+    if gap_report is not None and gap_report.findings:
+        sections.append("## Gap Findings")
+        for f in gap_report.findings[:12]:
+            sections.append(
+                f"- {f.side} vacate `{f.zone}` at {f.window} on '{f.trigger}': "
+                f"{f.vacancy_rate:.0%} of {f.n} rounds (baseline {f.baseline_rate:.0%}, "
+                f"lift {f.lift:+.0%}; evidence: {', '.join(f.evidence[:3])})"
+            )
+        sections.append("")
+    if econ_policy is not None and econ_policy.policy:
+        sections.append("## Economy Policy")
+        for state, dist in econ_policy.policy.items():
+            dist_str = ", ".join(f"{b} {p:.0%}" for b, p in dist.items())
+            sections.append(f"- {state} (n={econ_policy.ns.get(state, 0)}): {dist_str}")
+        sections.append("")
+    sections.append("## Exemplar Round Scripts")
     if exemplars:
         for s in exemplars:
             sections.append(f"### Round {s.match_id}:{s.round_num}")

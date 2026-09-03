@@ -9,7 +9,10 @@ from counterstrat.llm.base import LLMClient, LLMResult
 from counterstrat.llm.prompts import build_system, build_user, select_exemplars
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
+from counterstrat.mining.econ_policy import build_econ_policy
+from counterstrat.mining.gaps import build_gap_report
 from counterstrat.mining.tendencies import TeamBook
+from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
 
 
@@ -157,7 +160,13 @@ def generate(
     """Generate a scouting dossier and enforce anti-hallucination gate with single retry."""
     exemplars = select_exemplars(teambook, scripts, cap=12)
     system = build_system(card.to_yaml())
-    user = build_user(teambook, exemplars)
+    user = build_user(
+        teambook,
+        exemplars,
+        utility_book=build_utility_book(scripts, teambook.team_key),
+        gap_report=build_gap_report(scripts, teambook.team_key),
+        econ_policy=build_econ_policy(scripts, teambook.team_key),
+    )
     valid_evidence = {f"{s.match_id}:{s.round_num}" for s in scripts}
 
     result = client.complete(system=system, user=user)
