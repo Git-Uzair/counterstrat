@@ -77,6 +77,22 @@ def test_static_app_js(client_app: TestClient) -> None:
     assert 'method: "DELETE"' in resp.text
 
 
+def test_callouts_view_static(client_app: TestClient) -> None:
+    """Feature B: the callout editor view and its script."""
+    html = client_app.get("/").text
+    for token in [
+        'id="tab-callouts"',
+        'id="callouts-view"',
+        'id="callouts-map"',
+        'id="callouts-table"',
+        "callouts.js",
+    ]:
+        assert token in html, f"missing {token}"
+    js = client_app.get("/static/callouts.js").text
+    assert "/api/maps" in js and "/aliases" in js
+    assert "callout-label" in js
+
+
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
     resp = client_app.get("/static/style.css")
     assert resp.status_code == 200

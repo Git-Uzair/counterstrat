@@ -11,6 +11,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from counterstrat.aliases import load_renamer
 from counterstrat.config import AppConfig
 from counterstrat.lake.duck import connect_lake
 from counterstrat.llm.agent import AgentReply, run_agent
@@ -317,6 +318,7 @@ def _build_session(
             lexicon = build_lexicon(map_name, all_places, None)
 
     script_list = list(scripts.values())
+    renamer = load_renamer(cfg.data_root, map_name)
     ctx = SessionContext(
         team_key=team_key,
         map_name=map_name,
@@ -328,12 +330,13 @@ def _build_session(
         utility_book=build_utility_book(script_list, team_key),
         gap_report=build_gap_report(script_list, team_key),
         econ_policy=build_econ_policy(script_list, team_key),
+        renamer=renamer if renamer else None,
     )
     return ChatSession(
         session_id=session_id,
         team_key=team_key,
         map_name=map_name,
-        system=_system_prompt(card, teambook),
+        system=renamer.rename_text(_system_prompt(card, teambook)),
         ctx=ctx,
     )
 

@@ -72,7 +72,13 @@ def run_agent(
         final_text = assistant_turn.text or ""
 
     # Soft mode: surface fabricated zones/citations as warnings, never retry or block.
-    lint = lint_dossier(final_text, ctx.teambook, ctx.lexicon, set(ctx.scripts.keys()))
+    lint = lint_dossier(
+        final_text,
+        ctx.teambook,
+        ctx.lexicon,
+        set(ctx.scripts.keys()),
+        aliases=ctx.renamer.aliases if ctx.renamer else None,
+    )
     warnings = [f"Unknown zone: {z}" for z in lint.unknown_zones]
     warnings += [f"Bad citation: {c}" for c in lint.bad_citations]
 

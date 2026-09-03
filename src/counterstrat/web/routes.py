@@ -24,6 +24,7 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
+from counterstrat.aliases import alias_fingerprint, load_aliases, load_renamer, save_aliases
 from counterstrat.config import AppConfig
 from counterstrat.corpus import load_manifest
 from counterstrat.mapcard.compile import MapCard
@@ -275,7 +276,9 @@ def get_scout_brief(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, A
             status_code=404, detail=f"Scout brief for {team_key} on {map_name} not found"
         )
     try:
-        return json.loads(brief_path.read_text(encoding="utf-8"))
+        raw = brief_path.read_text(encoding="utf-8")
+        # Serve in the user's callout vocabulary (stored artifacts stay canonical).
+        return json.loads(load_renamer(cfg.data_root, map_name).rename_text(raw))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to read scout brief: {exc}") from exc
 
@@ -359,12 +362,17 @@ def get_insights(
             status_code=404, detail=f"TeamBook for {team_key} on {map_name} not found"
         )
     teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
+    alias_fp = alias_fingerprint(load_aliases(cfg.data_root, map_name))
 
     cache_path = tb_path.parent / "insights.json"
     if cache_path.exists():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
-            if cached.get("generated_from") == list(teambook.generated_from) and generate != "1":
+            fresh = (
+                cached.get("generated_from") == list(teambook.generated_from)
+                and cached.get("alias_fp", alias_fingerprint({})) == alias_fp
+            )
+            if fresh and generate != "1":
                 return cached
         except Exception as exc:  # noqa: BLE001 - a torn cache regenerates below
             logger.warning("Unreadable insights cache %s: %s", cache_path, exc)
@@ -387,6 +395,7 @@ def get_insights(
             "generated_from": list(teambook.generated_from),
             "games": [{"label": labels[mid], "match_id": mid} for mid in teambook.generated_from],
             "model": "mock",
+            "alias_fp": alias_fp,
         }
         cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return payload
@@ -415,6 +424,7 @@ def get_insights(
             scripts=scripts,
             lexicon=lex,
             game_labels=_game_labels(cfg, team_key, teambook, scripts),
+            renamer=load_renamer(cfg.data_root, map_name),
         )
     except HTTPException:
         raise
@@ -429,9 +439,99 @@ def get_insights(
         "generated_from": insights.generated_from,
         "games": insights.games,
         "model": insights.usage.model,
+        "alias_fp": alias_fp,
     }
     cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
+
+
+# --- Callouts: user-defined zone names (feature B) ---
+
+
+@router.get("/maps")
+def list_maps(cfg: ConfigDep) -> list[str]:
+    """Maps with a compiled card - the ones whose callouts can be edited."""
+    root = cfg.data_root / "mapcards"
+    if not root.exists():
+        return []
+    return sorted(p.parent.name for p in root.glob("*/card.yaml"))
+
+
+def _zone_positions(cfg: AppConfig, map_name: str, zones: list[str]) -> dict[str, tuple]:
+    """Zone label anchors as normalized (u, v): mean alive tick position per zone."""
+    from counterstrat.radar.coords import game_to_norm
+    from counterstrat.radar.extract import load_cached_assets
+
+    assets = load_cached_assets(cfg.data_root, map_name)
+    if assets is None:
+        return {}
+    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
+    out: dict[str, tuple] = {}
+    for match_id, rec in sorted(manifest.items()):
+        if rec.map_name != map_name:
+            continue
+        ticks_path = cfg.data_root / "lake" / match_id / "ticks.parquet"
+        if not ticks_path.exists():
+            continue
+        try:
+            df = pl.read_parquet(ticks_path, columns=["X", "Y", "last_place_name", "is_alive"])
+            centroids = (
+                df.filter(pl.col("is_alive") & pl.col("last_place_name").is_in(zones))
+                .group_by("last_place_name")
+                .agg(pl.col("X").mean(), pl.col("Y").mean())
+            )
+            for row in centroids.iter_rows(named=True):
+                u, v = game_to_norm(assets.calibration, row["X"], row["Y"])
+                if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
+                    out[row["last_place_name"]] = (round(u, 4), round(v, 4))
+            if out:
+                return out
+        except Exception as exc:  # noqa: BLE001 - positions are a nicety, not a requirement
+            logger.warning("Zone positions unavailable from %s: %s", ticks_path, exc)
+    return out
+
+
+@router.get("/maps/{map_name}/callouts")
+def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
+    """Every zone with its game name, the user's alias (if any), and a label anchor."""
+    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
+    card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+    zones = sorted((card_data.get("zones") or {}).keys())
+    aliases = load_aliases(cfg.data_root, map_name)
+    positions = _zone_positions(cfg, map_name, zones)
+    return {
+        "map_name": map_name,
+        "zones": [
+            {
+                "name": z,
+                "alias": aliases.get(z),
+                "u": positions.get(z, (None, None))[0],
+                "v": positions.get(z, (None, None))[1],
+            }
+            for z in zones
+        ],
+    }
+
+
+class AliasUpdateRequest(BaseModel):
+    aliases: dict[str, str]
+
+
+@router.put("/maps/{map_name}/aliases")
+def put_aliases(map_name: str, req: AliasUpdateRequest, cfg: ConfigDep) -> dict[str, Any]:
+    """Persist the user's callouts; empty values remove an alias."""
+    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
+    card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+    valid_zones = set((card_data.get("zones") or {}).keys())
+    try:
+        saved = save_aliases(cfg.data_root, map_name, req.aliases, valid_zones)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"map_name": map_name, "aliases": saved}
 
 
 @router.get("/reports/{team_key}/{map_name}")
@@ -461,7 +561,9 @@ def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = 
         from counterstrat.llm.dossier import generate as generate_dossier
 
         client = make_client(cfg)
-        dossier = generate_dossier(client, card, teambook, scripts, lex)
+        dossier = generate_dossier(
+            client, card, teambook, scripts, lex, renamer=load_renamer(cfg.data_root, map_name)
+        )
         dossier_path.parent.mkdir(parents=True, exist_ok=True)
         dossier_path.write_text(dossier.text, encoding="utf-8")
         return Response(content=dossier.text, media_type="text/markdown")

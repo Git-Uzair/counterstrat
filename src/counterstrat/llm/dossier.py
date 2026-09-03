@@ -38,8 +38,16 @@ def lint_dossier(
     teambook: TeamBook,
     lex: Lexicon,
     valid_evidence: set[str] | Sequence[str],
+    aliases: dict[str, str] | None = None,
 ) -> DossierLint:
-    """Audit a generated scouting dossier for fabricated zones, citations, or frequencies."""
+    """Audit a generated scouting dossier for fabricated zones, citations, or frequencies.
+
+    With ``aliases`` (canonical -> user callout) the valid vocabulary flips: the
+    user's callout is accepted and the renamed canonical is rejected, because
+    the model was never shown it (single-vocabulary rule).
+    """
+    aliases = aliases or {}
+    alias_values = set(aliases.values())
     valid_evidence_set = set(valid_evidence)
     unknown_zones: list[str] = []
     bad_citations: list[str] = []
@@ -54,12 +62,13 @@ def lint_dossier(
         # Check if single titlecase/PascalCase word of length >= 2
         if re.match(r"^[A-Z][A-Za-z0-9]+$", tok):
             # Allowed if valid zone, known player, lineup id pattern, team key, or side
-            is_zone = tok in lex.zones or lex.is_valid_zone(tok)
+            is_zone = tok not in aliases and (tok in lex.zones or lex.is_valid_zone(tok))
+            is_alias = tok in alias_values
             is_player = tok in player_names
             is_lineup = any(tag in tok for tag in ("-S", "-F", "-M", "-H"))
             is_team_or_side = tok in (teambook.team_key, "CT", "T")
             if (
-                not (is_zone or is_player or is_lineup or is_team_or_side)
+                not (is_zone or is_alias or is_player or is_lineup or is_team_or_side)
                 and tok not in unknown_zones
             ):
                 unknown_zones.append(tok)
@@ -156,6 +165,7 @@ def generate(
     teambook: TeamBook,
     scripts: list[RoundScript],
     lex: Lexicon,
+    renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
 ) -> Dossier:
     """Generate a scouting dossier and enforce anti-hallucination gate with single retry."""
     exemplars = select_exemplars(teambook, scripts, cap=12)
@@ -167,10 +177,14 @@ def generate(
         gap_report=build_gap_report(scripts, teambook.team_key),
         econ_policy=build_econ_policy(scripts, teambook.team_key),
     )
+    if renamer:
+        system = renamer.rename_text(system)
+        user = renamer.rename_text(user)
+    aliases = renamer.aliases if renamer else None
     valid_evidence = {f"{s.match_id}:{s.round_num}" for s in scripts}
 
     result = client.complete(system=system, user=user)
-    lint = lint_dossier(result.text, teambook, lex, valid_evidence)
+    lint = lint_dossier(result.text, teambook, lex, valid_evidence, aliases=aliases)
 
     if not lint.ok:
         # Retry once with feedback
@@ -185,7 +199,7 @@ def generate(
         retry_user = f"{user}\n\nPrevious draft had errors:\n{error_msg}\nPlease fix and rewrite."
 
         retry_result = client.complete(system=system, user=retry_user)
-        lint = lint_dossier(retry_result.text, teambook, lex, valid_evidence)
+        lint = lint_dossier(retry_result.text, teambook, lex, valid_evidence, aliases=aliases)
         combined_usage = LLMResult(
             text=retry_result.text,
             input_tokens=result.input_tokens + retry_result.input_tokens,

@@ -166,7 +166,9 @@ def build_insights_user(
     return "\n".join(sections)
 
 
-_GAME_CITE_RE = re.compile(r"Game\s+(\d+)\s*,?\s*rounds?\s+(\d[\d,\s]*(?:and\s+\d+)?)", re.IGNORECASE)
+_GAME_CITE_RE = re.compile(
+    r"Game\s+(\d+)\s*,?\s*rounds?\s+(\d[\d,\s]*(?:and\s+\d+)?)", re.IGNORECASE
+)
 _HASH_RE = re.compile(r"\b[0-9a-f]{12,}\b")
 
 
@@ -205,6 +207,7 @@ def generate_insights(
     scripts: list[RoundScript],
     lexicon: Lexicon,
     game_labels: dict[str, str] | None = None,
+    renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
     max_tokens: int | None = None,  # None = the model's own maximum: never cut analysis short
 ) -> Insights:
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
@@ -218,10 +221,19 @@ def generate_insights(
         scripts=scripts,
         game_labels=labels,
     )
+    if renamer:
+        system = renamer.rename_text(system)
+        user = renamer.rename_text(user)
     result = client.complete(system=system, user=user, max_tokens=max_tokens)
 
     valid_evidence = {f"{s.match_id}:{s.round_num}" for s in scripts}
-    lint = lint_dossier(result.text, teambook, lexicon, valid_evidence)
+    lint = lint_dossier(
+        result.text,
+        teambook,
+        lexicon,
+        valid_evidence,
+        aliases=renamer.aliases if renamer else None,
+    )
     warnings = [f"Unknown zone: {z}" for z in lint.unknown_zones]
     warnings += _check_friendly_citations(result.text, list(teambook.generated_from), scripts)
     if result.truncated:

@@ -73,6 +73,8 @@
             <button type="button" id="tab-chat" class="view-tab active" role="tab">Chat</button>
             <button type="button" id="tab-radar" class="view-tab" role="tab" disabled
                     title="Select a team and map first">Radar</button>
+            <button type="button" id="tab-callouts" class="view-tab" role="tab"
+                    title="Rename map callouts - the analyst speaks your names">Callouts</button>
           </div>
           <div class="chat-header-actions">
             <button id="dossier-btn" class="btn btn-outline" disabled title="Select a team and map first">
@@ -166,6 +168,29 @@
           </div>
         </section>
 
+        <section id="callouts-view" class="callouts-view hidden" aria-label="Callout editor">
+          <div class="callouts-controls">
+            <span class="radar-control-label">Map</span>
+            <select id="callouts-map" class="form-control form-control-sm"></select>
+            <span id="callouts-status" class="callouts-status">
+              Click a label on the map or edit the table. Your names are what the analyst uses;
+              blank = keep the game name.
+            </span>
+          </div>
+          <div class="callouts-stage">
+            <div class="callouts-frame">
+              <img id="callouts-image" class="callouts-image" alt="Radar with callout labels">
+              <div id="callouts-labels" class="callouts-labels"></div>
+            </div>
+            <div class="callouts-table-wrap">
+              <table class="callouts-table" id="callouts-table">
+                <thead><tr><th>Game name</th><th>Your callout</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <div class="chat-input-bar" id="chat-input-bar">
           <form id="chat-form" class="chat-form">
             <div class="input-wrapper">
@@ -239,5 +264,6 @@
 
   <script src="/static/app.js?v=3"></script>
   <script src="/static/radar.js?v=3"></script>
+  <script src="/static/callouts.js?v=3"></script>
 </body>
 </html>

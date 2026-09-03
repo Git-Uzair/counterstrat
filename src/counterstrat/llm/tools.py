@@ -87,6 +87,8 @@ class SessionContext(BaseModel):
     utility_book: UtilityBook | None = None
     gap_report: GapReport | None = None
     econ_policy: EconPolicy | None = None
+    # Callout renamer (counterstrat.aliases.Renamer); None = canonical names.
+    renamer: Any = None
 
 
 def tool_specs() -> list[ToolSpec]:
@@ -473,11 +475,24 @@ _HANDLERS: dict[str, Callable[[SessionContext, dict], str]] = {
 
 
 def execute_tool(ctx: SessionContext, call: ToolCall) -> str:
-    """Run one tool call, returning its result as a JSON string. Never raises."""
+    """Run one tool call, returning its result as a JSON string. Never raises.
+
+    With a renamer attached, the model lives entirely in the user's callout
+    vocabulary: quoted SQL literals are mapped back to canonical zone names on
+    the way in, and every result is renamed on the way out.
+    """
     handler = _HANDLERS.get(call.name)
     if handler is None:
         return json.dumps({"error": f"Unknown tool: {call.name}"})
     try:
-        return handler(ctx, dict(call.arguments or {}))
+        args = dict(call.arguments or {})
+        if ctx.renamer:
+            if call.name == "sql_query" and args.get("sql"):
+                args["sql"] = ctx.renamer.unalias_sql(str(args["sql"]))
+            for key in ("to_zone",):  # zone-valued tool filters arrive as callouts
+                if isinstance(args.get(key), str):
+                    args[key] = ctx.renamer.unalias_sql(f"'{args[key]}'")[1:-1]
+        out = handler(ctx, args)
+        return ctx.renamer.rename_text(out) if ctx.renamer else out
     except Exception as exc:  # noqa: BLE001 - a bad argument must not end the conversation
         return json.dumps({"error": f"{call.name} failed: {exc}"})

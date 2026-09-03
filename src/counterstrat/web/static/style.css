@@ -1387,3 +1387,107 @@ textarea#chat-input:disabled {
 }
 
 .demo-chip-delete:hover { color: var(--color-error-text); background-color: var(--color-error-bg); }
+
+/* ==========================================================================
+   Callout editor (feature B)
+   ========================================================================== */
+
+.callouts-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.callouts-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.callouts-status { color: var(--text-secondary); font-size: 0.78rem; }
+.callouts-status.is-error { color: var(--color-error-text); }
+
+.callouts-stage {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.callouts-frame {
+  position: relative;
+  width: min(640px, 100%);
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-primary);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.callouts-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.callouts-labels { position: absolute; inset: 0; }
+
+.callout-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 1px 7px;
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius-sm);
+  background-color: rgba(13, 17, 23, 0.85);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.callout-label:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.callout-label.is-custom { border-color: var(--accent-orange); color: var(--accent-orange); }
+
+.callout-edit-input {
+  width: 110px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  padding: 1px 4px;
+}
+
+.callouts-table-wrap { flex: 1 1 260px; min-width: 240px; }
+
+.callouts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.callouts-table th {
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.callouts-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.callout-table-input { width: 100%; }
