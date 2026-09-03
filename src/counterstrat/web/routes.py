@@ -27,8 +27,8 @@ from pydantic import BaseModel
 
 from counterstrat.aliases import alias_fingerprint, load_aliases, load_renamer, save_aliases
 from counterstrat.config import AppConfig
-from counterstrat.customzones import CustomZone, load_custom_zones, save_custom_zones
 from counterstrat.corpus import load_manifest
+from counterstrat.customzones import CustomZone, load_custom_zones, save_custom_zones
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
 from counterstrat.mining.tendencies import TeamBook
