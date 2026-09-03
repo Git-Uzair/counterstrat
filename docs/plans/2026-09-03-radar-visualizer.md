@@ -1859,7 +1859,7 @@ payload over HTTP.
 | no ingested match on that map (layers) | 404 |
 | unparseable `rounds` | 400 |
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_radar_api.py`:
 
@@ -2004,12 +2004,12 @@ def test_layers_unknown_team_returns_empty_rounds(radar_client: TestClient) -> N
     assert body["layers"]["trails"] == []
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_radar_api.py -v`
 Expected: `ModuleNotFoundError: No module named 'counterstrat.web.radar_api'`.
 
-- [ ] **Step 3: Write `src/counterstrat/web/radar_api.py`**
+- [x] **Step 3: Write `src/counterstrat/web/radar_api.py`**
 
 ```python
 """Radar image, calibration, and coordinate-layer endpoints (spec item N2)."""
@@ -2172,7 +2172,7 @@ def get_radar_layers(
     return build_layers(frames, cal, team_key, filters)
 ```
 
-- [ ] **Step 4: Wire the router into `src/counterstrat/web/app.py`**
+- [x] **Step 4: Wire the router into `src/counterstrat/web/app.py`**
 
 Add the import next to the existing router imports (after
 `from counterstrat.web.chat import router as chat_router`, line 11):
@@ -2184,7 +2184,7 @@ Add the include after `app.include_router(chat_router)` (line 26):
     app.include_router(radar_router)
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_radar_api.py -v`
 Expected: 11 passed.
@@ -2193,7 +2193,7 @@ If `test_layers_rejects_bad_rounds_and_bad_side` sees 422 instead of 400 for
 `rounds=abc`, FastAPI is coercing the type before the handler — keep `rounds`
 annotated as `str | None` (not `list[int]`) so `_parse_rounds` owns the error.
 
-- [ ] **Step 6: Lint and commit**
+- [x] **Step 6: Lint and commit**
 
 ```bash
 .venv\Scripts\python.exe -m ruff check .

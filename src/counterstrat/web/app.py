@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from counterstrat.config import AppConfig
 from counterstrat.web.chat import router as chat_router
+from counterstrat.web.radar_api import router as radar_router
 from counterstrat.web.routes import router
 
 
@@ -24,6 +25,7 @@ def create_app(cfg: AppConfig | None = None, client_factory: Any = None) -> Fast
     app.state.chat_sessions = {}
     app.include_router(router)
     app.include_router(chat_router)
+    app.include_router(radar_router)
 
     static_dir = Path(__file__).resolve().parent / "static"
     if static_dir.exists():
