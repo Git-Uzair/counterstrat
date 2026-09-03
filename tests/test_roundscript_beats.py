@@ -155,4 +155,5 @@ def test_models_instantiation():
     assert rs.beats[0].label == "B+00"
     assert rs.plant is not None and rs.plant.site == "A"
     assert rs.first_contact is not None and rs.first_contact.killer == "player1"
-    assert rs.to_text() == ""
+    assert rs.to_text().splitlines()[0].startswith("R1 [")
+    assert "END T target_bombed @1:05" in rs.to_text()

@@ -1603,7 +1603,7 @@ linter enforces the closed lexicon + budget (spec Phase 2b exits).
     K1 if `K2.victim == K1.killer` and `K2.t - K1.t <= TRADE_WINDOW_S`.
 - Consumes: everything above.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 @pytest.mark.demo
@@ -1622,11 +1622,11 @@ def test_serialize_match_full(anubis_bundle):
     assert problems == []
 ```
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement.** Text rendering rules:
+- [x] **Step 2: fails.** - [x] **Step 3: implement.** Text rendering rules:
   seconds as integers; `B+NN` zero-padded; economy header
   `R{n} [T {buy}(${spend/1000:.1f}k) | CT {buy}(${...}k)] score {t}-{ct}`;
   `END {winner} {reason} @{m:ss}`.
-- [ ] **Step 4: PASS.** - [ ] **Step 5: Commit**
+- [x] **Step 4: PASS.** - [x] **Step 5: Commit**
   `"feat: roundscript serializer + linter"`
 
 **Done when:** 30/30 fixture rounds serialize deterministically, lint-clean,

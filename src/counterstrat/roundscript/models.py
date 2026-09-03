@@ -76,8 +76,47 @@ class RoundScript(BaseModel):
     clock_used_s: float
     movements: list[MovementLine] = []
 
-    def to_text(self) -> str:
-        return ""  # Task 16 will implement full text serialization
+    def to_text(self, include_movements: bool = False, max_utility: int = 16) -> str:
+        t_econ = self.economy.get("T")
+        ct_econ = self.economy.get("CT")
+        t_buy = t_econ.buy_type if t_econ else "unknown"
+        t_spend = t_econ.spend if t_econ else 0
+        ct_buy = ct_econ.buy_type if ct_econ else "unknown"
+        ct_spend = ct_econ.spend if ct_econ else 0
+        lines = [
+            f"R{self.round_num} [T {t_buy}(${t_spend / 1000:.1f}k) | CT {ct_buy}(${ct_spend / 1000:.1f}k)] score {self.score_t}-{self.score_ct}"
+        ]
+        for beat in self.beats:
+            t_zones = ", ".join(f"{c}x{z}" for c, z in beat.t_form.zones)
+            ct_zones = ", ".join(f"{c}x{z}" for c, z in beat.ct_form.zones)
+            lines.append(f"{beat.label}: T: {t_zones} | CT: {ct_zones}")
+        if self.first_contact:
+            fc = self.first_contact
+            traded = " [traded]" if fc.traded_within_4s else ""
+            lines.append(
+                f"FC: {fc.killer}({fc.killer_side}) killed {fc.victim} @{fc.zone} [{fc.weapon}]{traded}"
+            )
+        if self.plant:
+            lines.append(f"PL: {self.plant.planter} planted @{self.plant.site}")
+        u_events = self.utility[:max_utility] if max_utility is not None else self.utility
+        for u in u_events:
+            line = f"{round(u.t)}s: {u.thrower}({u.side}) {u.nade} {u.from_zone}>{u.to_zone}"
+            if u.lineup_id:
+                line += f" [{u.lineup_id}]"
+            if u.blinded:
+                b_str = ", ".join(f"{v} {d:.1f}s" for v, d in u.blinded)
+                line += f" (blinded: {b_str})"
+            lines.append(line)
+        if include_movements and self.movements:
+            for m in self.movements:
+                lines.append(m.sentence)
+        m = int(self.clock_used_s // 60)
+        s = int(self.clock_used_s % 60)
+        lines.append(f"END {self.winner} {self.reason} @{m}:{s:02d}")
+        return "\n".join(lines)
+
+    def to_json(self) -> str:
+        return self.model_dump_json()
 
 
 try:
