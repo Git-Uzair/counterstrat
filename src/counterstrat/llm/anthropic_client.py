@@ -22,6 +22,27 @@ PROVIDER = "anthropic"
 # output tokens, platform.claude.com sonnet-5 overview, checked 2026-09-03).
 DEFAULT_MAX_OUTPUT = 32_000
 
+# Thinking models spend reasoning tokens from the same wire ceiling: a caller's
+# small max_tokens (e.g. 64 for an MCQ answer) came back as EMPTY truncated
+# text on claude-sonnet-5 (2026-09-04 representation lab). Callers size
+# max_tokens for VISIBLE text; the wire ceiling adds this headroom for the
+# thoughts, mirroring gemini_client.THINKING_HEADROOM.
+THINKING_HEADROOM = 8_192
+
+# The SDK refuses non-streaming requests whose max_tokens implies a >10 minute
+# worst case ("Streaming is required for operations that may take longer than
+# 10 minutes", anthropic 1.3.0, observed live 2026-09-04 at 32k on
+# claude-sonnet-5). At or over this effective cap the transport streams and
+# assembles the final message.
+STREAM_THRESHOLD = 16_000
+
+
+def _wire_cap(max_tokens: int | None) -> int:
+    """Visible-text cap -> wire ceiling (headroom for thinking tokens)."""
+    if max_tokens is None:
+        return DEFAULT_MAX_OUTPUT
+    return max_tokens + THINKING_HEADROOM
+
 
 def _system_blocks(system: str) -> list[dict[str, Any]]:
     """System prompt as one cached text block.
@@ -94,7 +115,14 @@ class AnthropicClient:
             self._sdk = anthropic.Anthropic(api_key=self.api_key)
         req = dict(req)
         kind = req.pop("kind")
+        stream = req.pop("stream", False)
         messages = self._sdk.messages
+        if stream:
+            # messages.stream accepts output_format too (anthropic 1.3.0), so
+            # one path serves both create- and parse-shaped requests.
+            with messages.stream(**req) as s:
+                final = s.get_final_message()
+            return final.model_dump(mode="json", warnings=False)
         if kind == "parse":
             # ParsedMessage carries schema-typed blocks the Message union does not
             # know; silence the serializer warnings, the JSON text is what we read.
@@ -120,11 +148,13 @@ class AnthropicClient:
 
     def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> LLMResult:
         check_budget(self.max_input_tokens, system, user)
+        cap = _wire_cap(max_tokens)
         resp = self._send(
             {
                 "kind": "create",
                 "model": self.model,
-                "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_OUTPUT,
+                "max_tokens": cap,
+                "stream": cap >= STREAM_THRESHOLD,
                 "system": _system_blocks(system),
                 "messages": [{"role": "user", "content": user}],
             }
@@ -135,11 +165,13 @@ class AnthropicClient:
         self, *, system: str, user: str, schema: type[T], max_tokens: int | None = None
     ) -> tuple[T, LLMResult]:
         check_budget(self.max_input_tokens, system, user)
+        cap = _wire_cap(max_tokens)
         resp = self._send(
             {
                 "kind": "parse",
                 "model": self.model,
-                "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_OUTPUT,
+                "max_tokens": cap,
+                "stream": cap >= STREAM_THRESHOLD,
                 "system": _system_blocks(system),
                 "messages": [{"role": "user", "content": user}],
                 "output_format": schema,
@@ -157,10 +189,12 @@ class AnthropicClient:
         max_tokens: int | None = None,
     ) -> tuple[ChatTurn, LLMResult]:
         check_budget(self.max_input_tokens, system, *turn_texts(turns))
+        cap = _wire_cap(max_tokens)
         req: dict[str, Any] = {
             "kind": "create",
             "model": self.model,
-            "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_OUTPUT,
+            "max_tokens": cap,
+            "stream": cap >= STREAM_THRESHOLD,
             "system": _system_blocks(system),
             "messages": _messages(turns),
         }

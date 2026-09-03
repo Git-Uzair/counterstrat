@@ -133,6 +133,8 @@ def test_missing_key_raises():
 
 
 def test_anthropic_complete_replay():
+    from counterstrat.llm.anthropic_client import THINKING_HEADROOM
+
     transport = ReplayTransport("anthropic_complete")
     client = AnthropicClient(api_key="k", model="m", transport=transport)
     res = client.complete(system="card", user="q", max_tokens=256)
@@ -142,7 +144,12 @@ def test_anthropic_complete_replay():
     # Map Card system block carries the explicit cache breakpoint.
     system = transport.requests[0]["system"]
     assert system == [{"type": "text", "text": "card", "cache_control": {"type": "ephemeral"}}]
-    assert transport.requests[0]["max_tokens"] == 256
+    # Thinking models spend reasoning tokens from the same wire ceiling: the
+    # caller's cap bounds VISIBLE text, the headroom absorbs the thoughts
+    # (a 64-token cap returned empty truncated text on claude-sonnet-5).
+    assert transport.requests[0]["max_tokens"] == 256 + THINKING_HEADROOM
+    # A small effective cap stays on the fast non-streaming path.
+    assert not transport.requests[0].get("stream")
 
 
 def test_anthropic_complete_json_replay():
@@ -197,6 +204,31 @@ def test_default_max_tokens_is_uncapped():
     anthropic = AnthropicClient(api_key="k", model="m", transport=a_transport)
     anthropic.complete(system="s", user="u")
     assert a_transport.requests[0]["max_tokens"] == DEFAULT_MAX_OUTPUT
+    # 32k output over the SDK's ~10-minute non-streaming guard: must stream
+    # (observed: every uncapped claude-sonnet-5 call raised
+    # 'Streaming is required for operations that may take longer than 10 minutes').
+    assert a_transport.requests[0]["stream"] is True
+
+
+def test_anthropic_streaming_threshold():
+    """Effective caps at/over STREAM_THRESHOLD stream; smaller ones do not."""
+    from counterstrat.llm.anthropic_client import STREAM_THRESHOLD, THINKING_HEADROOM
+
+    transport = ReplayTransport("anthropic_complete", "anthropic_complete")
+    client = AnthropicClient(api_key="k", model="m", transport=transport)
+    client.complete(system="s", user="u", max_tokens=STREAM_THRESHOLD - THINKING_HEADROOM)
+    assert transport.requests[0]["stream"] is True
+    client.complete(system="s", user="u", max_tokens=64)
+    assert not transport.requests[1].get("stream")
+
+
+def test_anthropic_complete_json_streams_when_uncapped():
+    transport = ReplayTransport("anthropic_complete_json")
+    client = AnthropicClient(api_key="k", model="m", transport=transport)
+    out, _ = client.complete_json(system="s", user="u", schema=SiteCall)
+    assert out.site == "A"
+    req = transport.requests[0]
+    assert req["kind"] == "parse" and req["stream"] is True
 
 
 def test_gemini_truncation_is_flagged():
@@ -479,6 +511,12 @@ def test_anthropic_live_smoke():
     assert out.site
     assert usage.input_tokens > 0 and usage.output_tokens > 0
     print(f"anthropic live usage: {usage.model_dump()}")
+    # A tiny visible cap must still return text on a thinking model (headroom),
+    # and an uncapped call must not raise the SDK's streaming ValueError.
+    small = client.complete(system="Reply with only the letter B.", user="?", max_tokens=8)
+    assert small.text.strip()
+    big = client.complete(system="Reply with only the letter B.", user="?")
+    assert big.text.strip()
 
 
 @pytest.mark.live
