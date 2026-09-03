@@ -75,7 +75,11 @@ def _conf(n: int) -> str:
 
 
 def _gap_items(gap_report: GapReport) -> list[BriefItem]:
-    triggered = [f for f in gap_report.findings if f.trigger != "base"]
+    # Headline gaps are defensive holes: T-side "vacancies" of bombsites are
+    # structural (they hold sites only when executing), so the brief reads the
+    # CT half. The get_gap_report tool still exposes both sides.
+    findings = [f for f in gap_report.findings if f.side == "CT"]
+    triggered = [f for f in findings if f.trigger != "base"]
     if triggered:
         f = triggered[0]  # findings are sorted by lift desc
         label = _TRIGGER_LABEL.get(f.trigger, f.trigger)
@@ -93,7 +97,7 @@ def _gap_items(gap_report: GapReport) -> list[BriefItem]:
         ]
     bases = [
         f
-        for f in gap_report.findings
+        for f in findings
         if f.trigger == "base" and f.vacancy_rate >= BASE_GAP_MIN_RATE and f.n >= BASE_GAP_MIN_N
     ]
     if bases:

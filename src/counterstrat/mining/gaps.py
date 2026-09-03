@@ -99,7 +99,13 @@ def build_gap_report(
             form = beat.t_form if st.side == "T" else beat.ct_form
             occupied = {z for _, z in form.zones}
             triggers = _triggers_at_beat(s, st.side, beat, st)
-            for zone in zones:
+            if window == "post-PL":
+                # Post-plant, vacating the NON-planted site is normal retake
+                # rotation, not a gap: only the planted site is a read there.
+                beat_zones = [z for z in zones if s.plant is not None and z == s.plant.site]
+            else:
+                beat_zones = zones
+            for zone in beat_zones:
                 obs[(st.side, window, zone)].append((round_id, zone not in occupied, triggers))
 
     findings: list[GapFinding] = []

@@ -151,6 +151,28 @@ def test_gap_trigger_after_util_dump():
     assert abs(f.lift - 0.4) < 1e-9
 
 
+def test_post_plant_gaps_only_consider_the_planted_site():
+    """Vacating the NON-planted site post-plant is normal retake behavior, not a gap.
+
+    Bomb is planted on B every round; CTs vacate A post-plant (they rotate to
+    retake) - that must NOT be reported. CTs also absent from the planted B in
+    all rounds - that IS a read (they never contest the retake).
+    """
+    beats = [
+        _beat("B+15", 15.0, [(2, "BombsiteB"), (2, "BombsiteA"), (1, "Middle")]),
+        _beat("PL+50", 50.0, [(5, "Middle")]),  # nobody on either site post-plant
+    ]
+    scripts = [_script(rn, beats=beats, winner="T", plant_site="BombsiteB") for rn in (1, 2, 3, 4)]
+    rep = build_gap_report(scripts, TEAM)
+
+    post_pl = [f for f in rep.findings if f.window == "post-PL"]
+    assert post_pl, "expected a post-plant finding for the planted site"
+    assert all(f.zone == "BombsiteB" for f in post_pl), post_pl
+    assert not any(f.zone == "BombsiteA" and f.window == "post-PL" for f in rep.findings), (
+        "non-planted site vacancy post-plant is a tautology"
+    )
+
+
 def test_gap_report_respects_explicit_key_zones(after_loss_scripts):
     rep = build_gap_report(after_loss_scripts, TEAM, key_zones=["BombsiteA"])
     assert rep.key_zones == ["BombsiteA"]
