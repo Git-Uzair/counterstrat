@@ -15,11 +15,26 @@ from counterstrat.web.app import create_app
 MAP = "de_anubis"
 
 
+@pytest.fixture(autouse=True)
+def isolated_repo_root(tmp_path: Path, monkeypatch):
+    """Keep the real maps/ VPKs out of these tests; each test seeds its own.
+
+    _find_vpk_path searches the working directory too, so chdir into the tmp
+    tree or the repo's real de_anubis.vpk leaks in and VRF runs mid-test.
+    """
+    fake_repo = tmp_path / "fake_repo"
+    (fake_repo / "maps").mkdir(parents=True)
+    monkeypatch.setattr("counterstrat.web.ingest.REPO_ROOT", fake_repo)
+    monkeypatch.chdir(tmp_path)
+    return fake_repo
+
+
 @pytest.fixture
 def cfg(tmp_path: Path) -> AppConfig:
-    cfg = AppConfig(data_root=tmp_path)
+    cfg = AppConfig(data_root=tmp_path / "data")
+    cfg.data_root.mkdir(parents=True, exist_ok=True)
     card = build_synthetic_card()
-    card_path = tmp_path / "mapcards" / MAP / "card.yaml"
+    card_path = cfg.data_root / "mapcards" / MAP / "card.yaml"
     card_path.parent.mkdir(parents=True, exist_ok=True)
     card_path.write_text(card.to_yaml(), encoding="utf-8")
     return cfg
@@ -30,8 +45,78 @@ def client(cfg: AppConfig) -> TestClient:
     return TestClient(create_app(cfg))
 
 
-def test_list_maps(client: TestClient):
-    assert client.get("/api/maps").json() == [MAP]
+def _seed_vents(cfg: AppConfig, map_name: str, places: dict[str, tuple]) -> None:
+    """Pre-populate the tmp_assets cache so no VRF run is needed."""
+    vents = cfg.data_root / "tmp_assets" / map_name / "maps" / map_name / "entities"
+    vents.mkdir(parents=True, exist_ok=True)
+    blocks = []
+    for i, (name, origin) in enumerate(places.items()):
+        blocks.append(
+            f"===={i}====\n"
+            'classname "env_cs_place"\n'
+            f'place_name "{name}"\n'
+            f"origin [{origin[0]}, {origin[1]}, {origin[2]}]\n"
+            f'hammeruniqueid "{i}"\n'
+        )
+    (vents / "default_ents.vents").write_text("\n".join(blocks), encoding="utf-8")
+
+
+def _seed_calibration(cfg: AppConfig, map_name: str, lower_max: float | None = None) -> None:
+    radar_dir = cfg.data_root / "radar" / map_name
+    radar_dir.mkdir(parents=True, exist_ok=True)
+    (radar_dir / "radar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (radar_dir / "overview.txt").write_text("x", encoding="utf-8")
+    (radar_dir / "calibration.json").write_text(
+        json.dumps(
+            {
+                "map_name": map_name,
+                "pos_x": -1024.0,
+                "pos_y": 1024.0,
+                "scale": 2.0,
+                "image_px": 1024,
+                "lower_altitude_max": lower_max,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_list_maps_unions_cards_and_vpks(client: TestClient, isolated_repo_root: Path):
+    vpk_dir = isolated_repo_root / "maps" / "de_mirage"
+    vpk_dir.mkdir(parents=True)
+    (vpk_dir / "de_mirage.vpk").write_bytes(b"vpk")
+    # A directory without a vpk must not appear.
+    (isolated_repo_root / "maps" / "junk").mkdir()
+    assert client.get("/api/maps").json() == [MAP, "de_mirage"]
+
+
+def test_callouts_for_vpk_only_map(cfg: AppConfig, client: TestClient):
+    """A map with no ingested demo is editable from its VPK place volumes."""
+    _seed_vents(cfg, "de_mirage", {"AMain": (100.0, 100.0, 0.0), "BSite": (-200.0, 50.0, 0.0)})
+    _seed_calibration(cfg, "de_mirage")
+    body = client.get("/api/maps/de_mirage/callouts").json()
+    zones = {z["name"]: z for z in body["zones"]}
+    assert set(zones) == {"AMain", "BSite"}
+    assert zones["AMain"]["u"] is not None and zones["AMain"]["level"] == "default"
+    assert body["levels"] == ["default"]
+    # Aliases save against the VPK vocabulary too.
+    r = client.put("/api/maps/de_mirage/aliases", json={"aliases": {"AMain": "A Ramp"}})
+    assert r.status_code == 200 and r.json()["aliases"] == {"AMain": "A Ramp"}
+
+
+def test_callouts_levels_split_upper_and_lower(cfg: AppConfig, client: TestClient):
+    """Nuke-style maps: zones classify to the level their volumes sit on."""
+    _seed_vents(
+        cfg,
+        "de_nuke2",
+        {"BombsiteA": (0.0, 0.0, 0.0), "BombsiteB": (10.0, 10.0, -600.0)},
+    )
+    _seed_calibration(cfg, "de_nuke2", lower_max=-450.0)
+    body = client.get("/api/maps/de_nuke2/callouts").json()
+    assert body["levels"] == ["default", "lower"]
+    zones = {z["name"]: z for z in body["zones"]}
+    assert zones["BombsiteA"]["level"] == "default"
+    assert zones["BombsiteB"]["level"] == "lower"
 
 
 def test_get_callouts_without_radar_or_lake(client: TestClient):
@@ -106,6 +191,7 @@ def test_callout_positions_from_lake(cfg: AppConfig, client: TestClient):
         {
             "X": [0.0, 10.0, -500.0],
             "Y": [0.0, 10.0, 500.0],
+            "Z": [0.0, 0.0, 0.0],
             "last_place_name": ["Middle", "Middle", "BombsiteA"],
             "is_alive": [True, True, True],
         }

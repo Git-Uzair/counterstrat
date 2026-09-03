@@ -9,7 +9,9 @@
 
   const state = {
     mapName: null,
-    zones: [], // [{name, alias, u, v}]
+    zones: [], // [{name, alias, u, v, level}]
+    levels: ["default"],
+    level: "default", // which radar level is on screen (nuke upper/lower)
     dirty: false,
   };
 
@@ -24,6 +26,9 @@
     el.status = document.getElementById("callouts-status");
     el.image = document.getElementById("callouts-image");
     el.labels = document.getElementById("callouts-labels");
+    el.levelToggle = document.getElementById("callouts-level-toggle");
+    el.levelDefault = document.getElementById("callouts-level-default");
+    el.levelLower = document.getElementById("callouts-level-lower");
     el.tableBody = document.querySelector("#callouts-table tbody");
     el.messages = document.getElementById("messages-container");
     el.inputBar = document.getElementById("chat-input-bar");
@@ -79,7 +84,10 @@
       })
       .then(function (data) {
         state.zones = data.zones || [];
-        el.image.src = `/api/radar/${encodeURIComponent(state.mapName)}/image`;
+        state.levels = data.levels || ["default"];
+        if (state.levels.indexOf(state.level) === -1) state.level = "default";
+        el.levelToggle.classList.toggle("hidden", state.levels.length < 2);
+        setImage();
         render();
       })
       .catch(function (err) { setStatus(`Failed to load callouts: ${err.message}`, true); });
@@ -126,6 +134,21 @@
 
   // ---------------------------------------------------------------- render
 
+  function setImage() {
+    const level = state.levels.length > 1 ? state.level : "default";
+    el.image.src =
+      `/api/radar/${encodeURIComponent(state.mapName)}/image?level=${level}`;
+  }
+
+  function setLevel(level) {
+    if (state.level === level) return;
+    state.level = level;
+    el.levelDefault.classList.toggle("active", level === "default");
+    el.levelLower.classList.toggle("active", level === "lower");
+    setImage();
+    render();
+  }
+
   function labelFor(zone) {
     return zone.alias || zone.name;
   }
@@ -156,8 +179,12 @@
   function render() {
     // Map labels for zones with a known anchor.
     el.labels.innerHTML = "";
+    const multiLevel = state.levels.length > 1;
     state.zones.forEach(function (zone) {
       if (zone.u === null || zone.u === undefined) return;
+      // On multi-level maps only the selected level's zones are shown, so the
+      // underground site never clutters the upper radar (and vice versa).
+      if (multiLevel && zone.level && zone.level !== state.level) return;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "callout-label" + (zone.alias ? " is-custom" : "");
@@ -218,7 +245,10 @@
     el.tabRadar.addEventListener("click", hideCallouts);
     el.mapSelect.addEventListener("change", function () {
       state.mapName = el.mapSelect.value;
+      state.level = "default";
       loadCallouts();
     });
+    el.levelDefault.addEventListener("click", function () { setLevel("default"); });
+    el.levelLower.addEventListener("click", function () { setLevel("lower"); });
   });
 })();

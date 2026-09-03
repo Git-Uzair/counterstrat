@@ -7,6 +7,7 @@ import logging
 import shutil
 import time
 import uuid
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import polars as pl
@@ -448,25 +449,84 @@ def get_insights(
 # --- Callouts: user-defined zone names (feature B) ---
 
 
+def _vpk_map_names() -> set[str]:
+    """Maps shipped as VPKs under maps/<name>/<name>.vpk."""
+    from counterstrat.web import ingest as ingest_mod
+
+    maps_dir = ingest_mod.REPO_ROOT / "maps"
+    if not maps_dir.exists():
+        return set()
+    return {d.name for d in maps_dir.iterdir() if d.is_dir() and (d / f"{d.name}.vpk").exists()}
+
+
 @router.get("/maps")
 def list_maps(cfg: ConfigDep) -> list[str]:
-    """Maps with a compiled card - the ones whose callouts can be edited."""
+    """Every editable map: compiled cards plus VPKs that can supply zone names."""
     root = cfg.data_root / "mapcards"
-    if not root.exists():
+    card_maps = {p.parent.name for p in root.glob("*/card.yaml")} if root.exists() else set()
+    return sorted(card_maps | _vpk_map_names())
+
+
+def _map_places(cfg: AppConfig, map_name: str) -> list:
+    """env_cs_place volumes (name + world origin) from the map VPK, cached."""
+    from counterstrat.mapcard.vents import parse_places
+    from counterstrat.mapcard.vrf import extract_map_assets
+    from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
+
+    out_dir = cfg.data_root / "tmp_assets" / map_name
+    vents = out_dir / "maps" / map_name / "entities" / "default_ents.vents"
+    if not vents.exists():
+        vpk = _find_vpk_path(map_name, cfg)
+        vrf_cli = _find_vrf_cli()
+        if vpk is None or vrf_cli is None:
+            return []
+        try:
+            extract_map_assets(vpk, vrf_cli, out_dir)
+        except Exception as exc:  # noqa: BLE001 - positions are a nicety, not a requirement
+            logger.warning("VPK asset extraction failed for %s: %s", map_name, exc)
+            return []
+    try:
+        return parse_places(vents)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Unreadable vents for %s: %s", map_name, exc)
         return []
-    return sorted(p.parent.name for p in root.glob("*/card.yaml"))
 
 
-def _zone_positions(cfg: AppConfig, map_name: str, zones: list[str]) -> dict[str, tuple]:
-    """Zone label anchors as normalized (u, v): mean alive tick position per zone."""
-    from counterstrat.radar.coords import game_to_norm
-    from counterstrat.radar.extract import load_cached_assets
+def _radar_calibration(cfg: AppConfig, map_name: str):
+    """Cached radar calibration; extracted from the CS2 install when possible."""
+    from counterstrat.radar.extract import extract_radar_assets, load_cached_assets
+    from counterstrat.web.ingest import _find_vrf_cli
 
     assets = load_cached_assets(cfg.data_root, map_name)
-    if assets is None:
-        return {}
+    if assets is not None:
+        return assets.calibration
+    install = getattr(cfg, "cs2_install_path", None)
+    vrf_cli = _find_vrf_cli()
+    if not install or vrf_cli is None:
+        return None
+    try:
+        return extract_radar_assets(Path(install), vrf_cli, map_name, cfg.data_root).calibration
+    except Exception as exc:  # noqa: BLE001 - the editor degrades to a table
+        logger.warning("Radar extraction failed for %s: %s", map_name, exc)
+        return None
+
+
+def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str] | None:
+    """Card zones when compiled (the mined vocabulary), else VPK place names."""
+    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
+    if card_path.exists():
+        card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+        return sorted((card_data.get("zones") or {}).keys())
+    if places:
+        return sorted({p.place_name for p in places})
+    return None
+
+
+def _tick_positions(cfg: AppConfig, map_name: str, zones: list[str], cal) -> dict[str, tuple]:
+    """Fallback anchors from lake ticks for zones the VPK volumes did not name."""
+    from counterstrat.radar.coords import game_to_norm, is_lower_level
+
     manifest = load_manifest(cfg.data_root / "corpus.jsonl")
-    out: dict[str, tuple] = {}
     for match_id, rec in sorted(manifest.items()):
         if rec.map_name != map_name:
             continue
@@ -474,41 +534,73 @@ def _zone_positions(cfg: AppConfig, map_name: str, zones: list[str]) -> dict[str
         if not ticks_path.exists():
             continue
         try:
-            df = pl.read_parquet(ticks_path, columns=["X", "Y", "last_place_name", "is_alive"])
+            df = pl.read_parquet(ticks_path, columns=["X", "Y", "Z", "last_place_name", "is_alive"])
             centroids = (
                 df.filter(pl.col("is_alive") & pl.col("last_place_name").is_in(zones))
                 .group_by("last_place_name")
-                .agg(pl.col("X").mean(), pl.col("Y").mean())
+                .agg(pl.col("X").mean(), pl.col("Y").mean(), pl.col("Z").mean())
             )
+            out: dict[str, tuple] = {}
             for row in centroids.iter_rows(named=True):
-                u, v = game_to_norm(assets.calibration, row["X"], row["Y"])
+                u, v = game_to_norm(cal, row["X"], row["Y"])
                 if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
-                    out[row["last_place_name"]] = (round(u, 4), round(v, 4))
+                    level = "lower" if is_lower_level(cal, row["Z"]) else "default"
+                    out[row["last_place_name"]] = (round(u, 4), round(v, 4), level)
             if out:
                 return out
-        except Exception as exc:  # noqa: BLE001 - positions are a nicety, not a requirement
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Zone positions unavailable from %s: %s", ticks_path, exc)
-    return out
+    return {}
+
+
+def _zone_anchors(cfg: AppConfig, map_name: str, zones: list[str], places: list) -> dict:
+    """(u, v, level) per zone: VPK volume origins first, lake ticks as fallback."""
+    from counterstrat.radar.coords import game_to_norm, is_lower_level
+
+    cal = _radar_calibration(cfg, map_name)
+    if cal is None:
+        return {}
+    anchors: dict[str, tuple] = {}
+    by_name: dict[str, list] = {}
+    for p in places:
+        by_name.setdefault(p.place_name, []).append(p.origin)
+    for zone in zones:
+        origins = by_name.get(zone)
+        if not origins:
+            continue
+        x = sum(o[0] for o in origins) / len(origins)
+        y = sum(o[1] for o in origins) / len(origins)
+        z = sum(o[2] for o in origins) / len(origins)
+        u, v = game_to_norm(cal, x, y)
+        if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
+            level = "lower" if is_lower_level(cal, z) else "default"
+            anchors[zone] = (round(u, 4), round(v, 4), level)
+    missing = [z for z in zones if z not in anchors]
+    if missing:
+        anchors.update(_tick_positions(cfg, map_name, missing, cal))
+    return anchors
 
 
 @router.get("/maps/{map_name}/callouts")
 def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
-    """Every zone with its game name, the user's alias (if any), and a label anchor."""
-    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
-    if not card_path.exists():
-        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
-    card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
-    zones = sorted((card_data.get("zones") or {}).keys())
+    """Every zone with its game name, the user's alias, a label anchor, and level."""
+    places = _map_places(cfg, map_name)
+    zones = _callout_zone_names(cfg, map_name, places)
+    if zones is None:
+        raise HTTPException(status_code=404, detail=f"No map card or VPK zone data for {map_name}")
     aliases = load_aliases(cfg.data_root, map_name)
-    positions = _zone_positions(cfg, map_name, zones)
+    anchors = _zone_anchors(cfg, map_name, zones, places)
+    levels = sorted({a[2] for a in anchors.values()}) or ["default"]
     return {
         "map_name": map_name,
+        "levels": ["default", "lower"] if "lower" in levels else ["default"],
         "zones": [
             {
                 "name": z,
                 "alias": aliases.get(z),
-                "u": positions.get(z, (None, None))[0],
-                "v": positions.get(z, (None, None))[1],
+                "u": anchors.get(z, (None, None, None))[0],
+                "v": anchors.get(z, (None, None, None))[1],
+                "level": anchors.get(z, (None, None, None))[2],
             }
             for z in zones
         ],
@@ -522,13 +614,11 @@ class AliasUpdateRequest(BaseModel):
 @router.put("/maps/{map_name}/aliases")
 def put_aliases(map_name: str, req: AliasUpdateRequest, cfg: ConfigDep) -> dict[str, Any]:
     """Persist the user's callouts; empty values remove an alias."""
-    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
-    if not card_path.exists():
-        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
-    card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
-    valid_zones = set((card_data.get("zones") or {}).keys())
+    zones = _callout_zone_names(cfg, map_name, _map_places(cfg, map_name))
+    if zones is None:
+        raise HTTPException(status_code=404, detail=f"No map card or VPK zone data for {map_name}")
     try:
-        saved = save_aliases(cfg.data_root, map_name, req.aliases, valid_zones)
+        saved = save_aliases(cfg.data_root, map_name, req.aliases, set(zones))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"map_name": map_name, "aliases": saved}

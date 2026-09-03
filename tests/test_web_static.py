@@ -85,12 +85,14 @@ def test_callouts_view_static(client_app: TestClient) -> None:
         'id="callouts-view"',
         'id="callouts-map"',
         'id="callouts-table"',
+        'id="callouts-level-toggle"',
         "callouts.js",
     ]:
         assert token in html, f"missing {token}"
     js = client_app.get("/static/callouts.js").text
     assert "/api/maps" in js and "/aliases" in js
     assert "callout-label" in js
+    assert "setLevel" in js  # nuke upper/lower switching
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
