@@ -23,6 +23,7 @@
     el.tabCallouts = document.getElementById("tab-callouts");
     el.view = document.getElementById("callouts-view");
     el.mapSelect = document.getElementById("callouts-map");
+    el.resetAll = document.getElementById("callouts-reset-all");
     el.status = document.getElementById("callouts-status");
     el.image = document.getElementById("callouts-image");
     el.labels = document.getElementById("callouts-labels");
@@ -132,6 +133,16 @@
     saveAll();
   }
 
+  function resetAll() {
+    if (!state.mapName) return;
+    if (!window.confirm(`Remove ALL custom callouts for ${state.mapName}? The game names come back.`)) {
+      return;
+    }
+    state.zones.forEach(function (z) { z.alias = null; });
+    state.dirty = true;
+    saveAll();
+  }
+
   // ---------------------------------------------------------------- render
 
   function setImage() {
@@ -212,6 +223,15 @@
       input.placeholder = "(game name)";
       input.addEventListener("change", function () { setAlias(zone.name, input.value); });
       aliasTd.appendChild(input);
+      if (zone.alias) {
+        const reset = document.createElement("button");
+        reset.type = "button";
+        reset.className = "callout-reset-btn";
+        reset.textContent = "\u00d7";
+        reset.title = `Reset to ${zone.name}`;
+        reset.addEventListener("click", function () { setAlias(zone.name, ""); });
+        aliasTd.appendChild(reset);
+      }
       tr.appendChild(nameTd);
       tr.appendChild(aliasTd);
       el.tableBody.appendChild(tr);
@@ -250,5 +270,6 @@
     });
     el.levelDefault.addEventListener("click", function () { setLevel("default"); });
     el.levelLower.addEventListener("click", function () { setLevel("lower"); });
+    el.resetAll.addEventListener("click", resetAll);
   });
 })();

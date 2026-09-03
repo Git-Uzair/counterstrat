@@ -19,8 +19,10 @@ def format_zone_map(anchors: dict[str, tuple]) -> str:
         return ""
     multi = any(a[2] == "lower" for a in anchors.values())
     lines = [
-        "zone_map:  # label anchor per zone on the radar; "
-        "x: 0 = west edge -> 1 = east, y: 0 = north edge -> 1 = south"
+        (
+            "zone_map:  # label anchor per zone on the radar; "
+            "x: 0 = west edge -> 1 = east, y: 0 = north edge -> 1 = south"
+        )
     ]
     for zone, (u, v, level) in sorted(anchors.items()):
         suffix = f", {'lower' if level == 'lower' else 'upper'} level" if multi else ""

@@ -86,6 +86,7 @@ def test_callouts_view_static(client_app: TestClient) -> None:
         'id="callouts-map"',
         'id="callouts-table"',
         'id="callouts-level-toggle"',
+        'id="callouts-reset-all"',
         "callouts.js",
     ]:
         assert token in html, f"missing {token}"
@@ -93,6 +94,9 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     assert "/api/maps" in js and "/aliases" in js
     assert "callout-label" in js
     assert "setLevel" in js  # nuke upper/lower switching
+    # Reset controls: per-zone clear buttons plus a confirmed reset-all.
+    assert "callout-reset-btn" in js
+    assert "resetAll" in js and "confirm(" in js
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:

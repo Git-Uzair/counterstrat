@@ -1491,3 +1491,16 @@ textarea#chat-input:disabled {
 }
 
 .callout-table-input { width: 100%; }
+
+.callouts-table td:nth-child(2) { display: flex; align-items: center; gap: 4px; }
+
+.callout-reset-btn {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 4px;
+}
+.callout-reset-btn:hover { color: var(--color-error-text); }
