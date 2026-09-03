@@ -316,6 +316,11 @@
     el.dossierBtn.disabled = false;
     el.dossierBtn.title = "Download strategic dossier markdown report";
 
+    // Hand the selection to the radar viewer (static/radar.js), if present.
+    if (window.CounterStratRadar) {
+      window.CounterStratRadar.onTargetSelected(team.team_key, mapName, displayName);
+    }
+
     // Create session
     createChatSession(team.team_key, mapName, displayName);
   }

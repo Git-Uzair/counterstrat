@@ -69,6 +69,11 @@
             <h2 id="target-title">No Team Selected</h2>
             <div id="target-meta" class="target-meta">Pick a target from the catalog on the left to start</div>
           </div>
+          <div class="view-tabs" role="tablist">
+            <button type="button" id="tab-chat" class="view-tab active" role="tab">Chat</button>
+            <button type="button" id="tab-radar" class="view-tab" role="tab" disabled
+                    title="Select a team and map first">Radar</button>
+          </div>
           <div class="chat-header-actions">
             <button id="dossier-btn" class="btn btn-outline" disabled title="Select a team and map first">
               Download Dossier (.md)
@@ -91,7 +96,66 @@
           </div>
         </div>
 
-        <div class="chat-input-bar">
+        <section id="radar-view" class="radar-view hidden" aria-label="Radar overlay">
+          <div class="radar-controls">
+            <div class="radar-control-group">
+              <span class="radar-control-label">Layers</span>
+              <label class="radar-check"><input type="checkbox" id="layer-heatmap" checked> Heatmap</label>
+              <label class="radar-check"><input type="checkbox" id="layer-trails" checked> Trails</label>
+              <label class="radar-check"><input type="checkbox" id="layer-utility" checked> Utility</label>
+              <label class="radar-check"><input type="checkbox" id="layer-duels" checked> Duels</label>
+              <label class="radar-check"><input type="checkbox" id="layer-bombs" checked> Bomb</label>
+            </div>
+            <div class="radar-control-group">
+              <label class="radar-control-label" for="radar-side">Side</label>
+              <select id="radar-side" class="form-control form-control-sm">
+                <option value="">Both</option>
+                <option value="T">T</option>
+                <option value="CT">CT</option>
+              </select>
+              <label class="radar-control-label" for="radar-round">Round</label>
+              <select id="radar-round" class="form-control form-control-sm">
+                <option value="">All rounds</option>
+              </select>
+              <label class="radar-control-label" for="radar-trail-rounds">Trails</label>
+              <select id="radar-trail-rounds" class="form-control form-control-sm">
+                <option value="1">1 round</option>
+                <option value="2">2 rounds</option>
+                <option value="4" selected>4 rounds</option>
+                <option value="8">8 rounds</option>
+              </select>
+              <div id="radar-level-toggle" class="radar-level-toggle hidden">
+                <button type="button" id="radar-level-default" class="btn btn-sm btn-outline active">Upper</button>
+                <button type="button" id="radar-level-lower" class="btn btn-sm btn-outline">Lower</button>
+              </div>
+              <button type="button" id="radar-refresh" class="btn btn-sm btn-outline">Reload</button>
+            </div>
+          </div>
+
+          <div class="radar-stage">
+            <div class="radar-frame">
+              <img id="radar-image" class="radar-image" alt="Overhead radar">
+              <canvas id="radar-canvas" class="radar-canvas" width="1024" height="1024"></canvas>
+            </div>
+          </div>
+
+          <div class="radar-footer">
+            <div id="radar-status" class="radar-status">
+              Select a team and map, then open the Radar tab.
+            </div>
+            <ul class="radar-legend">
+              <li><span class="swatch swatch-ct"></span>CT</li>
+              <li><span class="swatch swatch-t"></span>T</li>
+              <li><span class="swatch swatch-kill"></span>Kill by team</li>
+              <li><span class="swatch swatch-death"></span>Kill against</li>
+              <li><span class="swatch swatch-smoke"></span>Smoke</li>
+              <li><span class="swatch swatch-fire"></span>Molotov</li>
+              <li><span class="swatch swatch-bomb"></span>Plant</li>
+            </ul>
+          </div>
+        </section>
+
+        <div class="chat-input-bar" id="chat-input-bar">
           <form id="chat-form" class="chat-form">
             <div class="input-wrapper">
               <textarea
@@ -163,5 +227,6 @@
   </div>
 
   <script src="/static/app.js"></script>
+  <script src="/static/radar.js"></script>
 </body>
 </html>

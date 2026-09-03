@@ -2250,7 +2250,7 @@ side/round/level filters.
   at `style.css:917-919`.
 - `app.js` is a closed IIFE; do not restructure it. The hook is the only change.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_web_radar_static.py`:
 
@@ -2312,12 +2312,12 @@ def test_style_css_has_radar_rules(client_app: TestClient) -> None:
         assert rule in css, f"missing rule {rule}"
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_web_radar_static.py -v`
 Expected: 4 failed — `missing radar.js`, 404 on `/static/radar.js`, etc.
 
-- [ ] **Step 3: Create `src/counterstrat/web/static/radar.js`**
+- [x] **Step 3: Create `src/counterstrat/web/static/radar.js`**
 
 ```js
 /**
@@ -2685,7 +2685,7 @@ Expected: 4 failed — `missing radar.js`, 404 on `/static/radar.js`, etc.
 })();
 ```
 
-- [ ] **Step 4: Edit `src/counterstrat/web/static/index.html`**
+- [x] **Step 4: Edit `src/counterstrat/web/static/index.html`**
 
 4a. Inside `.chat-header`, between the `</div>` that closes `.target-info`
 (line 72) and `<div class="chat-header-actions">` (line 72), insert:
@@ -2771,7 +2771,7 @@ Expected: 4 failed — `missing radar.js`, 404 on `/static/radar.js`, etc.
   <script src="/static/radar.js"></script>
 ```
 
-- [ ] **Step 5: Add the hook to `src/counterstrat/web/static/app.js`**
+- [x] **Step 5: Add the hook to `src/counterstrat/web/static/app.js`**
 
 In `selectTarget`, immediately after
 `el.dossierBtn.title = "Download strategic dossier markdown report";` (line 317)
@@ -2784,7 +2784,7 @@ and before the `// Create session` comment, insert:
     }
 ```
 
-- [ ] **Step 6: Append the radar styles to `src/counterstrat/web/static/style.css`**
+- [x] **Step 6: Append the radar styles to `src/counterstrat/web/static/style.css`**
 
 Append at the end of the file (after the `.hidden` utility block):
 
@@ -2963,13 +2963,13 @@ Append at the end of the file (after the `.hidden` utility block):
 .swatch-bomb { background-color: #f0883e; border: 1px solid #0d1117; }
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_web_radar_static.py tests/test_web_static.py -v`
 Expected: all PASS (the pre-existing `test_index_page` and `test_static_app_js`
 must still pass — the markup edits are additive).
 
-- [ ] **Step 8: Manual browser check (recommended, not an acceptance gate)**
+- [x] **Step 8: Manual browser check (recommended, not an acceptance gate)**
 
 Start the app, upload/select an already-ingested target, open the Radar tab:
 ```bash
@@ -2982,7 +2982,7 @@ squares near A/B. Toggling a checkbox must redraw instantly with no network
 request (check the Network tab). For an automated pass use the
 `webapp-testing` skill.
 
-- [ ] **Step 9: Lint and commit**
+- [x] **Step 9: Lint and commit**
 
 ```bash
 .venv\Scripts\python.exe -m ruff check .
