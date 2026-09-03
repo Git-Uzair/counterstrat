@@ -277,6 +277,70 @@ def _mine_bucket(level: int, key: TendencyKey, g_scripts: list[RoundScript]) -> 
     )
 
 
+class RoundState(BaseModel):
+    """One participating round with its situational key, shared by all miners."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    script: RoundScript
+    side: str  # side team_key played this round
+    buy_class: str
+    score_bucket: str  # "behind" | "even" | "ahead"
+    prev_outcome: str  # "won" | "lost" | "first"
+
+
+def iter_round_states(scripts: list[RoundScript], team_key: str) -> list[RoundState]:
+    """Situational state per round team_key played, ordered by (match, round)."""
+    participating = [s for s in scripts if team_key in (s.t_team_key, s.ct_team_key)]
+    scripts_by_match: dict[str, list[RoundScript]] = defaultdict(list)
+    for s in participating:
+        scripts_by_match[s.match_id].append(s)
+
+    states: list[RoundState] = []
+    for match_id in sorted(scripts_by_match):
+        m_scripts = sorted(scripts_by_match[match_id], key=lambda s: s.round_num)
+        rounds_map = {s.round_num: s for s in m_scripts}
+        for s in m_scripts:
+            side = "T" if s.t_team_key == team_key else "CT"
+
+            is_ot_start = s.round_num >= 25 and (s.round_num - 25) % 3 == 0
+            if (
+                s.round_num == 1
+                or s.round_num == 13
+                or is_ot_start
+                or (s.round_num - 1) not in rounds_map
+            ):
+                prev_outcome = "first"
+            else:
+                prev_s = rounds_map[s.round_num - 1]
+                prev_side = "T" if prev_s.t_team_key == team_key else "CT"
+                won = (prev_s.winner == prev_side) or (prev_s.winner == team_key)
+                prev_outcome = "won" if won else "lost"
+
+            team_score = s.score_t if side == "T" else s.score_ct
+            opp_score = s.score_ct if side == "T" else s.score_t
+            if team_score > opp_score:
+                score_bucket = "ahead"
+            elif team_score < opp_score:
+                score_bucket = "behind"
+            else:
+                score_bucket = "even"
+
+            econ = s.economy.get(side)
+            buy_class = econ.buy_type if econ and hasattr(econ, "buy_type") else "full_buy"
+
+            states.append(
+                RoundState(
+                    script=s,
+                    side=side,
+                    buy_class=buy_class,
+                    score_bucket=score_bucket,
+                    prev_outcome=prev_outcome,
+                )
+            )
+    return states
+
+
 def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
     """Mine deterministic Level-2 TeamBook profile for team_key from RoundScripts."""
     participating = [s for s in scripts if s.t_team_key == team_key or s.ct_team_key == team_key]
@@ -292,55 +356,17 @@ def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
             generated_from=[],
         )
 
-    # Group by match_id to compute prev_outcome sequentially
-    scripts_by_match: dict[str, list[RoundScript]] = defaultdict(list)
-    for s in participating:
-        scripts_by_match[s.match_id].append(s)
-
     # (level, map, side, buy, score, prev) -> list[RoundScript]
     grouped_scripts: dict[tuple[int, str, str, str, str, str], list[RoundScript]] = defaultdict(
         list
     )
-
-    for m_scripts in scripts_by_match.values():
-        m_scripts.sort(key=lambda s: s.round_num)
-        rounds_map = {s.round_num: s for s in m_scripts}
-
-        for s in m_scripts:
-            side = "T" if s.t_team_key == team_key else "CT"
-
-            # prev_outcome
-            is_ot_start = s.round_num >= 25 and (s.round_num - 25) % 3 == 0
-            if (
-                s.round_num == 1
-                or s.round_num == 13
-                or is_ot_start
-                or (s.round_num - 1) not in rounds_map
-            ):
-                prev_outcome = "first"
-            else:
-                prev_s = rounds_map[s.round_num - 1]
-                prev_side = "T" if prev_s.t_team_key == team_key else "CT"
-                won = (prev_s.winner == prev_side) or (prev_s.winner == team_key)
-                prev_outcome = "won" if won else "lost"
-
-            # score_bucket
-            team_score = s.score_t if side == "T" else s.score_ct
-            opp_score = s.score_ct if side == "T" else s.score_t
-            if team_score > opp_score:
-                score_bucket = "ahead"
-            elif team_score < opp_score:
-                score_bucket = "behind"
-            else:
-                score_bucket = "even"
-
-            # buy_class
-            econ = s.economy.get(side)
-            buy_class = econ.buy_type if econ and hasattr(econ, "buy_type") else "full_buy"
-
-            grouped_scripts[(2, s.map_name, side, buy_class, score_bucket, prev_outcome)].append(s)
-            grouped_scripts[(1, s.map_name, side, buy_class, "any", "any")].append(s)
-            grouped_scripts[(0, s.map_name, side, "any", "any", "any")].append(s)
+    for st in iter_round_states(participating, team_key):
+        s = st.script
+        grouped_scripts[
+            (2, s.map_name, st.side, st.buy_class, st.score_bucket, st.prev_outcome)
+        ].append(s)
+        grouped_scripts[(1, s.map_name, st.side, st.buy_class, "any", "any")].append(s)
+        grouped_scripts[(0, s.map_name, st.side, "any", "any", "any")].append(s)
 
     tendencies: list[Tendency] = []
     for (level, map_name, side, buy_class, score_bucket, prev_outcome), g in sorted(
