@@ -11,7 +11,7 @@ from counterstrat.mapcard.zones import ZoneMapper
 from counterstrat.roundscript.beats import build_beats
 from counterstrat.roundscript.econ import round_economy
 from counterstrat.roundscript.models import KillEvent, PlantEvent, RoundScript, UtilEvent
-from counterstrat.roundscript.movement import _normalize_side, movement_sentences
+from counterstrat.roundscript.movement import _normalize_side, movement_sentences, zone_stints
 from counterstrat.roundscript.utility import cluster_lineups, utility_events_with_xyz
 
 
@@ -152,6 +152,9 @@ def serialize_round(
     # Movements
     movements = movement_sentences(t_df, kills=kill_events, round_num=round_num, plants=plant)
 
+    # Per-player zone stints (timeline MOVE lines, plan Task 3)
+    tracks, sides = zone_stints(t_df, round_num=round_num)
+
     match_id = str(r_dict.get("match_id") or Path(lake.root).name)
     winner_str = _normalize_side(r_dict.get("winner"))
 
@@ -174,6 +177,8 @@ def serialize_round(
         reason=str(r_dict.get("reason") or ""),
         clock_used_s=clock_used_s,
         movements=movements,
+        tracks=tracks,
+        sides=sides,
     )
 
 

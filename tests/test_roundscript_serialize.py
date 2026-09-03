@@ -186,6 +186,18 @@ def test_serialize_match_full(anubis_bundle):
     p95 = np.percentile([len(s.to_text()) / 4 for s in scripts], 95)
     assert p95 <= 450
 
+    # v2 timeline: every kill renders (to_text keeps only first contact), and
+    # tracks round-trip through JSON
+    with_kills = next(s for s in scripts if len(s.kills) >= 3)
+    timeline = with_kills.to_timeline_text()
+    assert timeline.count("KILL ") == len(with_kills.kills)
+    assert with_kills.tracks and "MOVE" in timeline
+    from counterstrat.roundscript.models import RoundScript
+
+    reloaded = RoundScript.model_validate_json(with_kills.to_json())
+    assert reloaded.tracks == with_kills.tracks
+    assert reloaded.to_timeline_text() == timeline
+
 
 def test_roundscript_to_text_options():
     kill = KillEvent(

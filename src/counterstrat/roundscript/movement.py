@@ -7,7 +7,7 @@ from typing import Any
 import polars as pl
 
 from counterstrat.constants import BEAT_INTERVAL_S
-from counterstrat.roundscript.models import KillEvent, MovementLine, PlantEvent
+from counterstrat.roundscript.models import KillEvent, MovementLine, PlantEvent, ZoneStint
 
 
 @dataclass
@@ -95,6 +95,67 @@ def _dwell_merge(visits: list[_Visit], min_dwell_s: float) -> list[_Visit]:
             changed = True
 
     return visits
+
+
+def zone_stints(
+    ticks: pl.DataFrame, round_num: int, min_dwell_s: float = 2.0
+) -> tuple[dict[str, list[ZoneStint]], dict[str, str]]:
+    """Per-player debounced zone stints for one round (2026-09-04 plan Task 3).
+
+    Samples each alive player's effective zone once per whole second past
+    freeze end, runs the same dwell merge the movement sentences use, and
+    returns ``(tracks, sides)`` keyed by player name. Feeds
+    ``RoundScript.tracks`` and the MOVE lines of ``to_timeline_text``.
+    """
+    req = {"round_num", "clock_s", "name", "team_name", "is_alive", "last_place_name"}
+    if ticks.is_empty() or not req.issubset(ticks.columns):
+        return {}, {}
+    sec = (
+        ticks.filter((pl.col("round_num") == round_num) & (pl.col("clock_s") >= 0.0))
+        .with_columns(pl.col("clock_s").floor().cast(pl.Int32).alias("_s"))
+        .group_by("name", "_s")
+        .agg(
+            pl.col("last_place_name").first().alias("_zone"),
+            pl.col("team_name").first().alias("_team"),
+            pl.col("is_alive").first().alias("_alive"),
+        )
+        .sort("name", "_s")
+    )
+    tracks: dict[str, list[ZoneStint]] = {}
+    sides: dict[str, str] = {}
+    for (player,), grp in sec.group_by("name", maintain_order=True):
+        player = str(player)
+        sides[player] = _normalize_side(grp["_team"][0])
+        visits: list[_Visit] = []
+        for row in grp.iter_rows(named=True):
+            if not row["_alive"]:
+                break
+            zone = str(row["_zone"] or "").strip()
+            if not zone:
+                continue
+            s = int(row["_s"])
+            if visits and visits[-1].zone == zone and int(visits[-1].end_t) == s:
+                visits[-1].end_t = s + 1
+                visits[-1].duration = visits[-1].end_t - visits[-1].start_t
+            else:
+                visits.append(
+                    _Visit(
+                        zone=zone,
+                        start_t=float(s),
+                        end_t=float(s + 1),
+                        start_tick=s * 64,
+                        end_tick=(s + 1) * 64,
+                        duration=1.0,
+                        walk_ticks=0,
+                        total_ticks=1,
+                        is_defusing=False,
+                    )
+                )
+        merged = _dwell_merge(visits, min_dwell_s)
+        tracks[player] = [
+            ZoneStint(t0=int(v.start_t), t1=int(v.end_t), zone=v.zone) for v in merged
+        ]
+    return tracks, sides
 
 
 def _normalize_side(side_val: Any) -> str:

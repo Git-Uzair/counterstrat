@@ -56,6 +56,14 @@ class MovementLine(BaseModel):  # filled by Task 14
     sentence: str
 
 
+class ZoneStint(BaseModel):
+    """One contiguous alive stay in a zone, whole seconds since freeze end."""
+
+    t0: int
+    t1: int
+    zone: str
+
+
 class RoundScript(BaseModel):
     match_id: str
     map_name: str
@@ -75,17 +83,13 @@ class RoundScript(BaseModel):
     reason: str
     clock_used_s: float
     movements: list[MovementLine] = []
+    # v2 (2026-09-04 plan Task 3): per-player zone stints + sides; empty on
+    # scripts serialized before the upgrade (renderers must degrade gracefully).
+    tracks: dict[str, list[ZoneStint]] = {}
+    sides: dict[str, str] = {}
 
     def to_text(self, include_movements: bool = False, max_utility: int = 16) -> str:
-        t_econ = self.economy.get("T")
-        ct_econ = self.economy.get("CT")
-        t_buy = t_econ.buy_type if t_econ else "unknown"
-        t_spend = t_econ.spend if t_econ else 0
-        ct_buy = ct_econ.buy_type if ct_econ else "unknown"
-        ct_spend = ct_econ.spend if ct_econ else 0
-        lines = [
-            f"R{self.round_num} [T {t_buy}(${t_spend / 1000:.1f}k) | CT {ct_buy}(${ct_spend / 1000:.1f}k)] score {self.score_t}-{self.score_ct}"
-        ]
+        lines = [self._header_line()]
         for beat in self.beats:
             t_zones = ", ".join(f"{c}x{z}" for c, z in beat.t_form.zones)
             ct_zones = ", ".join(f"{c}x{z}" for c, z in beat.ct_form.zones)
@@ -113,6 +117,100 @@ class RoundScript(BaseModel):
         m = int(self.clock_used_s // 60)
         s = int(self.clock_used_s % 60)
         lines.append(f"END {self.winner} {self.reason} @{m}:{s:02d}")
+        return "\n".join(lines)
+
+    def _header_line(self) -> str:
+        t_econ = self.economy.get("T")
+        ct_econ = self.economy.get("CT")
+        t_buy = t_econ.buy_type if t_econ else "unknown"
+        t_spend = t_econ.spend if t_econ else 0
+        ct_buy = ct_econ.buy_type if ct_econ else "unknown"
+        ct_spend = ct_econ.spend if ct_econ else 0
+        return (
+            f"R{self.round_num} [T {t_buy}(${t_spend / 1000:.1f}k) | "
+            f"CT {ct_buy}(${ct_spend / 1000:.1f}k)] score {self.score_t}-{self.score_ct}"
+        )
+
+    def _side_of(self, player: str) -> str:
+        return self.sides.get(player, "?")
+
+    def to_timeline_text(self, lite: bool = False) -> str:
+        """The complete chronological round timeline (2026-09-04 plan Task 3).
+
+        Everything that happened with absolute seconds: anchors header
+        (first contact / plant / end with precomputed deltas), 15s state
+        snapshots from the beats, then the merged event stream - SPAWNS and
+        MOVE from ``tracks`` (skipped when ``lite`` or on pre-v2 scripts),
+        EVERY kill (``to_text`` renders only first contact), uncapped utility,
+        PLANT with timestamp and alive counts. The lab measured today's text
+        at 83%/62% (easy/hard) vs 100%/96% for this stream.
+        """
+        lines = [self._header_line()]
+
+        anchors: list[str] = []
+        if self.first_contact:
+            fc = self.first_contact
+            anchors.append(
+                f"first_contact={fc.t:.0f}s ({fc.killer} {fc.killer_side} kills "
+                f"{fc.victim} in `{fc.zone}`)"
+            )
+        if self.plant:
+            rel = (
+                f" (+{self.plant.t - self.first_contact.t:.0f}s after first contact)"
+                if self.first_contact
+                else ""
+            )
+            anchors.append(f"plant={self.plant.t:.0f}s at `{self.plant.site}`{rel}")
+        anchors.append(f"end={self.clock_used_s:.0f}s ({self.winner} wins, {self.reason})")
+        lines.append("anchors: " + "; ".join(anchors))
+
+        for beat in self.beats:
+            if beat.t <= 0:
+                continue
+            t_zones = ", ".join(f"{c}x`{z}`" for c, z in beat.t_form.zones)
+            ct_zones = ", ".join(f"{c}x`{z}`" for c, z in beat.ct_form.zones)
+            lines.append(f"state@{beat.t:.0f}s: T[{t_zones}] CT[{ct_zones}]")
+
+        events: list[tuple[float, int, str]] = []  # (t, tiebreak, line)
+        if not lite and self.tracks:
+            spawn = ", ".join(f"{p}:`{st[0].zone}`" for p, st in sorted(self.tracks.items()) if st)
+            if spawn:
+                lines.append(f"t=0s SPAWNS {spawn}")
+            for player, stints in sorted(self.tracks.items()):
+                for st in stints[1:]:
+                    events.append(
+                        (
+                            float(st.t0),
+                            0,
+                            f"MOVE {player} ({self._side_of(player)}) enters `{st.zone}`",
+                        )
+                    )
+        for k in self.kills:
+            traded = " [traded]" if k.traded_within_4s else ""
+            kill_line = (
+                f"KILL {k.killer} ({k.killer_side}) kills {k.victim} in "
+                f"`{k.zone}` [{k.weapon}]{traded}"
+            )
+            events.append((k.t, 1, kill_line))
+        for u in self.utility:
+            line = f"UTIL {u.thrower} ({u.side}) {u.nade} from `{u.from_zone}` lands `{u.to_zone}`"
+            if u.lineup_id:
+                line += f" [{u.lineup_id}]"
+            if u.blinded:
+                line += " (blinds " + ", ".join(f"{v} {d:.1f}s" for v, d in u.blinded) + ")"
+            events.append((u.t, 1, line))
+        if self.plant:
+            p = self.plant
+            events.append(
+                (
+                    p.t,
+                    1,
+                    f"PLANT {p.planter} plants at `{p.site}` ({p.alive_t}v{p.alive_ct} alive)",
+                )
+            )
+        events.sort(key=lambda e: (e[0], e[1]))
+        lines += [f"t={t:.0f}s {text}" for t, _, text in events]
+        lines.append(f"END: {self.winner} wins ({self.reason}) at {self.clock_used_s:.0f}s")
         return "\n".join(lines)
 
     def to_json(self) -> str:
