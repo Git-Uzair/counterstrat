@@ -58,10 +58,12 @@ class ChatTurn(BaseModel):
 
 
 class LLMClient(Protocol):
-    def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> LLMResult: ...
+    # max_tokens bounds VISIBLE output text; None means "the model's own maximum"
+    # so analysis-grade calls are never cut short by a self-imposed ceiling.
+    def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> LLMResult: ...
 
     def complete_json[T: BaseModel](
-        self, *, system: str, user: str, schema: type[T], max_tokens: int = 4096
+        self, *, system: str, user: str, schema: type[T], max_tokens: int | None = None
     ) -> tuple[T, LLMResult]: ...
 
     def chat(
@@ -70,7 +72,7 @@ class LLMClient(Protocol):
         system: str,
         turns: list[ChatTurn],
         tools: list[ToolSpec],
-        max_tokens: int = 4096,
+        max_tokens: int | None = None,
     ) -> tuple[ChatTurn, LLMResult]: ...
 
 

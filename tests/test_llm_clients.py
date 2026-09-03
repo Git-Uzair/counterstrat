@@ -184,6 +184,21 @@ def test_gemini_complete_replay():
     assert "response_schema" not in transport.requests[0]["config"]
 
 
+def test_default_max_tokens_is_uncapped():
+    """No caller cap = no ceiling on Gemini, model-max-bounded default on Anthropic."""
+    from counterstrat.llm.anthropic_client import DEFAULT_MAX_OUTPUT
+
+    g_transport = ReplayTransport("gemini_complete")
+    gemini = GeminiClient(api_key="k", model="m", transport=g_transport)
+    gemini.complete(system="s", user="u")
+    assert "max_output_tokens" not in g_transport.requests[0]["config"]
+
+    a_transport = ReplayTransport("anthropic_complete")
+    anthropic = AnthropicClient(api_key="k", model="m", transport=a_transport)
+    anthropic.complete(system="s", user="u")
+    assert a_transport.requests[0]["max_tokens"] == DEFAULT_MAX_OUTPUT
+
+
 def test_gemini_truncation_is_flagged():
     """finish_reason MAX_TOKENS surfaces as LLMResult.truncated."""
 

@@ -17,6 +17,11 @@ from counterstrat.llm.base import (
 
 PROVIDER = "anthropic"
 
+# The Messages API REQUIRES max_tokens, so "no self-imposed cap" maps to a
+# generous default well under the model maximum (claude-sonnet-5 supports 128k
+# output tokens, platform.claude.com sonnet-5 overview, checked 2026-09-03).
+DEFAULT_MAX_OUTPUT = 32_000
+
 
 def _system_blocks(system: str) -> list[dict[str, Any]]:
     """System prompt as one cached text block.
@@ -113,13 +118,13 @@ class AnthropicClient:
             truncated=(resp.get("stop_reason") == "max_tokens"),
         )
 
-    def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> LLMResult:
+    def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> LLMResult:
         check_budget(self.max_input_tokens, system, user)
         resp = self._send(
             {
                 "kind": "create",
                 "model": self.model,
-                "max_tokens": max_tokens,
+                "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_OUTPUT,
                 "system": _system_blocks(system),
                 "messages": [{"role": "user", "content": user}],
             }
@@ -127,14 +132,14 @@ class AnthropicClient:
         return self._result(resp)
 
     def complete_json[T: BaseModel](
-        self, *, system: str, user: str, schema: type[T], max_tokens: int = 4096
+        self, *, system: str, user: str, schema: type[T], max_tokens: int | None = None
     ) -> tuple[T, LLMResult]:
         check_budget(self.max_input_tokens, system, user)
         resp = self._send(
             {
                 "kind": "parse",
                 "model": self.model,
-                "max_tokens": max_tokens,
+                "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_OUTPUT,
                 "system": _system_blocks(system),
                 "messages": [{"role": "user", "content": user}],
                 "output_format": schema,
@@ -149,13 +154,13 @@ class AnthropicClient:
         system: str,
         turns: list[ChatTurn],
         tools: list[ToolSpec],
-        max_tokens: int = 4096,
+        max_tokens: int | None = None,
     ) -> tuple[ChatTurn, LLMResult]:
         check_budget(self.max_input_tokens, system, *turn_texts(turns))
         req: dict[str, Any] = {
             "kind": "create",
             "model": self.model,
-            "max_tokens": max_tokens,
+            "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_OUTPUT,
             "system": _system_blocks(system),
             "messages": _messages(turns),
         }

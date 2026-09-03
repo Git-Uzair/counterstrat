@@ -158,15 +158,17 @@ class GeminiClient:
     def _config(
         self,
         system: str,
-        max_tokens: int,
+        max_tokens: int | None,
         *,
         tools: list[ToolSpec] | None = None,
         schema: type[BaseModel] | None = None,
     ) -> dict[str, Any]:
-        config: dict[str, Any] = {
-            "system_instruction": system,
-            "max_output_tokens": max_tokens + THINKING_HEADROOM,
-        }
+        config: dict[str, Any] = {"system_instruction": system}
+        if max_tokens is not None:
+            # An explicit cap bounds VISIBLE text; the headroom absorbs thoughts.
+            # None sends no ceiling at all: the model thinks and writes up to its
+            # own maximum, which is what analysis-grade calls want.
+            config["max_output_tokens"] = max_tokens + THINKING_HEADROOM
         if schema is not None:
             config["response_mime_type"] = "application/json"
             config["response_schema"] = schema
@@ -191,7 +193,7 @@ class GeminiClient:
             truncated=finish == "MAX_TOKENS",
         )
 
-    def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> LLMResult:
+    def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> LLMResult:
         check_budget(self.max_input_tokens, system, user)
         resp = self._send(
             {
@@ -203,7 +205,7 @@ class GeminiClient:
         return self._result(resp)
 
     def complete_json[T: BaseModel](
-        self, *, system: str, user: str, schema: type[T], max_tokens: int = 4096
+        self, *, system: str, user: str, schema: type[T], max_tokens: int | None = None
     ) -> tuple[T, LLMResult]:
         check_budget(self.max_input_tokens, system, user)
         resp = self._send(
@@ -222,7 +224,7 @@ class GeminiClient:
         system: str,
         turns: list[ChatTurn],
         tools: list[ToolSpec],
-        max_tokens: int = 4096,
+        max_tokens: int | None = None,
     ) -> tuple[ChatTurn, LLMResult]:
         check_budget(self.max_input_tokens, system, *turn_texts(turns))
         resp = self._send(

@@ -129,7 +129,7 @@ def generate_insights(
     econ_policy: EconPolicy,
     scripts: list[RoundScript],
     lexicon: Lexicon,
-    max_tokens: int = 4096,
+    max_tokens: int | None = None,  # None = the model's own maximum: never cut analysis short
 ) -> Insights:
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
     system = build_insights_system(card.to_yaml())

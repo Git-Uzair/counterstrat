@@ -20,7 +20,7 @@ class _CompleteClient(ScriptedToolClient):
         self.text = text
         self.completions: list[dict] = []
 
-    def complete(self, *, system: str, user: str, max_tokens: int = 4096):
+    def complete(self, *, system: str, user: str, max_tokens: int | None = None):
         from counterstrat.llm.base import LLMResult
 
         self.completions.append({"system": system, "user": user})
@@ -98,11 +98,11 @@ def test_generate_insights_warns_on_truncation(synthetic_scripts):
     from counterstrat.llm.base import LLMResult
 
     class _TruncatedClient(_CompleteClient):
-        def complete(self, *, system, user, max_tokens=4096):
+        def complete(self, *, system, user, max_tokens=None):
             return LLMResult(
                 text="## Read\nCut mid-",
                 input_tokens=1,
-                output_tokens=max_tokens,
+                output_tokens=65536,
                 model="m",
                 provider="mock",
                 truncated=True,

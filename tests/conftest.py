@@ -237,13 +237,13 @@ class ScriptedToolClient:
         self.fallback_text = fallback_text
         self.calls: list[dict[str, Any]] = []
 
-    def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> Any:
+    def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> Any:
         raise NotImplementedError
 
-    def complete_json(self, *, system: str, user: str, schema: Any, max_tokens: int = 4096) -> Any:
+    def complete_json(self, *, system: str, user: str, schema: Any, max_tokens: int | None = None) -> Any:
         raise NotImplementedError
 
-    def chat(self, *, system: str, turns: list, tools: list, max_tokens: int = 4096) -> tuple:
+    def chat(self, *, system: str, turns: list, tools: list, max_tokens: int | None = None) -> tuple:
         from counterstrat.llm.base import ChatTurn, LLMResult
 
         self.calls.append({"system": system, "turns": list(turns), "tools": list(tools)})
