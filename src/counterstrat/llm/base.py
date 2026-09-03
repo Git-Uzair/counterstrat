@@ -42,6 +42,10 @@ class ToolCall(BaseModel):
     id: str
     name: str
     arguments: dict
+    # Provider-opaque reasoning signature (Gemini's per-part `thought_signature`).
+    # Gemini 3 models reject a tool loop whose function_call parts come back without
+    # it, so adapters carry it across turns untouched.
+    signature: str | None = None
 
 
 class ChatTurn(BaseModel):

@@ -84,7 +84,12 @@ def _contents(turns: list[ChatTurn]) -> list[dict[str, Any]]:
             function_call: dict[str, Any] = {"name": call.name, "args": call.arguments}
             if call.id != _synth_call_id(call.name, index):
                 function_call["id"] = call.id
-            parts.append({"function_call": function_call})
+            part: dict[str, Any] = {"function_call": function_call}
+            # Gemini 3 validates that each function_call part returns with the
+            # thought_signature it arrived with; base64 round-trips as a plain string.
+            if call.signature:
+                part["thought_signature"] = call.signature
+            parts.append(part)
         contents.append({"role": "model", "parts": parts})
     return contents
 
@@ -229,6 +234,7 @@ class GeminiClient:
                     id=fc.get("id") or _synth_call_id(name, len(calls)),
                     name=name,
                     arguments=fc.get("args") or {},
+                    signature=part.get("thought_signature"),
                 )
             )
         return ChatTurn(role="assistant", text=result.text or None, tool_calls=calls), result

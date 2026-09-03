@@ -276,6 +276,53 @@ def test_gemini_chat_tool_roundtrip_with_provider_call_id():
     ]
 
 
+def test_gemini_chat_preserves_thought_signature():
+    """Gemini 3 rejects a tool loop whose function_call part lost its thought_signature."""
+    signature = "AAFhYmP_"  # base64, exactly as model_dump(mode="json") renders the bytes
+    tool_use = {
+        "candidates": [
+            {
+                "content": {
+                    "role": "model",
+                    "parts": [
+                        {
+                            "function_call": {"name": "get_tendency", "args": {"team": "NAVI"}},
+                            "thought_signature": signature,
+                        }
+                    ],
+                }
+            }
+        ],
+        "usage_metadata": {"prompt_token_count": 12, "candidates_token_count": 4},
+    }
+    responses: list[dict[str, Any]] = [
+        tool_use,
+        json.loads((FIXTURES / "gemini_chat_final.json").read_text(encoding="utf-8")),
+    ]
+    requests: list[dict[str, Any]] = []
+
+    def transport(req: dict[str, Any]) -> dict[str, Any]:
+        requests.append(req)
+        return responses.pop(0)
+
+    client = GeminiClient(api_key="k", model="m", transport=transport)
+    turn, _ = client.chat(system="s", turns=[ChatTurn(role="user", text="q")], tools=[TOOL])
+    assert turn.tool_calls[0].signature == signature
+
+    client.chat(
+        system="s",
+        turns=[
+            ChatTurn(role="user", text="q"),
+            turn,
+            ChatTurn(role="tool", tool_call_id=turn.tool_calls[0].id, text='{"rows": []}'),
+        ],
+        tools=[TOOL],
+    )
+    model_part = requests[1]["contents"][1]["parts"][0]
+    assert model_part["function_call"]["name"] == "get_tendency"
+    assert model_part["thought_signature"] == signature
+
+
 def test_gemini_non_json_tool_result_is_wrapped():
     transport = ReplayTransport("gemini_chat_final")
     client = GeminiClient(api_key="k", model="m", transport=transport)

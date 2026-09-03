@@ -2245,7 +2245,7 @@ def run_agent(client: LLMClient, system: str, history: list[ChatTurn],
   - Sessions: in-memory dict + on-disk transcript; recreating a session
     after restart replays the jsonl into `history`.
 
-- [ ] **Step 1: Failing tests** — all offline via scripted clients:
+- [x] **Step 1: Failing tests** — all offline via scripted clients:
 
 ```python
 def test_agent_executes_tool_then_answers(session_ctx):
@@ -2281,12 +2281,12 @@ def test_agent_iteration_cap(session_ctx):
   JSON has `text`/`warnings`; transcript file exists; second message sees
   history; unknown session 404.
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement.**
-- [ ] **Step 4: PASS; one `@pytest.mark.live` conversation on the fixture
+- [x] **Step 2: fails.** - [x] **Step 3: implement.**
+- [x] **Step 4: PASS; one `@pytest.mark.live` conversation on the fixture
   team ("what is their default CT setup on full buys?") asserting the reply
   cites at least one `match_id:round` and zero lint warnings — run once per
   provider, models per dev policy.**
-- [ ] **Step 5: Commit** `"feat: analyst chat agent + API"`
+- [x] **Step 5: Commit** `"feat: analyst chat agent + API"`
 
 **Done when:** scripted-loop tests green on both adapters' shared loop; SQL
 guard provably read-only; live conversation (keys present) answers the
