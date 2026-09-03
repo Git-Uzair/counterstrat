@@ -1960,7 +1960,7 @@ evidence.
     user turn, then returns flagged.
 - Consumes: Tasks 10, 16, 17, 18.
 
-- [ ] **Step 1: Failing tests** — all offline with a `ScriptedClient`:
+- [x] **Step 1: Failing tests** — all offline with a `ScriptedClient`:
 
 ```python
 def test_dossier_lint_catches_fabrication(anubis_card, synthetic_teambook):
@@ -1980,11 +1980,11 @@ def test_exemplar_selection_covers_top_tendencies(synthetic_teambook, scripts):
     assert any(f"{s.match_id}:{s.round_num}" in top.evidence for s in ex)
 ```
 
-- [ ] **Step 2–4: implement + PASS.** Include one `@pytest.mark.live`
+- [x] **Step 2–4: implement + PASS.** Include one `@pytest.mark.live`
   end-to-end dossier on the fixture demo's team (single-demo TeamBook —
   content will be thin; the test asserts only lint-clean + all sections
   present; models per dev policy).
-- [ ] **Step 5: Commit** `"feat: dossier generation + lint gate"`
+- [x] **Step 5: Commit** `"feat: dossier generation + lint gate"`
 
 **Done when:** lint provably catches planted fabrications; exemplar
 selection is coverage-driven; live run (when keys exist) produces a
