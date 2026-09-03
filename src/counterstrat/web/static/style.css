@@ -1456,6 +1456,23 @@ textarea#chat-input:disabled {
 
 .callout-label:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
 .callout-label.is-custom { border-color: var(--accent-orange); color: var(--accent-orange); }
+.callout-label.is-user-zone { border-color: var(--color-success-text); color: var(--color-success-text); }
+
+.callouts-frame.is-placing { cursor: crosshair; }
+.callouts-frame.is-placing .callout-label { pointer-events: none; }
+
+#callouts-add.active { border-color: var(--color-success-text); color: var(--color-success-text); }
+
+.callout-user-tag {
+  font-size: 0.65rem;
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+
+.callout-radius-input { width: 80px; }
 
 .callout-edit-input {
   width: 110px;

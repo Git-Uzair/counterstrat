@@ -87,6 +87,7 @@ def test_callouts_view_static(client_app: TestClient) -> None:
         'id="callouts-table"',
         'id="callouts-level-toggle"',
         'id="callouts-reset-all"',
+        'id="callouts-add"',
         "callouts.js",
     ]:
         assert token in html, f"missing {token}"
@@ -97,6 +98,10 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     # Reset controls: per-zone clear buttons plus a confirmed reset-all.
     assert "callout-reset-btn" in js
     assert "resetAll" in js and "confirm(" in js
+    # Custom zone placement: point-and-name, rebuild polling, styled labels.
+    assert "is-placing" in js
+    assert "/zones" in js and "pollJob" in js
+    assert "is-user-zone" in js
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
