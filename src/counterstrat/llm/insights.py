@@ -146,6 +146,11 @@ def generate_insights(
     lint = lint_dossier(result.text, teambook, lexicon, valid_evidence)
     warnings = [f"Unknown zone: {z}" for z in lint.unknown_zones]
     warnings += [f"Bad citation: {c}" for c in lint.bad_citations]
+    if result.truncated:
+        warnings.append(
+            "Output hit the model's token ceiling and is cut short - regenerate "
+            "(the model may think less on a retry) or raise max_tokens."
+        )
 
     return Insights(
         text=result.text,

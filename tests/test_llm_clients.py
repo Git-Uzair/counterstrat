@@ -171,12 +171,52 @@ def test_gemini_complete_json_replay():
 
 
 def test_gemini_complete_replay():
+    from counterstrat.llm.gemini_client import THINKING_HEADROOM
+
     transport = ReplayTransport("gemini_complete")
     client = GeminiClient(api_key="k", model="m", transport=transport)
     res = client.complete(system="card", user="q", max_tokens=128)
     assert res.text.startswith("They default")
-    assert transport.requests[0]["config"]["max_output_tokens"] == 128
+    assert res.truncated is False
+    # Thinking models spend reasoning tokens from the same ceiling: the caller's
+    # max_tokens buys visible text, the headroom absorbs the thoughts.
+    assert transport.requests[0]["config"]["max_output_tokens"] == 128 + THINKING_HEADROOM
     assert "response_schema" not in transport.requests[0]["config"]
+
+
+def test_gemini_truncation_is_flagged():
+    """finish_reason MAX_TOKENS surfaces as LLMResult.truncated."""
+
+    def transport(req):
+        return {
+            "candidates": [
+                {
+                    "finish_reason": "MAX_TOKENS",
+                    "content": {"parts": [{"text": "cut off mid-sent"}]},
+                }
+            ],
+            "usage_metadata": {"prompt_token_count": 10, "candidates_token_count": 4096},
+            "model_version": "m",
+        }
+
+    client = GeminiClient(api_key="k", model="m", transport=transport)
+    res = client.complete(system="s", user="u")
+    assert res.truncated is True
+    assert res.text == "cut off mid-sent"
+
+
+def test_anthropic_truncation_is_flagged():
+    def transport(req):
+        return {
+            "content": [{"type": "text", "text": "cut"}],
+            "usage": {"input_tokens": 5, "output_tokens": 4096},
+            "model": "m",
+            "stop_reason": "max_tokens",
+        }
+
+    client = AnthropicClient(api_key="k", model="m", transport=transport)
+    res = client.complete(system="s", user="u")
+    assert res.truncated is True
 
 
 def test_anthropic_chat_tool_roundtrip():

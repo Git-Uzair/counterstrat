@@ -18,6 +18,13 @@ from counterstrat.llm.base import (
 
 PROVIDER = "gemini"
 
+# Gemini thinking models count reasoning tokens against max_output_tokens, so a
+# hard task can think the whole budget away and emit a few hundred visible
+# characters (observed: 3929 thought tokens + 163 text tokens under a 4096 cap;
+# a 71-round corpus pushed thinking past 12k tokens). Callers size max_tokens
+# for VISIBLE text; the wire ceiling adds this headroom for the thoughts.
+THINKING_HEADROOM = 24576
+
 
 def _response_payload(text: str | None) -> dict[str, Any]:
     """Coerces a tool-result string into the dict shape a function_response needs."""
@@ -158,7 +165,7 @@ class GeminiClient:
     ) -> dict[str, Any]:
         config: dict[str, Any] = {
             "system_instruction": system,
-            "max_output_tokens": max_tokens,
+            "max_output_tokens": max_tokens + THINKING_HEADROOM,
         }
         if schema is not None:
             config["response_mime_type"] = "application/json"
@@ -172,6 +179,8 @@ class GeminiClient:
             p.get("text") or "" for p in _parts(resp) if p.get("text") and not p.get("thought")
         )
         usage = resp.get("usage_metadata") or {}
+        candidates = resp.get("candidates") or [{}]
+        finish = str(candidates[0].get("finish_reason") or "").upper()
         return LLMResult(
             text=text,
             input_tokens=usage.get("prompt_token_count") or 0,
@@ -179,6 +188,7 @@ class GeminiClient:
             cache_read_tokens=usage.get("cached_content_token_count") or 0,
             model=resp.get("model_version") or self.model,
             provider=PROVIDER,
+            truncated=finish == "MAX_TOKENS",
         )
 
     def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> LLMResult:

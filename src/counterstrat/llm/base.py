@@ -30,6 +30,8 @@ class LLMResult(BaseModel):
     cache_read_tokens: int = 0
     model: str = "mock"
     provider: str = "mock"
+    # The provider stopped at its output token ceiling: the text is cut short.
+    truncated: bool = False
 
 
 class ToolSpec(BaseModel):

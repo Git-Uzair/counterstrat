@@ -94,6 +94,27 @@ def test_generate_insights_flags_fabrications(synthetic_scripts):
     assert any("fake:99" in w for w in out.warnings)
 
 
+def test_generate_insights_warns_on_truncation(synthetic_scripts):
+    from counterstrat.llm.base import LLMResult
+
+    class _TruncatedClient(_CompleteClient):
+        def complete(self, *, system, user, max_tokens=4096):
+            return LLMResult(
+                text="## Read\nCut mid-",
+                input_tokens=1,
+                output_tokens=max_tokens,
+                model="m",
+                provider="mock",
+                truncated=True,
+            )
+
+    b = _bundle(synthetic_scripts)
+    card = build_synthetic_card()
+    lex = build_lexicon("de_anubis", list(card.zones.keys()))
+    out = generate_insights(_TruncatedClient(""), card, scripts=synthetic_scripts, lexicon=lex, **b)
+    assert any("token ceiling" in w for w in out.warnings)
+
+
 def test_insights_payload_roundtrips_json(synthetic_scripts):
     b = _bundle(synthetic_scripts)
     card = build_synthetic_card()

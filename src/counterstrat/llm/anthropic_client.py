@@ -110,6 +110,7 @@ class AnthropicClient:
             cache_read_tokens=usage.get("cache_read_input_tokens") or 0,
             model=resp.get("model") or self.model,
             provider=PROVIDER,
+            truncated=(resp.get("stop_reason") == "max_tokens"),
         )
 
     def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> LLMResult:
