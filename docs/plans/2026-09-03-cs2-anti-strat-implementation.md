@@ -1689,7 +1689,7 @@ class TeamBook(BaseModel):
   field) — the dossier prompt tells the model to hedge them (spec risk #2).
 - Consumes: Task 16 scripts.
 
-- [ ] **Step 1: Failing test** — synthetic scripts with a planted pattern:
+- [x] **Step 1: Failing test** — synthetic scripts with a planted pattern:
 
 ```python
 def test_miner_finds_planted_tendency():
@@ -1710,10 +1710,10 @@ def test_miner_deterministic(synthetic_scripts):
     assert a == b
 ```
 
-- [ ] **Step 2–4: implement + PASS** (pure dict math over scripts; polars
+- [x] **Step 2–4: implement + PASS** (pure dict math over scripts; polars
   optional). Include `@pytest.mark.demo` smoke: fixture demo yields ≥1
   tendency per side with correct `n` sums (= that team's rounds).
-- [ ] **Step 5: Commit** `"feat: tendency miner (TeamBook)"`
+- [x] **Step 5: Commit** `"feat: tendency miner (TeamBook)"`
 
 **Done when:** planted frequencies recovered exactly; identical JSON on
 re-run; evidence ids resolve to real scripts. **Deferred to N4:** the
