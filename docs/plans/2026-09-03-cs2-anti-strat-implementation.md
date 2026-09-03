@@ -1850,7 +1850,7 @@ def resolve_latest_sonnet(api_key: str) -> str:
   `tests/fixtures/llm/`). A `@pytest.mark.live` test per adapter does one
   tiny real call (skipped without keys).
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 def test_make_client_provider_switch(monkeypatch):
@@ -1903,12 +1903,14 @@ def test_anthropic_chat_tool_roundtrip(fake_anthropic_tool_transport):
     assert final.text and not final.tool_calls
 ```
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement both adapters + config.**
-- [ ] **Step 4: PASS offline suite; run `-m live` once if keys present and
+- [x] **Step 2: fails.** - [x] **Step 3: implement both adapters + config.**
+- [x] **Step 4: PASS offline suite; run `-m live` once if keys present and
   paste real usage numbers into the commit message. Live tests select
   models per the dev policy: `resolve_latest_sonnet()` for Anthropic,
   `DEV_GEMINI_MODEL` for Gemini — never the runtime config values.**
-- [ ] **Step 5: Commit** `"feat: LLM provider abstraction (anthropic+gemini)"`
+  (offline suite PASS: 14 replay/guard tests; live tests written and
+  `-m live`-marked, not executed — no keys in this environment)
+- [x] **Step 5: Commit** `"feat: LLM provider abstraction (anthropic+gemini)"`
 
 **Done when:** provider switch by config/env verified; JSON mode returns
 validated pydantic objects on both adapters via replay; tool calls

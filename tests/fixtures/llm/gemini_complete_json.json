@@ -1,0 +1,23 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"site\": \"A\", \"confidence\": 0.82}"
+          }
+        ],
+        "role": "model"
+      },
+      "finish_reason": "STOP"
+    }
+  ],
+  "model_version": "gemini-2.5-pro",
+  "response_id": "fixture-replay",
+  "usage_metadata": {
+    "cached_content_token_count": 1408,
+    "candidates_token_count": 39,
+    "prompt_token_count": 1533,
+    "total_token_count": 1572
+  }
+}

@@ -1,0 +1,206 @@
+"""Google Gemini adapter for the LLMClient protocol (spec Phase 2a, Task 18)."""
+
+import json
+from typing import Any
+
+from pydantic import BaseModel
+
+from counterstrat.llm.base import (
+    ChatTurn,
+    LLMResult,
+    ToolCall,
+    ToolSpec,
+    Transport,
+    call_with_retries,
+    check_budget,
+    turn_texts,
+)
+
+PROVIDER = "gemini"
+
+
+def _response_payload(text: str | None) -> dict[str, Any]:
+    """Coerces a tool-result string into the dict shape a function_response needs."""
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {"result": text}
+    return parsed if isinstance(parsed, dict) else {"result": parsed}
+
+
+def _contents(turns: list[ChatTurn]) -> list[dict[str, Any]]:
+    """Normalized turns -> Gemini contents (function responses ride on user turns).
+
+    Outbound parts carry no call ids: our ids for Gemini calls are synthesized
+    (`name:index`), and Gemini matches responses to calls by function name.
+    """
+    contents: list[dict[str, Any]] = []
+    prev_tool = False
+    for turn in turns:
+        if turn.role == "tool":
+            name = (turn.tool_call_id or "").rsplit(":", 1)[0]
+            part = {"function_response": {"name": name, "response": _response_payload(turn.text)}}
+            if prev_tool:
+                contents[-1]["parts"].append(part)
+            else:
+                contents.append({"role": "user", "parts": [part]})
+            prev_tool = True
+            continue
+        prev_tool = False
+        if turn.role == "user":
+            contents.append({"role": "user", "parts": [{"text": turn.text or ""}]})
+            continue
+        parts: list[dict[str, Any]] = []
+        if turn.text:
+            parts.append({"text": turn.text})
+        for call in turn.tool_calls:
+            parts.append({"function_call": {"name": call.name, "args": call.arguments}})
+        contents.append({"role": "model", "parts": parts})
+    return contents
+
+
+def _tools(tools: list[ToolSpec]) -> list[dict[str, Any]]:
+    return [
+        {
+            "function_declarations": [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters_json_schema": t.input_schema,
+                }
+                for t in tools
+            ]
+        }
+    ]
+
+
+def _parts(resp: dict[str, Any]) -> list[dict[str, Any]]:
+    candidates = resp.get("candidates") or []
+    if not candidates:
+        return []
+    return (candidates[0].get("content") or {}).get("parts") or []
+
+
+class GeminiClient:
+    """LLMClient over `google-genai`; `transport` swaps the SDK out for replay in tests.
+
+    Gemini caches long prompt prefixes implicitly for 2.5+ models, so the cached
+    Map Card needs no explicit breakpoint -- it just has to lead the system
+    instruction (mirrors the Anthropic adapter's cached system block).
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gemini-2.5-pro",
+        max_input_tokens: int = 190_000,
+        transport: Transport | None = None,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.max_input_tokens = max_input_tokens
+        self._transport = transport or self._sdk_transport
+        self._sdk: Any = None
+
+    def _sdk_transport(self, req: dict[str, Any]) -> dict[str, Any]:
+        from google import genai
+
+        if self._sdk is None:
+            self._sdk = genai.Client(api_key=self.api_key)
+        resp = self._sdk.models.generate_content(**req)
+        return resp.model_dump(mode="json", exclude_none=True)
+
+    def _send(self, req: dict[str, Any]) -> dict[str, Any]:
+        return call_with_retries(lambda: self._transport(req))
+
+    def _config(
+        self,
+        system: str,
+        max_tokens: int,
+        *,
+        tools: list[ToolSpec] | None = None,
+        schema: type[BaseModel] | None = None,
+    ) -> dict[str, Any]:
+        config: dict[str, Any] = {
+            "system_instruction": system,
+            "max_output_tokens": max_tokens,
+        }
+        if schema is not None:
+            config["response_mime_type"] = "application/json"
+            config["response_schema"] = schema
+        if tools:
+            config["tools"] = _tools(tools)
+        return config
+
+    def _result(self, resp: dict[str, Any]) -> LLMResult:
+        text = "\n".join(
+            p.get("text") or "" for p in _parts(resp) if p.get("text") and not p.get("thought")
+        )
+        usage = resp.get("usage_metadata") or {}
+        return LLMResult(
+            text=text,
+            input_tokens=usage.get("prompt_token_count") or 0,
+            output_tokens=usage.get("candidates_token_count") or 0,
+            cache_read_tokens=usage.get("cached_content_token_count") or 0,
+            model=resp.get("model_version") or self.model,
+            provider=PROVIDER,
+        )
+
+    def complete(self, *, system: str, user: str, max_tokens: int = 4096) -> LLMResult:
+        check_budget(self.max_input_tokens, system, user)
+        resp = self._send(
+            {
+                "model": self.model,
+                "contents": user,
+                "config": self._config(system, max_tokens),
+            }
+        )
+        return self._result(resp)
+
+    def complete_json[T: BaseModel](
+        self, *, system: str, user: str, schema: type[T], max_tokens: int = 4096
+    ) -> tuple[T, LLMResult]:
+        check_budget(self.max_input_tokens, system, user)
+        resp = self._send(
+            {
+                "model": self.model,
+                "contents": user,
+                "config": self._config(system, max_tokens, schema=schema),
+            }
+        )
+        result = self._result(resp)
+        return schema.model_validate_json(result.text), result
+
+    def chat(
+        self,
+        *,
+        system: str,
+        turns: list[ChatTurn],
+        tools: list[ToolSpec],
+        max_tokens: int = 4096,
+    ) -> tuple[ChatTurn, LLMResult]:
+        check_budget(self.max_input_tokens, system, *turn_texts(turns))
+        resp = self._send(
+            {
+                "model": self.model,
+                "contents": _contents(turns),
+                "config": self._config(system, max_tokens, tools=tools),
+            }
+        )
+        result = self._result(resp)
+        calls: list[ToolCall] = []
+        for part in _parts(resp):
+            fc = part.get("function_call")
+            if not fc:
+                continue
+            name = fc.get("name") or ""
+            calls.append(
+                ToolCall(
+                    id=fc.get("id") or f"{name}:{len(calls)}",
+                    name=name,
+                    arguments=fc.get("args") or {},
+                )
+            )
+        return ChatTurn(role="assistant", text=result.text or None, tool_calls=calls), result

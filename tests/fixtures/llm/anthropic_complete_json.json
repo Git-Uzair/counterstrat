@@ -1,0 +1,28 @@
+{
+  "container": null,
+  "content": [
+    {
+      "citations": null,
+      "text": "{\"site\": \"A\", \"confidence\": 0.82}",
+      "type": "text"
+    }
+  ],
+  "id": "msg_01FixtureReplay",
+  "model": "claude-sonnet-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+    "cache_creation": null,
+    "cache_creation_input_tokens": null,
+    "cache_read_input_tokens": 1408,
+    "inference_geo": null,
+    "input_tokens": 1520,
+    "output_tokens": 42,
+    "output_tokens_details": null,
+    "server_tool_use": null,
+    "service_tier": null
+  }
+}
