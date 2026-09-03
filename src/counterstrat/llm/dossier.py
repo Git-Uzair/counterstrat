@@ -166,10 +166,11 @@ def generate(
     scripts: list[RoundScript],
     lex: Lexicon,
     renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
+    zone_map: str = "",  # llm.prompts.format_zone_map output for this map
 ) -> Dossier:
     """Generate a scouting dossier and enforce anti-hallucination gate with single retry."""
     exemplars = select_exemplars(teambook, scripts, cap=12)
-    system = build_system(card.to_yaml())
+    system = build_system(card.to_yaml(), zone_map)
     user = build_user(
         teambook,
         exemplars,

@@ -410,6 +410,7 @@ def get_insights(
     try:
         from counterstrat.llm.base import make_client
         from counterstrat.llm.insights import generate_insights
+        from counterstrat.llm.prompts import format_zone_map
         from counterstrat.mining.econ_policy import build_econ_policy
         from counterstrat.mining.gaps import build_gap_report
         from counterstrat.mining.utility_book import build_utility_book
@@ -426,6 +427,7 @@ def get_insights(
             lexicon=lex,
             game_labels=_game_labels(cfg, team_key, teambook, scripts),
             renamer=load_renamer(cfg.data_root, map_name),
+            zone_map=format_zone_map(map_zone_anchors(cfg, map_name)),
         )
     except HTTPException:
         raise
@@ -615,6 +617,15 @@ def _zone_anchors(cfg: AppConfig, map_name: str, zones: list[str], places: list)
     return anchors
 
 
+def map_zone_anchors(cfg: AppConfig, map_name: str) -> dict:
+    """Every zone's label anchor - the one source the callout editor and every
+    LLM prompt share, so the model's coordinates are exactly what the user
+    sees and labels on the radar."""
+    places = _map_places(cfg, map_name)
+    zones = _callout_zone_names(cfg, map_name, places) or []
+    return _zone_anchors(cfg, map_name, zones, places)
+
+
 @router.get("/maps/{map_name}/callouts")
 def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
     """Every zone with its game name, the user's alias, a label anchor, and level."""
@@ -683,10 +694,17 @@ def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = 
     try:
         from counterstrat.llm.base import make_client
         from counterstrat.llm.dossier import generate as generate_dossier
+        from counterstrat.llm.prompts import format_zone_map
 
         client = make_client(cfg)
         dossier = generate_dossier(
-            client, card, teambook, scripts, lex, renamer=load_renamer(cfg.data_root, map_name)
+            client,
+            card,
+            teambook,
+            scripts,
+            lex,
+            renamer=load_renamer(cfg.data_root, map_name),
+            zone_map=format_zone_map(map_zone_anchors(cfg, map_name)),
         )
         dossier_path.parent.mkdir(parents=True, exist_ok=True)
         dossier_path.write_text(dossier.text, encoding="utf-8")

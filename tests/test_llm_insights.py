@@ -102,6 +102,22 @@ def test_generate_insights_calls_llm_and_lints(synthetic_scripts):
     assert "causal" in system.lower()
 
 
+def test_generate_insights_forwards_zone_map(synthetic_scripts):
+    b = _bundle(synthetic_scripts)
+    card = build_synthetic_card()
+    lex = build_lexicon("de_anubis", list(card.zones.keys()))
+    client = _CompleteClient("## T Full Buy\nfine.")
+    generate_insights(
+        client,
+        card,
+        scripts=synthetic_scripts,
+        lexicon=lex,
+        zone_map="zone_map:\n- `Middle` at (0.53, 0.10)",
+        **b,
+    )
+    assert "`Middle` at (0.53, 0.10)" in client.completions[0]["system"]
+
+
 def test_generate_insights_flags_fabrications(synthetic_scripts):
     b = _bundle(synthetic_scripts)
     card = build_synthetic_card()

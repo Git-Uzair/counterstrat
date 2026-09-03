@@ -305,6 +305,36 @@ def test_generate_dossier_retry_still_bad_returns_flagged():
     assert "fake:99" in dossier.lint.bad_citations
 
 
+def test_zone_map_formats_and_reaches_prompts():
+    """Anchor coordinates from the editor's source render into the map-card
+    block of every prompt; the builder speaks canonical names (the renamer
+    swaps in user callouts at the existing boundary)."""
+    from counterstrat.llm.insights import build_insights_system
+    from counterstrat.llm.prompts import build_chat_system, format_zone_map
+
+    anchors = {"Middle": (0.53, 0.1, "default"), "BombsiteB": (0.61, 0.34, "lower")}
+    text = format_zone_map(anchors)
+    assert "`Middle` at (0.53, 0.10), upper level" in text
+    assert "`BombsiteB` at (0.61, 0.34), lower level" in text
+    # Single-level maps: no level suffix. No anchors: no section at all.
+    assert format_zone_map({"Middle": (0.5, 0.25, "default")}).endswith("`Middle` at (0.50, 0.25)")
+    assert format_zone_map({}) == ""
+
+    scripts, teambook, lexicon, _ = _mk_synthetic_bundle()
+    for system in (
+        build_system("zones: {}\n", zone_map=text),
+        build_insights_system("zones: {}\n", zone_map=text),
+        build_chat_system("zones: {}\n", teambook, zone_map=text),
+    ):
+        block = system.split("<map_card>")[1].split("</map_card>")[0]
+        assert "`Middle` at (0.53, 0.10), upper level" in block
+
+    card = _mk_synthetic_card()
+    client = ScriptedClient(["draft"])
+    generate(client, card, teambook, scripts, lexicon, zone_map=text)
+    assert "`BombsiteB` at (0.61, 0.34), lower level" in client.calls[0]["system"]
+
+
 @pytest.mark.live
 def test_live_dossier():
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("GEMINI_API_KEY")

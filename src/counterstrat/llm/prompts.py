@@ -7,12 +7,33 @@ from counterstrat.mining.utility_book import UtilityBook
 from counterstrat.roundscript.models import RoundScript
 
 
-def build_system(card_yaml: str) -> str:
+def format_zone_map(anchors: dict[str, tuple]) -> str:
+    """Label-anchor coordinates per zone, rendered into the map-card block.
+
+    ``anchors`` is web.routes.map_zone_anchors output - the same source the
+    callout editor draws, so the model reasons over exactly the positions the
+    user sees and labels. Canonical names here; the Renamer swaps in user
+    callouts at the prompt boundary.
+    """
+    if not anchors:
+        return ""
+    multi = any(a[2] == "lower" for a in anchors.values())
+    lines = [
+        "zone_map:  # label anchor per zone on the radar; "
+        "x: 0 = west edge -> 1 = east, y: 0 = north edge -> 1 = south"
+    ]
+    for zone, (u, v, level) in sorted(anchors.items()):
+        suffix = f", {'lower' if level == 'lower' else 'upper'} level" if multi else ""
+        lines.append(f"- `{zone}` at ({u:.2f}, {v:.2f}){suffix}")
+    return "\n".join(lines)
+
+
+def build_system(card_yaml: str, zone_map: str = "") -> str:
     """Build the system prompt containing the Map Card and dossier output contract."""
     return f"""You are an elite Counter-Strike 2 strategic analyst producing a comprehensive anti-strat scouting dossier.
 
 <map_card>
-{card_yaml}
+{card_yaml}{zone_map}
 </map_card>
 
 Output Contract & Required Sections:
@@ -38,7 +59,7 @@ Mandatory Rules:
 """
 
 
-def build_chat_system(card_yaml: str, teambook: TeamBook) -> str:
+def build_chat_system(card_yaml: str, teambook: TeamBook, zone_map: str = "") -> str:
     """The interactive analyst chat system prompt: doctrine + signals + contract.
 
     Unlike the dossier prompt, this brief is exploit-first and length-capped:
@@ -56,7 +77,7 @@ this map (match ids: {demos}). Every tool answer draws on all of them; more demo
 stronger reads, so state the coverage when the analyst asks how reliable a read is.
 
 <map_card>
-{card_yaml}
+{card_yaml}{zone_map}
 </map_card>
 
 <team_signals>

@@ -294,7 +294,8 @@ def test_callout_positions_from_lake(cfg: AppConfig, client: TestClient):
 
 
 def test_chat_session_speaks_user_callouts(cfg: AppConfig):
-    """The model sees one vocabulary: user names, defaults only where unnamed."""
+    """The model sees one vocabulary: user names, defaults only where unnamed -
+    and the zone map hands it the editor's exact label coordinates."""
     from conftest import ScriptedToolClient
 
     from counterstrat.llm.base import ChatTurn, ToolCall
@@ -309,6 +310,22 @@ def test_chat_session_speaks_user_callouts(cfg: AppConfig):
         p.write_text(s.to_json(), encoding="utf-8")
     (cfg.data_root / "mapcards" / MAP / "aliases.json").write_text(
         json.dumps({"Middle": "Mid"}), encoding="utf-8"
+    )
+    # Anchors for the zone map: median tick (200, -300) -> (0.60, 0.65).
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [190.0, 200.0, 210.0],
+                "Y": [-310.0, -300.0, -290.0],
+                "Z": [0.0, 0.0, 0.0],
+                "last_place_name": ["Middle"] * 3,
+                "is_alive": [True] * 3,
+            }
+        ),
+        match_id="anchor_match",
     )
 
     scripted = ScriptedToolClient(
@@ -329,6 +346,8 @@ def test_chat_session_speaks_user_callouts(cfg: AppConfig):
     system = scripted.calls[0]["system"]
     assert "Mid" in system
     assert "Middle" not in system  # single vocabulary: the canonical never appears
+    # The zone map speaks the user's callout at the editor's exact position.
+    assert "`Mid` at (0.60, 0.65)" in system
     # Tool results reaching the model are renamed too.
     tool_turn_texts = [
         t.text for call in scripted.calls for t in call.get("turns", []) if t.role == "tool"

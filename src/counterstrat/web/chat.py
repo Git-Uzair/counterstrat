@@ -16,7 +16,7 @@ from counterstrat.config import AppConfig
 from counterstrat.lake.duck import connect_lake
 from counterstrat.llm.agent import AgentReply, run_agent
 from counterstrat.llm.base import ChatTurn, make_client
-from counterstrat.llm.prompts import build_chat_system
+from counterstrat.llm.prompts import build_chat_system, format_zone_map
 from counterstrat.llm.tools import SessionContext
 from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
@@ -30,7 +30,7 @@ from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.teams import load_or_build_clusters
 from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli, _rekey
-from counterstrat.web.routes import ConfigDep
+from counterstrat.web.routes import ConfigDep, map_zone_anchors
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +122,9 @@ def _lake_connection(cfg: AppConfig) -> Any:
         return None
 
 
-def _system_prompt(card: MapCard, teambook: TeamBook) -> str:
-    """Doctrine + map card + signal-filtered teambook, in one cacheable block."""
-    return build_chat_system(card.to_yaml(), teambook)
+def _system_prompt(card: MapCard, teambook: TeamBook, zone_map: str = "") -> str:
+    """Doctrine + map card + zone anchors + signal-filtered teambook, cacheable."""
+    return build_chat_system(card.to_yaml(), teambook, zone_map)
 
 
 def _build_session(
@@ -336,7 +336,9 @@ def _build_session(
         session_id=session_id,
         team_key=team_key,
         map_name=map_name,
-        system=renamer.rename_text(_system_prompt(card, teambook)),
+        system=renamer.rename_text(
+            _system_prompt(card, teambook, format_zone_map(map_zone_anchors(cfg, map_name)))
+        ),
         ctx=ctx,
     )
 
