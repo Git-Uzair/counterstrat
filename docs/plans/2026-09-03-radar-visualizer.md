@@ -1021,7 +1021,7 @@ Payload contract that Tasks 4 and 5 code against:
    other layers keep them so nothing silently disappears.
 7. `trail_rounds` caps trails only, never the heatmap.
 
-- [ ] **Step 1: Append the synthetic-lake helper to `tests/conftest.py`**
+- [x] **Step 1: Append the synthetic-lake helper to `tests/conftest.py`**
 
 ```python
 # --- Radar layer fixtures (spec item N2): a deterministic 2-round lake ---
@@ -1177,7 +1177,7 @@ def build_radar_lake(lake_root: Path, match_id: str = "m1") -> Path:
     return out
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `tests/test_radar_layers.py`:
 
@@ -1345,12 +1345,12 @@ def test_unknown_team_key_yields_empty_layers(frames, cal) -> None:
     assert payload["layers"]["trails"] == []
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_radar_layers.py -v`
 Expected: `ModuleNotFoundError: No module named 'counterstrat.radar.layers'`.
 
-- [ ] **Step 4: Write `src/counterstrat/radar/layers.py`**
+- [x] **Step 4: Write `src/counterstrat/radar/layers.py`**
 
 ```python
 """Lake tables -> normalized radar overlay layers (spec item N2).
@@ -1788,7 +1788,7 @@ def build_layers(
 Extend `src/counterstrat/radar/__init__.py` with `LayerFilters`, `build_layers`,
 `lake_frames` (keep `__all__` sorted).
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_radar_layers.py -v`
 Expected: 14 passed.
@@ -1803,7 +1803,7 @@ Debugging notes if a test fails:
 - `_apply_level` on a `DataFrame` and a `LazyFrame` both work because both
   expose `.filter`; keep the `Any` annotation rather than overloading.
 
-- [ ] **Step 6: Lint and commit**
+- [x] **Step 6: Lint and commit**
 
 ```bash
 .venv\Scripts\python.exe -m ruff check .

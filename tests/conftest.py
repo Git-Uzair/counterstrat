@@ -299,3 +299,192 @@ def session_ctx(synthetic_scripts, synthetic_card, lake_con):
         con=lake_con,
         scripts={f"{s.match_id}:{s.round_num}": s for s in synthetic_scripts},
     )
+
+
+# --- Radar layer fixtures (spec item N2): a deterministic 2-round lake ---
+#
+# Geometry is chosen for exact assertions: with radar_test_cal(), world (0, 0)
+# maps to normalized (0.5, 0.5) and every +-256 world units is exactly +-0.125.
+
+
+def radar_test_cal():
+    """A radar calibration spanning 2048 world units across 1024 px."""
+    from counterstrat.radar.extract import RadarCalibration
+
+    return RadarCalibration(
+        map_name="de_test", pos_x=-1024.0, pos_y=1024.0, scale=2.0, image_px=1024
+    )
+
+
+def build_radar_lake(lake_root: Path, match_id: str = "m1") -> Path:
+    """Writes rosters/ticks/kills/grenades/bomb parquet for one synthetic match.
+
+    Roster: teamA = steamids 1,2 (CT in round 1, TERRORIST in round 2);
+            teamB = steamids 3,4 (the mirror). Dtypes deliberately match the
+            real lake, including the UInt64/Int64 steamid mismatch.
+    """
+    import polars as pl
+
+    out = Path(lake_root) / match_id
+    out.mkdir(parents=True, exist_ok=True)
+
+    pl.DataFrame(
+        {
+            "round_num": [1, 1, 2, 2],
+            "side": ["CT", "TERRORIST", "TERRORIST", "CT"],
+            "team_key": ["teamA", "teamB", "teamA", "teamB"],
+            "steamids": [[1, 2], [3, 4], [1, 2], [3, 4]],
+            "clan_name": ["Alpha", "Beta", "Alpha", "Beta"],
+            "match_id": [match_id] * 4,
+        },
+        schema_overrides={"round_num": pl.Int64, "steamids": pl.List(pl.Int64)},
+    ).write_parquet(out / "rosters.parquet")
+
+    # steamid -> (dx, dy) walk direction; each of 4 samples steps 256 units.
+    walks = {1: (256, 0), 2: (0, -256), 3: (-256, 0), 4: (0, 256)}
+    names = {1: "pA1", 2: "pA2", 3: "pB1", 4: "pB2"}
+    rows: list[dict] = []
+    for rnd in (1, 2):
+        for sid, (dx, dy) in walks.items():
+            side = (
+                ("CT" if sid in (1, 2) else "TERRORIST")
+                if rnd == 1
+                else ("TERRORIST" if sid in (1, 2) else "CT")
+            )
+            for i in range(4):
+                rows.append(
+                    {
+                        "match_id": match_id,
+                        "round_num": rnd,
+                        "tick": rnd * 10000 + i,
+                        "steamid": sid,
+                        "name": names[sid],
+                        "team_name": side,
+                        "X": float(dx * i),
+                        "Y": float(dy * i),
+                        "Z": 0.0,
+                        "clock_s": float(i),
+                        "is_alive": True,
+                    }
+                )
+    # One dead sample sharing steamid 1's last cell: proves is_alive filtering.
+    rows.append(
+        {
+            "match_id": match_id,
+            "round_num": 2,
+            "tick": 20009,
+            "steamid": 1,
+            "name": "pA1",
+            "team_name": "TERRORIST",
+            "X": 768.0,
+            "Y": 0.0,
+            "Z": 0.0,
+            "clock_s": 9.0,
+            "is_alive": False,
+        }
+    )
+    pl.DataFrame(
+        rows,
+        schema_overrides={
+            "round_num": pl.UInt32,
+            "tick": pl.Int32,
+            "steamid": pl.UInt64,
+            "X": pl.Float32,
+            "Y": pl.Float32,
+            "Z": pl.Float32,
+            "clock_s": pl.Float64,
+        },
+    ).write_parquet(out / "ticks.parquet")
+
+    pl.DataFrame(
+        {
+            "match_id": [match_id] * 3,
+            "round_num": [1, 2, 2],
+            "tick": [10001, 20001, 20002],
+            "weapon": ["ak47", "m4a1", None],
+            "headshot": [True, False, False],
+            "attacker_X": [0.0, 0.0, None],
+            "attacker_Y": [0.0, 0.0, None],
+            "attacker_Z": [0.0, 0.0, None],
+            "attacker_name": ["pA1", "pB1", None],
+            "attacker_side": ["ct", "ct", None],  # lowercase, as awpy writes it
+            "victim_X": [512.0, -512.0, 0.0],
+            "victim_Y": [0.0, 0.0, 768.0],
+            "victim_Z": [0.0, 0.0, 0.0],
+            "victim_name": ["pB1", "pA1", "pB2"],
+            "victim_side": ["t", "t", "ct"],
+        },
+        schema_overrides={
+            "round_num": pl.UInt32,
+            "tick": pl.Int32,
+            "attacker_X": pl.Float32,
+            "attacker_Y": pl.Float32,
+            "attacker_Z": pl.Float32,
+            "victim_X": pl.Float32,
+            "victim_Y": pl.Float32,
+            "victim_Z": pl.Float32,
+        },
+    ).write_parquet(out / "kills.parquet")
+
+    # entity 10: teamA smoke (kept). 11: teamB flash (dropped, wrong team).
+    # 12: teamA molotov (kept). 13: teamA "CFlashbang" held entity (dropped, not a projectile).
+    gren = [
+        (10, 1, 1, "CSmokeGrenadeProjectile", [(-512.0, 512.0), (0.0, 0.0), (512.0, -512.0)]),
+        (11, 1, 3, "CFlashbangProjectile", [(0.0, 0.0), (256.0, 0.0)]),
+        (12, 2, 2, "CMolotovProjectile", [(0.0, 0.0), (-256.0, 0.0)]),
+        (13, 1, 1, "CFlashbang", [(0.0, 0.0), (256.0, 256.0)]),
+    ]
+    grows: list[dict] = []
+    for entity_id, rnd, sid, gtype, path in gren:
+        for i, (gx, gy) in enumerate(path):
+            grows.append(
+                {
+                    "match_id": match_id,
+                    "round_num": rnd,
+                    "entity_id": entity_id,
+                    "grenade_type": gtype,
+                    "thrower_steamid": sid,
+                    "thrower": names[sid],
+                    "tick": rnd * 10000 + 100 + i,
+                    "X": gx,
+                    "Y": gy,
+                    "Z": 0.0,
+                }
+            )
+    pl.DataFrame(
+        grows,
+        schema_overrides={
+            "round_num": pl.UInt32,
+            "entity_id": pl.Int32,
+            "thrower_steamid": pl.UInt64,
+            "tick": pl.Int32,
+            "X": pl.Float32,
+            "Y": pl.Float32,
+            "Z": pl.Float32,
+        },
+    ).write_parquet(out / "grenades.parquet")
+
+    pl.DataFrame(
+        {
+            "match_id": [match_id] * 3,
+            "round_num": [1, 1, 2],
+            "tick": [10020, 10050, 20050],
+            "event": ["pickup", "defuse", "plant"],  # "pickup" must be dropped
+            "X": [256.0, -512.0, 0.0],
+            "Y": [0.0, 0.0, 0.0],
+            "Z": [0.0, 0.0, 0.0],
+            "steamid": [1, 3, 1],
+            "name": ["pA1", "pB1", "pA1"],
+            "bombsite": [None, "BombsiteA", "BombsiteA"],
+        },
+        schema_overrides={
+            "round_num": pl.UInt32,
+            "tick": pl.Int32,
+            "steamid": pl.UInt64,
+            "X": pl.Float32,
+            "Y": pl.Float32,
+            "Z": pl.Float32,
+        },
+    ).write_parquet(out / "bomb.parquet")
+
+    return out

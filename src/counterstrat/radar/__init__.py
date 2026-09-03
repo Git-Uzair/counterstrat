@@ -12,14 +12,22 @@ from counterstrat.radar.extract import (
     get_radar_assets,
     parse_calibration,
 )
+from counterstrat.radar.layers import (
+    LayerFilters,
+    build_layers,
+    lake_frames,
+)
 
 __all__ = [
     "RADAR_IMAGE_PX",
+    "LayerFilters",
     "RadarAssets",
     "RadarCalibration",
+    "build_layers",
     "game_to_norm",
     "game_to_pixel",
     "get_radar_assets",
+    "lake_frames",
     "normalize_side",
     "parse_calibration",
 ]
