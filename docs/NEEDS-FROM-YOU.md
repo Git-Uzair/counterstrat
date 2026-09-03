@@ -7,7 +7,7 @@ dependency item.
 | Item | Title | Status | Impact / Notes |
 |---|---|---|---|
 | **N1** | API keys | **SATISFIED** (Closed) | Live Anthropic (`ANTHROPIC_API_KEY`) and Gemini (`GEMINI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY`) working. Configurable via `.env` or UI settings modal. |
-| **N2** | Radar images | **OPTIONAL** (Deferred) | Optional for evidence radar image overlays; product operates fully without it using text/data citations. Supply CS2 install path when radar plots are desired. |
+| **N2** | Radar images | **SATISFIED** (Closed) | CS2 install path supplied; radar art and overview calibration are extracted from `pak01_dir.vpk` on demand by `counterstrat.radar` and cached under `data/radar/<map>/`. Interactive radar overlay live in the web UI. |
 | **N3** | Map VPKs | **DOCUMENTED** (Satisfied for v1) | `de_anubis` and `de_ancient` VPKs provided in `maps/<map>/<map>.vpk`. Instructions documented for adding new maps and refreshing on CS2 updates. |
 | **N4** | Multi-demo corpora | **OPTIONAL** (Open for >300 round eval) | Fixture demo provided for dev/test. Web app accepts runtime uploads. Multi-demo corpus optional whenever expanded benchmark evaluation (>300 rounds) is wanted. |
 
@@ -39,23 +39,35 @@ Status 2026-09-03:
 
 Ingest and mining run fully offline; only chat/dossier/quiz call out.
 
-## N2 — Radar images (optional; evidence plots only)
+## N2 — Radar images (satisfied)
 
-**Status: OPTIONAL / DEFERRED**
+**Status: SATISFIED**
 
-Not present in the map VPKs you provided (verified) and awpy's hosted
-artifacts currently 404. If you want radar-overlay evidence images later:
-provide the **path** to a CS2 install (folder containing
-`game/csgo/pak01_dir.vpk`) here or in `.env` (`CS2_INSTALL_PATH`) / UI settings — do **not** copy `pak01_dir.vpk` into the
-repo: it is only the directory index of a split archive; content lives in
-the `pak01_NNN.vpk` chunks beside it (tens of GB). The radar task reads the
-game files in place via the vendored VRF CLI.
+CS2 install path: `D:\Data\Gaming\Steam\steamapps\common\Counter-Strike Global Offensive`
+(stored in `data/settings.json` as `cs2_install_path`; also settable via
+`.env` `CS2_INSTALL_PATH` or the Settings modal).
 
-CS2 install path: `<fill in when wanted>`
+Verified asset locations inside `<install>\game\csgo\pak01_dir.vpk`:
 
-(Community-documented radar location inside pak01 is
-`panorama/images/map_icons/…/overheadmaps`; verifying that is step 1 of the
-radar task.)
+- `panorama/images/overheadmaps/<map>_radar_psd.vtex_c` — the overhead art;
+  decompiles to a 1024x1024 PNG with the VRF CLI's `-d` flag. Multi-level maps
+  (nuke, vertigo, train) also ship `<map>_lower_radar_psd.vtex_c`.
+- `resource/overviews/<map>.txt` — KeyValues calibration: `pos_x`, `pos_y`,
+  `scale`, and for multi-level maps a `verticalsections."lower".AltitudeMax`
+  altitude split.
+
+Projection: `u = (X - pos_x) / scale`, `v = (pos_y - Y) / scale`, in pixels of
+the 1024 px image.
+
+Do **not** copy `pak01_dir.vpk` into the repo: it is only the directory index of
+a split archive whose content lives in the `pak01_NNN.vpk` chunks beside it
+(tens of GB). `counterstrat.radar.extract` reads the game files in place through
+the vendored VRF CLI and caches the two small artefacts per map under
+`data/radar/<map>/`.
+
+awpy's hosted `map-data.json` is still unavailable, so
+`awpy.plot.utils.game_to_pixel_axis` cannot be used — `counterstrat.radar.coords`
+implements the transform against the calibration extracted above.
 
 ## N3 — Map VPKs (documented; satisfied for v1)
 

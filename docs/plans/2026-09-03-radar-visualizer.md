@@ -3015,12 +3015,12 @@ Do not add a test framework or a test for a markdown edit.
 
 **Change:**
 
-1. Replace the N2 table row (`docs/NEEDS-FROM-YOU.md:10`) with:
+- [x] **Step 1: Replace the N2 table row (`docs/NEEDS-FROM-YOU.md:10`) with:**
 ```markdown
 | **N2** | Radar images | **SATISFIED** (Closed) | CS2 install path supplied; radar art and overview calibration are extracted from `pak01_dir.vpk` on demand by `counterstrat.radar` and cached under `data/radar/<map>/`. Interactive radar overlay live in the web UI. |
 ```
 
-2. Replace the body of the `## N2 — Radar images` section
+- [x] **Step 2: Replace the body of the `## N2 — Radar images` section
 (`docs/NEEDS-FROM-YOU.md:42-58`) with:
 
 ```markdown
