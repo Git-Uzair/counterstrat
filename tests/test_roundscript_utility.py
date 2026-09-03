@@ -15,9 +15,6 @@ from counterstrat.roundscript.utility import (
     utility_events_with_xyz,
 )
 
-REPO = Path(__file__).resolve().parents[1]
-SUBDIVISION_JSON = REPO / "data" / "mapcards" / "de_anubis" / "subdivision_report.json"
-
 
 def _two_synthetic_lineups(
     n_each: int,
@@ -275,14 +272,16 @@ def test_utility_events_single_round_matches_helper(anubis_lake, anubis_utility)
 
 
 @pytest.mark.demo
-def test_cluster_lineups_and_subdivision_on_demo(anubis_utility):
+def test_cluster_lineups_and_subdivision_on_demo(anubis_utility, tmp_path):
     events = anubis_utility["events"]
     names = cluster_lineups(events, anubis_utility["raw_xyz"], min_samples=3)
     assert len(names) >= 1
     assert all(n.count("-") == 1 for n in names.values())
     assert any(e.lineup_id is not None for e in events)
 
-    report = subdivision_report(events, anubis_utility["mapper"], out_path=SUBDIVISION_JSON)
-    assert SUBDIVISION_JSON.exists()
-    assert json.loads(SUBDIVISION_JSON.read_text()) == report
+    # Never write into the real data/ tree: tests must not touch user data.
+    out_json = tmp_path / "subdivision_report.json"
+    report = subdivision_report(events, anubis_utility["mapper"], out_path=out_json)
+    assert out_json.exists()
+    assert json.loads(out_json.read_text()) == report
     assert all(v >= 2 for v in report.values())
