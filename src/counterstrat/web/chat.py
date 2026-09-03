@@ -226,13 +226,54 @@ def post_message(sid: str, req: MessageRequest, request: Request, cfg: ConfigDep
     # Resolve the client before recording the turn so a key-less install cannot
     # leave a dangling user message in the transcript.
     factory = getattr(request.app.state, "client_factory", None)
-    try:
-        client = factory(cfg) if factory else make_client(cfg)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"No API key configured for provider '{cfg.provider}'. Set it in Settings.",
-        ) from exc
+    if factory is None and request.query_params.get("mock") == "1":
+        from counterstrat.llm.base import ToolCall
+
+        class ScriptedMockClient:
+            def __init__(self) -> None:
+                self.turns = [
+                    ChatTurn(
+                        role="assistant",
+                        tool_calls=[
+                            ToolCall(id="c1", name="get_tendencies", arguments={"side": "T"})
+                        ],
+                    ),
+                    ChatTurn(
+                        role="assistant",
+                        text="On full buy rounds (n=12), they default toward `BombsiteA` with 67% frequency, executing late via `A_Main`.",
+                    ),
+                ]
+
+            def chat(
+                self, *, system: Any, turns: Any, tools: Any, max_tokens: int = 4096
+            ) -> tuple[ChatTurn, Any]:
+                from counterstrat.llm.base import LLMResult
+
+                turn = (
+                    self.turns.pop(0)
+                    if self.turns
+                    else ChatTurn(
+                        role="assistant",
+                        text="Checked data via tools. Evidence points to default setup on `BombsiteA` (n=10).",
+                    )
+                )
+                return turn, LLMResult(
+                    text=turn.text or "",
+                    input_tokens=150,
+                    output_tokens=35,
+                    model="mock-client",
+                    provider="mock",
+                )
+
+        client: Any = ScriptedMockClient()
+    else:
+        try:
+            client = factory(cfg) if factory else make_client(cfg)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"No API key configured for provider '{cfg.provider}'. Set it in Settings.",
+            ) from exc
 
     path = _transcript_path(cfg, sid)
     session.history.append(ChatTurn(role="user", text=req.text))

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from counterstrat.config import AppConfig
@@ -27,6 +28,10 @@ def create_app(cfg: AppConfig | None = None, client_factory: Any = None) -> Fast
     static_dir = Path(__file__).resolve().parent / "static"
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+        @app.get("/")
+        def index() -> FileResponse:
+            return FileResponse(static_dir / "index.html", media_type="text/html")
 
     return app
 

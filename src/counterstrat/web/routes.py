@@ -274,7 +274,7 @@ def get_teambook(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, Any]
 
 
 @router.get("/reports/{team_key}/{map_name}")
-def get_report(team_key: str, map_name: str, cfg: ConfigDep) -> Response:
+def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = None) -> Response:
     dossier_path = cfg.data_root / "teambooks" / team_key / map_name / "dossier.md"
     if dossier_path.exists():
         return Response(
@@ -283,6 +283,9 @@ def get_report(team_key: str, map_name: str, cfg: ConfigDep) -> Response:
 
     key = cfg.anthropic_api_key if cfg.provider == "anthropic" else cfg.gemini_api_key
     if not key:
+        if mock == "1":
+            mock_content = f"# Anti-Strat Dossier: {team_key} on {map_name}\n\n## 1. Executive Summary\nOffline UI test dossier."
+            return Response(content=mock_content, media_type="text/markdown")
         raise HTTPException(
             status_code=503,
             detail=f"No API key configured for provider '{cfg.provider}'. Please set it in Settings.",
@@ -395,34 +398,34 @@ def update_settings(
 
 
 @router.get("/models")
-def list_models(cfg: ConfigDep) -> list[str]:
-    provider = cfg.provider
+def list_models(cfg: ConfigDep, provider: str | None = None) -> list[str]:
+    selected_provider = provider or cfg.provider
     now = time.time()
-    if provider in _models_cache:
-        cached_time, models = _models_cache[provider]
+    if selected_provider in _models_cache:
+        cached_time, models = _models_cache[selected_provider]
         if now - cached_time < CACHE_TTL:
             return models
 
-    key = cfg.anthropic_api_key if provider == "anthropic" else cfg.gemini_api_key
+    key = cfg.anthropic_api_key if selected_provider == "anthropic" else cfg.gemini_api_key
     if not key:
-        return DEFAULT_MODELS.get(provider, [])
+        return DEFAULT_MODELS.get(selected_provider, [])
 
     try:
-        if provider == "anthropic":
+        if selected_provider == "anthropic":
             import anthropic
 
             client = anthropic.Anthropic(api_key=key)
             page = client.models.list(limit=100)
             models = [m.id for m in page.data]
-        elif provider == "gemini":
+        elif selected_provider == "gemini":
             from google import genai
 
             client = genai.Client(api_key=key)
             models = [m.name.removeprefix("models/") for m in client.models.list()]
         else:
-            models = DEFAULT_MODELS.get(provider, [])
+            models = DEFAULT_MODELS.get(selected_provider, [])
 
-        _models_cache[provider] = (now, models)
+        _models_cache[selected_provider] = (now, models)
         return models
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Upstream provider failure: {exc}") from exc

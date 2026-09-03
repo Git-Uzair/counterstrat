@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS2 Counter-Strat Analyst</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-header">
+      <div class="brand">
+        <div class="brand-badge">CS2</div>
+        <div class="brand-text">
+          <h1>Counter-Strat Analyst</h1>
+          <span class="brand-sub">Tactical Intelligence & Anti-Strat Engine</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="settings-btn" class="btn btn-secondary" title="Configure AI providers and keys">
+          Settings
+        </button>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <!-- Left Sidebar: Ingestion & Team/Map Catalog -->
+      <aside class="sidebar">
+        <!-- Demo Ingestion Box -->
+        <section class="panel-section upload-section">
+          <h2 class="section-title">Ingest Demo</h2>
+          <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" accept=".dem,.dem.zst,.zst,.dem.gz,.gz,.dem.bz2,.bz2" class="file-input-hidden">
+            <p class="drop-prompt">Drop <code>.dem</code> or <code>.zst</code> demo here</p>
+            <button type="button" id="browse-btn" class="btn btn-sm btn-outline">Browse File</button>
+          </div>
+
+          <div id="job-status" class="job-status hidden">
+            <div class="job-header">
+              <span class="job-stage-label">Ingest Status:</span>
+              <span id="job-stage" class="badge badge-stage">queued</span>
+            </div>
+            <div id="job-detail" class="job-detail"></div>
+            <div class="progress-bar-container">
+              <div id="job-progress-bar" class="progress-bar-fill progress-indeterminate"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Catalog Box -->
+        <section class="panel-section catalog-section">
+          <div class="catalog-header">
+            <h2 class="section-title">Catalog</h2>
+            <span id="catalog-count" class="catalog-count">0 targets</span>
+          </div>
+          <p class="catalog-help">Select a team and map to open analyst chat</p>
+          <div id="teams-list" class="teams-list"></div>
+          <div id="teams-empty" class="empty-state">
+            <p>No ingested matches yet.</p>
+            <p class="empty-sub">Upload a CS2 demo to begin analysis.</p>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Main Chat & Analysis Pane -->
+      <main class="chat-pane">
+        <header class="chat-header">
+          <div class="target-info">
+            <h2 id="target-title">No Team Selected</h2>
+            <div id="target-meta" class="target-meta">Pick a target from the catalog on the left to start</div>
+          </div>
+          <div class="chat-header-actions">
+            <button id="dossier-btn" class="btn btn-outline" disabled title="Select a team and map first">
+              Download Dossier (.md)
+            </button>
+          </div>
+        </header>
+
+        <div id="messages-container" class="messages-container">
+          <div id="chat-welcome" class="chat-welcome">
+            <div class="welcome-box">
+              <h3>Interactive Anti-Strat Intelligence</h3>
+              <p>Ground answers directly in parsed demo lake data, compiled map topology, and mined team tendencies.</p>
+              <ul class="feature-bullets">
+                <li><strong>Sample Size Honesty:</strong> Queries surface exact <code>n</code> and flag low-sample claims.</li>
+                <li><strong>Tool-Grounded:</strong> Assistant executes read-only SQL, tendency lookups, and round scripts.</li>
+                <li><strong>Hallucination Guard:</strong> Backtick zone naming linting runs automatically.</li>
+              </ul>
+              <div class="welcome-cta">Select a team and map from the sidebar to inspect tendencies or ask tactical questions.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-input-bar">
+          <form id="chat-form" class="chat-form">
+            <div class="input-wrapper">
+              <textarea
+                id="chat-input"
+                rows="1"
+                placeholder="Ask about default rotates, buy tendencies, utility setups, or cite rounds..."
+                disabled
+              ></textarea>
+              <div id="chat-spinner" class="thinking-spinner hidden" title="Consulting tools...">
+                <div class="spin-ring"></div>
+                <span class="thinking-label">Thinking...</span>
+              </div>
+            </div>
+            <button type="submit" id="send-btn" class="btn btn-primary" disabled>
+              Send
+            </button>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Settings & AI Providers</h3>
+        <button id="close-settings-btn" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="settings-form" class="modal-body">
+        <div class="form-group">
+          <label for="setting-provider">LLM Provider</label>
+          <select id="setting-provider" class="form-control">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="gemini">Google Gemini</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-model">Model</label>
+          <select id="setting-model" class="form-control">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="label-row">
+            <label for="setting-api-key">API Key</label>
+            <span id="key-status-indicator" class="key-status badge-unconfigured">No key set</span>
+          </div>
+          <input
+            type="password"
+            id="setting-api-key"
+            class="form-control"
+            placeholder="Enter API key to update"
+            autocomplete="off"
+          >
+          <small class="form-help">Write-only: stored locally in <code>settings.json</code>; never displayed in browser.</small>
+        </div>
+
+        <div id="settings-feedback" class="settings-feedback hidden"></div>
+
+        <div class="modal-footer">
+          <button type="button" id="cancel-settings-btn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="save-settings-btn" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

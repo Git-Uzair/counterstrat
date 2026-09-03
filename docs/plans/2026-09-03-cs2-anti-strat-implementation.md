@@ -2332,15 +2332,15 @@ served by FastAPI — no node toolchain, no framework.
 - Style: single dark theme stylesheet, system fonts, monospace for scripts;
   no CSS framework.
 
-- [ ] **Step 1: Failing test** — `GET /` returns 200 html containing
+- [x] **Step 1: Failing test** — `GET /` returns 200 html containing
   `app.js`; `GET /static/app.js` 200; smoke-parse: response text contains
   the four endpoint paths (cheap contract that JS targets the real API).
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement.** - [ ] **Step 4: PASS +
+- [x] **Step 2: fails.** - [x] **Step 3: implement.** - [x] **Step 4: PASS +
   manual browser pass with the webapp-testing skill (Playwright) over the
   fixture flow: upload → job done → pick team → ask the canonical buy-round
   question (scripted client injectable via `?mock=1` app flag for offline
   UI testing).**
-- [ ] **Step 5: Commit** `"feat: web UI"`
+- [x] **Step 5: Commit** `"feat: web UI"`
 
 **Done when:** `uv run counterstrat` → browser at `127.0.0.1:8710` walks
 upload→chat on the fixture demo without touching a terminal again; UI

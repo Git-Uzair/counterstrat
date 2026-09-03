@@ -1,0 +1,106 @@
+from pathlib import Path
+
+import pytest
+from conftest import (
+    SYNTHETIC_TEAM,
+    build_synthetic_card,
+    build_synthetic_scripts,
+)
+from fastapi.testclient import TestClient
+
+from counterstrat.config import AppConfig
+from counterstrat.mining.tendencies import build_teambook
+from counterstrat.web.app import create_app
+
+
+@pytest.fixture
+def client_app(tmp_path: Path) -> TestClient:
+    cfg = AppConfig(data_root=tmp_path)
+    app = create_app(cfg)
+    return TestClient(app)
+
+
+@pytest.fixture
+def chat_client(tmp_path: Path) -> TestClient:
+    cfg = AppConfig(data_root=tmp_path)
+    scripts = build_synthetic_scripts()
+    card = build_synthetic_card()
+
+    card_path = cfg.data_root / "mapcards" / "de_anubis" / "card.yaml"
+    card_path.parent.mkdir(parents=True, exist_ok=True)
+    card_path.write_text(card.to_yaml(), encoding="utf-8")
+
+    tb_path = cfg.data_root / "teambooks" / SYNTHETIC_TEAM / "de_anubis" / "teambook.json"
+    tb_path.parent.mkdir(parents=True, exist_ok=True)
+    tb_path.write_text(
+        build_teambook(scripts, SYNTHETIC_TEAM).model_dump_json(indent=2), encoding="utf-8"
+    )
+
+    for s in scripts:
+        s_path = cfg.data_root / "scripts" / s.match_id / f"round_{s.round_num}.json"
+        s_path.parent.mkdir(parents=True, exist_ok=True)
+        s_path.write_text(s.to_json(), encoding="utf-8")
+
+    app = create_app(cfg)
+    return TestClient(app)
+
+
+def test_index_page(client_app: TestClient) -> None:
+    resp = client_app.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "app.js" in resp.text
+    assert "style.css" in resp.text
+    assert "drop-zone" in resp.text
+    assert "teams-list" in resp.text
+    assert "messages-container" in resp.text
+    assert "settings-modal" in resp.text
+    assert "dossier-btn" in resp.text
+
+
+def test_static_app_js(client_app: TestClient) -> None:
+    resp = client_app.get("/static/app.js")
+    assert resp.status_code == 200
+    for endpoint in ["/api/demos", "/api/jobs", "/api/teams", "/api/chat/sessions"]:
+        assert endpoint in resp.text
+
+
+def test_static_style_css(client_app: TestClient) -> None:
+    resp = client_app.get("/static/style.css")
+    assert resp.status_code == 200
+
+
+def test_models_endpoint_provider_query(client_app: TestClient) -> None:
+    resp_anthropic = client_app.get("/api/models?provider=anthropic")
+    assert resp_anthropic.status_code == 200
+    assert "claude-sonnet-5" in resp_anthropic.json()
+
+    resp_gemini = client_app.get("/api/models?provider=gemini")
+    assert resp_gemini.status_code == 200
+    assert "gemini-2.5-flash" in resp_gemini.json()
+
+
+def test_mock_chat_and_report_flow(chat_client: TestClient) -> None:
+    # 1. Create chat session
+    created = chat_client.post(
+        "/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": "de_anubis"}
+    )
+    assert created.status_code == 200
+    sid = created.json()["session_id"]
+
+    # 2. Send message with ?mock=1 offline flag (no provider API keys configured)
+    msg_resp = chat_client.post(
+        f"/api/chat/sessions/{sid}/messages?mock=1",
+        json={"text": "What are their default buy round setups?"},
+    )
+    assert msg_resp.status_code == 200
+    data = msg_resp.json()
+    assert "text" in data
+    assert "tool_trace" in data
+    assert len(data["tool_trace"]) >= 1
+    assert data["tool_trace"][0]["name"] == "get_tendencies"
+
+    # 3. Download dossier with ?mock=1 offline flag
+    report_resp = chat_client.get(f"/api/reports/{SYNTHETIC_TEAM}/de_anubis?mock=1")
+    assert report_resp.status_code == 200
+    assert "Anti-Strat Dossier" in report_resp.text
