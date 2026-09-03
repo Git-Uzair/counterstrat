@@ -41,6 +41,25 @@ def test_team_scope_side_filter_keeps_one_round(frames) -> None:
     assert scope.rounds.row(0, named=True)["round_num"] == 1
 
 
+def test_players_filter_scopes_member_layers(frames, cal) -> None:
+    """Task 9: a players filter isolates one player's trails/heatmap/utility."""
+    payload = build_layers(frames, cal, "teamA", LayerFilters(players=[1]))
+    trails = payload["layers"]["trails"]
+    assert trails and all(t["steamid"] == "1" for t in trails)
+
+    # Player 2's samples vanish from the heatmap; duels (round-scoped) remain.
+    solo = payload["layers"]["heatmap"]["samples"]
+    full = build_layers(frames, cal, "teamA", LayerFilters())["layers"]["heatmap"]["samples"]
+    assert solo == full // 2
+    assert payload["layers"]["duels"], "duels stay round-scoped, not player-scoped"
+
+    # The teamA smoke was thrown by player 1: still present. Filtering to
+    # player 2 drops it.
+    assert any(u["steamid"] == "1" for u in payload["layers"]["utility"])
+    p2 = build_layers(frames, cal, "teamA", LayerFilters(players=[2]))
+    assert all(u["steamid"] == "2" for u in p2["layers"]["utility"])
+
+
 def test_heatmap_counts_cells_and_excludes_dead_samples(frames, cal) -> None:
     payload = build_layers(frames, cal, "teamA", LayerFilters(grid=8))
     hm = payload["layers"]["heatmap"]

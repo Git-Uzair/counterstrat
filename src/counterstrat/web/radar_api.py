@@ -88,6 +88,18 @@ def _parse_rounds(rounds: str | None) -> list[int] | None:
         ) from exc
 
 
+def _parse_players(players: str | None) -> list[int] | None:
+    if not players:
+        return None
+    try:
+        return [int(part) for part in players.split(",") if part.strip()]
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"'players' must be comma-separated steamids, got {players!r}",
+        ) from exc
+
+
 @router.get("/{map_name}/info", response_model=RadarInfo)
 def get_radar_info(map_name: str, cfg: ConfigDep) -> RadarInfo:
     """Calibration plus the image URLs the client should load."""
@@ -128,6 +140,7 @@ def get_radar_layers(
     side: Literal["T", "CT"] | None = None,
     level: LayerLevel = "all",
     rounds: str | None = None,
+    players: str | None = None,
     trail_rounds: Annotated[int | None, Query(ge=1, le=30)] = 4,
     stride: Annotated[int, Query(ge=1, le=64)] = 8,
     grid: Annotated[int, Query(ge=8, le=256)] = 128,
@@ -149,6 +162,7 @@ def get_radar_layers(
         trail_rounds=trail_rounds,
         stride=stride,
         grid=grid,
+        players=_parse_players(players),
     )
     frames = lake_frames(cfg.data_root / "lake", match_ids)
     return build_layers(frames, cal, team_key, filters)

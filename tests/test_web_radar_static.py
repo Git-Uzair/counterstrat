@@ -43,6 +43,26 @@ def test_radar_js_targets_the_radar_endpoints(client_app: TestClient) -> None:
         assert fn in js, f"missing renderer {fn}"
 
 
+def test_radar_js_v2_interactions(client_app: TestClient) -> None:
+    """Task 9: zoom/pan transform, player tracing, glyphs, tooltip."""
+    js = client_app.get("/static/radar.js").text
+    assert "setTransform" in js
+    assert "onWheel" in js and "onPointerDown" in js
+    assert "PLAYER_COLORS" in js and "#e69f00" in js  # Okabe-Ito anchor
+    assert 'params.set("players"' in js
+    assert "drawGlyph" in js
+    assert "hitTest" in js and "radar-tooltip" in js
+
+
+def test_index_exposes_radar_v2_controls(client_app: TestClient) -> None:
+    html = client_app.get("/").text
+    for token in ['id="radar-reset-view"', 'id="radar-players"', 'id="radar-tooltip"']:
+        assert token in html, f"missing {token}"
+    # The glyph legend replaces the color-only utility swatches.
+    for glyph_class in ["glyph-flash", "glyph-he", "glyph-decoy", "glyph-bomb"]:
+        assert glyph_class in html, f"missing {glyph_class}"
+
+
 def test_app_js_notifies_the_radar_viewer(client_app: TestClient) -> None:
     js = client_app.get("/static/app.js").text
     assert "CounterStratRadar" in js

@@ -47,6 +47,8 @@ class LayerFilters(BaseModel):
     trail_rounds: int | None = 4
     stride: int = 8
     grid: int = 128
+    # Restrict member-scoped layers (heatmap, trails, utility) to these players.
+    players: list[int] | None = None
 
 
 @dataclass(slots=True)
@@ -134,6 +136,8 @@ def build_team_scope(rosters: pl.LazyFrame | None, team_key: str, f: LayerFilter
         .drop_nulls()
         .unique()
     )
+    if f.players:
+        members = members.filter(pl.col("steamid").is_in(f.players))
     return TeamScope(
         team_key=team_key,
         rounds=rounds.select("match_id", "round_num", "side"),

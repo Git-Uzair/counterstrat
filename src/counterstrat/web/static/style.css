@@ -1173,3 +1173,100 @@ textarea#chat-input:disabled {
 }
 
 .fl-conf-high { color: var(--color-success-text); }
+
+/* ==========================================================================
+   Radar v2: zoom/pan canvas, player tracing, glyph legend (plan Task 9)
+   ========================================================================== */
+
+/* The PNG is drawn into the canvas so it obeys the same view transform. */
+.radar-image { display: none; }
+
+.radar-canvas {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.radar-players {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.radar-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.radar-player-chip:hover { border-color: var(--border-highlight); color: var(--text-primary); }
+
+.radar-player-chip.active {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+  background-color: var(--bg-input);
+}
+
+.radar-player-all.active {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.radar-player-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.radar-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 260px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius-sm);
+  background-color: rgba(13, 17, 23, 0.92);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.radar-legend .glyph {
+  display: inline-block;
+  width: 14px;
+  margin-right: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.glyph-kill { color: #3fb950; font-weight: 700; }
+.glyph-death { color: #f85149; font-weight: 700; }
+.glyph-smoke { color: #9ecbff; }
+.glyph-flash { color: #ffd24d; }
+.glyph-he { color: #b07cff; }
+.glyph-molotov { color: #ff6a3d; }
+.glyph-decoy { color: #7ee2b8; }
+.glyph-bomb {
+  color: #f0883e;
+  border: 1px solid #f0883e;
+  border-radius: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0 2px;
+}

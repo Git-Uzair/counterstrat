@@ -129,28 +129,37 @@
                 <button type="button" id="radar-level-lower" class="btn btn-sm btn-outline">Lower</button>
               </div>
               <button type="button" id="radar-refresh" class="btn btn-sm btn-outline">Reload</button>
+              <button type="button" id="radar-reset-view" class="btn btn-sm btn-outline"
+                      title="Reset zoom and pan (double-click the map does the same)">Reset view</button>
             </div>
           </div>
+
+          <div id="radar-players" class="radar-players hidden"></div>
 
           <div class="radar-stage">
             <div class="radar-frame">
               <img id="radar-image" class="radar-image" alt="Overhead radar">
               <canvas id="radar-canvas" class="radar-canvas" width="1024" height="1024"></canvas>
+              <div id="radar-tooltip" class="radar-tooltip hidden"></div>
             </div>
           </div>
 
           <div class="radar-footer">
             <div id="radar-status" class="radar-status">
-              Select a team and map, then open the Radar tab.
+              Select a team and map, then open the Radar tab. Scroll to zoom, drag to pan,
+              click a player to trace them alone.
             </div>
             <ul class="radar-legend">
               <li><span class="swatch swatch-ct"></span>CT</li>
               <li><span class="swatch swatch-t"></span>T</li>
-              <li><span class="swatch swatch-kill"></span>Kill by team</li>
-              <li><span class="swatch swatch-death"></span>Kill against</li>
-              <li><span class="swatch swatch-smoke"></span>Smoke</li>
-              <li><span class="swatch swatch-fire"></span>Molotov</li>
-              <li><span class="swatch swatch-bomb"></span>Plant</li>
+              <li><span class="glyph glyph-kill">×</span>Kill by team</li>
+              <li><span class="glyph glyph-death">×</span>Kill against</li>
+              <li><span class="glyph glyph-smoke">◉</span>Smoke</li>
+              <li><span class="glyph glyph-flash">✦</span>Flash</li>
+              <li><span class="glyph glyph-he">◆</span>HE</li>
+              <li><span class="glyph glyph-molotov">▲</span>Molotov</li>
+              <li><span class="glyph glyph-decoy">▢</span>Decoy</li>
+              <li><span class="glyph glyph-bomb">C4</span>Plant</li>
             </ul>
           </div>
         </section>
