@@ -121,3 +121,38 @@ def test_get_tendencies_level_filter(session_ctx_v2):
     out = _run(session_ctx_v2, "get_tendencies", {"side": "T", "level": 2})
     assert out["tendencies"]
     assert all(row["level"] == 2 for row in out["tendencies"])
+
+
+def test_get_round_script_returns_full_timeline(session_ctx: SessionContext):
+    """Non-FC kills and MOVE lines reach the agent (plan 2026-09-04 Task 4)."""
+    from counterstrat.roundscript.models import KillEvent, ZoneStint
+
+    base = session_ctx.scripts["m1:1"]
+    second_kill = KillEvent(
+        t=39.0,
+        killer="e2",
+        victim="p1",
+        killer_side="CT",
+        zone="BombsiteA",
+        weapon="m4a1",
+        headshot=False,
+        traded_within_4s=False,
+    )
+    rich = base.model_copy(
+        update={
+            "kills": [*base.kills, second_kill],
+            "tracks": {
+                "p1": [
+                    ZoneStint(t0=0, t1=9, zone="TSpawn"),
+                    ZoneStint(t0=9, t1=39, zone="Middle"),
+                ]
+            },
+            "sides": {"p1": "T"},
+        }
+    )
+    ctx = session_ctx.model_copy(update={"scripts": {**session_ctx.scripts, "m1:77": rich}})
+    out = _run(ctx, "get_round_script", {"id": "m1:77"})
+    text = out["text"]
+    assert "t=39s KILL e2 (CT) kills p1 in `BombsiteA` [m4a1]" in text
+    assert "t=9s MOVE p1 (T) enters `Middle`" in text
+    assert "anchors: first_contact=17s" in text

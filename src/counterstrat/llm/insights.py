@@ -156,13 +156,15 @@ def build_insights_user(
             f"lurk {r.lurk_rate:.0%}, awp rounds {r.awp_rounds}, "
             f"traded when dying {r.trade_discipline:.0%}, modal zones 15s in {r.modal_zone_fe15}"
         )
-    sections += ["", "## All Round Scripts (ground truth; movements included)"]
+    sections += ["", "## All Round Timelines (ground truth; every kill and grenade timestamped)"]
     for s in sorted(scripts, key=lambda s: (s.match_id, s.round_num)):
         pistol = " (pistol round)" if s.round_num in (1, 13) else ""
         sections.append(
             f"### {labels.get(s.match_id, s.match_id[:8])}, round {s.round_num}{pistol}"
         )
-        sections.append(s.to_text(include_movements=True))
+        # lite: full kill/utility/plant timestamps without per-player MOVE
+        # lines - the corpus-wide prompt embeds every round (budget).
+        sections.append(s.to_timeline_text(lite=True))
         sections.append("")
     return "\n".join(sections)
 

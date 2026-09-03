@@ -135,8 +135,10 @@ def tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_round_script",
             description=(
-                "Full round script text for one round id ('match_id:round_num'), with beats, "
-                "first contact, plant and utility. Quote beats from here rather than guessing."
+                "Complete round timeline for one round id ('match_id:round_num'): anchors "
+                "(first contact/plant/end with seconds), 15s occupancy states, and every "
+                "kill, movement and grenade with timestamps. Quote times and zones from "
+                "here rather than guessing."
             ),
             input_schema={
                 "type": "object",
@@ -317,7 +319,7 @@ def _tool_get_round_script(ctx: SessionContext, args: dict) -> str:
     script = ctx.scripts.get(round_id)
     if script is None:
         return json.dumps({"error": f"Round {round_id} not found"})
-    return json.dumps({"id": round_id, "text": script.to_text()})
+    return json.dumps({"id": round_id, "text": script.to_timeline_text()})
 
 
 def _tool_get_role_cards(ctx: SessionContext, args: dict) -> str:

@@ -129,7 +129,10 @@ def test_list_rounds_filters_side_outcome_and_site(session_ctx: SessionContext):
 def test_get_round_script_hit_and_miss(session_ctx: SessionContext):
     hit = _run(session_ctx, "get_round_script", {"id": "m1:1"})
     assert hit["id"] == "m1:1"
-    assert "B+15:" in hit["text"] and "FC:" in hit["text"]
+    # the tool speaks the v2 timeline: anchors, state snapshots, timed kills
+    assert "anchors: first_contact=17s" in hit["text"]
+    assert "state@15s:" in hit["text"]
+    assert "t=17s KILL p1" in hit["text"]
 
     miss = _run(session_ctx, "get_round_script", {"id": "m1:99"})
     assert miss == {"error": "Round m1:99 not found"}

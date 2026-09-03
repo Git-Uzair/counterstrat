@@ -54,13 +54,14 @@ def test_insights_user_prompt_carries_everything(synthetic_scripts):
     assert "## Gap Findings" in user
     assert "## Economy Policy" in user
     assert "## Player Profiles" in user
-    assert "## All Round Scripts" in user
-    # Full scripts, movements included, for every round - in human game language.
+    assert "## All Round Timelines" in user
+    # Complete lite timelines for every round - in human game language.
     for s in synthetic_scripts:
         assert f"### Game 1, round {s.round_num}" in user
     assert "### Game 1, round 1 (pistol round)" in user
     assert "### Game 1, round 13 (pistol round)" in user
-    assert "TSpawn > Water" in user  # a movement sentence made it in
+    assert "anchors: first_contact=17s" in user  # timestamps reach the corpus prompt
+    assert "s KILL p1" in user
     # Internal ids and window codes never reach the prompt.
     assert "m1:" not in user
     assert "post-PL" not in user and "post-FC" not in user
@@ -174,3 +175,27 @@ def test_custom_game_labels_flow_through(synthetic_scripts):
     )
     assert "- Game 1 (vs team_xyz)" in user
     assert "### Game 1 (vs team_xyz), round 4" in user
+
+
+def test_insights_rounds_are_lite(synthetic_scripts):
+    """Corpus prompt: every kill/utility/plant timestamped, but no MOVE lines
+    even when scripts carry tracks, and the whole prompt stays in budget."""
+    from counterstrat.llm.base import check_budget
+    from counterstrat.llm.insights import build_insights_user
+    from counterstrat.roundscript.models import ZoneStint
+
+    scripts = [
+        s.model_copy(
+            update={
+                "tracks": {"p1": [ZoneStint(t0=0, t1=9, zone="TSpawn")]},
+                "sides": {"p1": "T"},
+            }
+        )
+        for s in synthetic_scripts
+    ]
+    b = _bundle(scripts)
+    user = build_insights_user(scripts=scripts, **b)
+    assert "t=17s KILL p1" in user
+    assert "t=45s PLANT" in user
+    assert "MOVE" not in user and "SPAWNS" not in user
+    check_budget(190_000, user)  # must not raise on the corpus-wide prompt

@@ -362,3 +362,12 @@ def test_live_dossier():
     ]
     for sec in required_sections:
         assert sec.lower() in dossier.text.lower(), f"Missing section: {sec}"
+
+
+def test_dossier_exemplars_use_timeline():
+    """Exemplar rounds in the user prompt carry the timestamped stream."""
+    scripts, teambook, _lexicon, _ = _mk_synthetic_bundle()
+    user = build_user(teambook, select_exemplars(teambook, scripts, cap=12))
+    assert "anchors: first_contact=" in user
+    assert "s KILL p1 (T) kills" in user
+    assert "s PLANT" in user

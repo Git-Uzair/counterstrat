@@ -294,7 +294,7 @@ def build_user(
     if exemplars:
         for s in exemplars:
             sections.append(f"### Round {s.match_id}:{s.round_num}")
-            sections.append(s.to_text())
+            sections.append(s.to_timeline_text())
             sections.append("")
     else:
         sections.append("No exemplar round scripts available.")
