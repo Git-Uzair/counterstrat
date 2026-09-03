@@ -6,7 +6,12 @@ from collections.abc import Sequence
 from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import LLMClient, LLMResult
-from counterstrat.llm.prompts import build_system, build_user, select_exemplars
+from counterstrat.llm.prompts import (
+    build_system,
+    build_user,
+    format_map_scene_graph,
+    select_exemplars,
+)
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
 from counterstrat.mining.econ_policy import build_econ_policy
@@ -166,11 +171,11 @@ def generate(
     scripts: list[RoundScript],
     lex: Lexicon,
     renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
-    zone_map: str = "",  # llm.prompts.format_zone_map output for this map
+    anchors: dict | None = None,  # web.routes.map_zone_anchors output for this map
 ) -> Dossier:
     """Generate a scouting dossier and enforce anti-hallucination gate with single retry."""
     exemplars = select_exemplars(teambook, scripts, cap=12)
-    system = build_system(card.to_yaml(), zone_map)
+    system = build_system(format_map_scene_graph(card, anchors or {}))
     user = build_user(
         teambook,
         exemplars,

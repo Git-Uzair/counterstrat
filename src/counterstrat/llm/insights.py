@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import LLMClient, LLMResult
 from counterstrat.llm.dossier import lint_dossier
+from counterstrat.llm.prompts import format_map_scene_graph
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
 from counterstrat.mining.econ_policy import EconPolicy
@@ -55,14 +56,14 @@ def _friendly_round(round_id: str, labels: dict[str, str]) -> str:
     return f"{labels.get(mid, mid[:8])} R{rn}"
 
 
-def build_insights_system(card_yaml: str, zone_map: str = "") -> str:
+def build_insights_system(map_block: str, zone_map: str = "") -> str:
     return f"""You are an elite CS2 anti-strat analyst writing the FIRST READ on an opponent
 for an in-game leader. You reason about WHY a team does something - economy pressure,
 momentum, role habits, utility dependencies - and you never confuse normal play with a
 tendency.
 
 <map_card>
-{card_yaml}{zone_map}
+{map_block}{zone_map}
 </map_card>
 
 Write the brief in markdown with EXACTLY these six sections, in this order:
@@ -209,11 +210,11 @@ def generate_insights(
     game_labels: dict[str, str] | None = None,
     renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
     max_tokens: int | None = None,  # None = the model's own maximum: never cut analysis short
-    zone_map: str = "",  # llm.prompts.format_zone_map output for this map
+    anchors: dict | None = None,  # web.routes.map_zone_anchors output for this map
 ) -> Insights:
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
     labels = game_labels or default_game_labels(teambook.generated_from)
-    system = build_insights_system(card.to_yaml(), zone_map)
+    system = build_insights_system(format_map_scene_graph(card, anchors or {}))
     user = build_insights_user(
         teambook=teambook,
         utility_book=utility_book,

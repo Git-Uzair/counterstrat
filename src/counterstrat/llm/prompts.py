@@ -1,10 +1,20 @@
 """System and user prompt construction and exemplar round selection for LLM scouting dossiers."""
 
+import math
+from typing import TYPE_CHECKING
+
 from counterstrat.mining.econ_policy import EconPolicy
 from counterstrat.mining.gaps import GapReport
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.mining.utility_book import UtilityBook
 from counterstrat.roundscript.models import RoundScript
+
+if TYPE_CHECKING:
+    from counterstrat.mapcard.compile import MapCard
+
+SECTORS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+COORD_NOTE = "u: 0=west edge -> 1=east edge, v: 0=NORTH edge -> 1=SOUTH edge (v grows southward)"
 
 
 def format_zone_map(anchors: dict[str, tuple]) -> str:
@@ -30,12 +40,99 @@ def format_zone_map(anchors: dict[str, tuple]) -> str:
     return "\n".join(lines)
 
 
-def build_system(card_yaml: str, zone_map: str = "") -> str:
-    """Build the system prompt containing the Map Card and dossier output contract."""
+def _bearing(anchors: dict[str, tuple], a: str, b: str) -> str | None:
+    """8-sector compass direction from zone a's anchor to zone b's."""
+    pa, pb = anchors.get(a), anchors.get(b)
+    if pa is None or pb is None:
+        return None
+    du, dv = pb[0] - pa[0], pb[1] - pa[1]
+    if du == 0 and dv == 0:
+        return None
+    ang = math.degrees(math.atan2(du, -dv)) % 360  # 0=N, 90=E (v grows southward)
+    return SECTORS[int(((ang + 22.5) % 360) // 45)]
+
+
+def format_map_scene_graph(card: "MapCard", anchors: dict[str, tuple]) -> str:
+    """The measured spatial representation: topology backbone with labeled units.
+
+    Per zone: radar anchor (u, v) plus tags; per undirected edge: move seconds
+    and precomputed compass bearing. Rotates/timings render as derived route
+    tables. Replaces the raw card.yaml dump (which lost route_time 1/10 vs
+    10/10 in the 2026-09-04 representation lab) in every LLM prompt. Canonical
+    zone names throughout; the Renamer swaps in user callouts at the boundary.
+    """
+    multi = any(a[2] == "lower" for a in anchors.values())
+
+    def _pos(zone: str) -> str:
+        a = anchors.get(zone)
+        if a is None:
+            return ""
+        lvl = f", {'lower' if a[2] == 'lower' else 'upper'} level" if multi else ""
+        return f" (u={a[0]:.2f}, v={a[1]:.2f}{lvl})"
+
+    # undirected edges, min seconds of either direction
+    edges: dict[str, dict[str, float]] = {}
+    for u, nbrs in (card.topology or {}).items():
+        for v, w in nbrs.items():
+            w = float(w)
+            if w <= 0 or u == v:
+                continue
+            cur = edges.setdefault(u, {}).get(v)
+            if cur is None or w < cur:
+                edges.setdefault(u, {})[v] = w
+                edges.setdefault(v, {})[u] = w
+
+    lines = [
+        f"# Map: {card.map} - spatial scene graph",
+        f"# {COORD_NOTE}",
+        "# per zone: radar position, then '-> neighbor: move seconds, compass direction'",
+        "zones:",
+    ]
+    for zone in sorted(card.zones):
+        tags = (card.zones[zone] or {}).get("tags") or []
+        tag_s = f" tags=[{', '.join(tags)}]" if tags else ""
+        lines.append(f"`{zone}`{_pos(zone)}{tag_s}")
+        for nb, sec in sorted(edges.get(zone, {}).items()):
+            b = _bearing(anchors, zone, nb)
+            lines.append(f"  -> `{nb}`: {sec:.1f}s{f' {b}' if b else ''}")
+
+    sites = (card.objectives or {}).get("sites") or []
+    if sites:
+        obj = card.objectives
+        lines.append(
+            f"objectives: sites={sites}, round_seconds={obj.get('round_seconds')}, "
+            f"bomb_seconds={obj.get('bomb_seconds')}"
+        )
+    if card.rotates:
+        lines.append("rotates:  # site-to-site routes, seconds at run speed")
+        for r in card.rotates:
+            via = " > ".join(f"`{z}`" for z in (r.get("via") or []))
+            lines.append(
+                f"- `{r.get('from')}` -> `{r.get('to')}`: {float(r.get('run_s', 0)):.1f}s"
+                + (f" via {via}" if via else "")
+            )
+    timing_lines = []
+    for side in ("CT", "T"):
+        rows = (card.timings or {}).get(side) or {}
+        if rows:
+            cells = ", ".join(f"`{z}` {s:.1f}s" for z, s in sorted(rows.items()))
+            timing_lines.append(f"- {side}: {cells}")
+    if timing_lines:
+        lines.append("earliest_reach:  # seconds from spawn each side first reaches the zone")
+        lines.extend(timing_lines)
+    return "\n".join(lines)
+
+
+def build_system(map_block: str, zone_map: str = "") -> str:
+    """Build the system prompt containing the map block and dossier output contract.
+
+    ``map_block`` is ``format_map_scene_graph`` output (callers may still pass
+    raw card yaml plus a ``zone_map`` add-on; both land inside <map_card>).
+    """
     return f"""You are an elite Counter-Strike 2 strategic analyst producing a comprehensive anti-strat scouting dossier.
 
 <map_card>
-{card_yaml}{zone_map}
+{map_block}{zone_map}
 </map_card>
 
 Output Contract & Required Sections:
@@ -61,7 +158,7 @@ Mandatory Rules:
 """
 
 
-def build_chat_system(card_yaml: str, teambook: TeamBook, zone_map: str = "") -> str:
+def build_chat_system(map_block: str, teambook: TeamBook, zone_map: str = "") -> str:
     """The interactive analyst chat system prompt: doctrine + signals + contract.
 
     Unlike the dossier prompt, this brief is exploit-first and length-capped:
@@ -79,7 +176,7 @@ this map (match ids: {demos}). Every tool answer draws on all of them; more demo
 stronger reads, so state the coverage when the analyst asks how reliable a read is.
 
 <map_card>
-{card_yaml}{zone_map}
+{map_block}{zone_map}
 </map_card>
 
 <team_signals>

@@ -102,7 +102,7 @@ def test_generate_insights_calls_llm_and_lints(synthetic_scripts):
     assert "causal" in system.lower()
 
 
-def test_generate_insights_forwards_zone_map(synthetic_scripts):
+def test_generate_insights_forwards_anchors(synthetic_scripts):
     b = _bundle(synthetic_scripts)
     card = build_synthetic_card()
     lex = build_lexicon("de_anubis", list(card.zones.keys()))
@@ -112,10 +112,12 @@ def test_generate_insights_forwards_zone_map(synthetic_scripts):
         card,
         scripts=synthetic_scripts,
         lexicon=lex,
-        zone_map="zone_map:\n- `Middle` at (0.53, 0.10)",
+        anchors={"Middle": (0.53, 0.10, "default")},
         **b,
     )
-    assert "`Middle` at (0.53, 0.10)" in client.completions[0]["system"]
+    system = client.completions[0]["system"]
+    assert "`Middle` (u=0.53, v=0.10)" in system
+    assert "u: 0=west edge -> 1=east edge" in system
 
 
 def test_generate_insights_flags_fabrications(synthetic_scripts):

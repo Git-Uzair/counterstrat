@@ -480,8 +480,8 @@ def test_chat_session_speaks_user_callouts(cfg: AppConfig):
     system = scripted.calls[0]["system"]
     assert "Mid" in system
     assert "Middle" not in system  # single vocabulary: the canonical never appears
-    # The zone map speaks the user's callout at the editor's exact position.
-    assert "`Mid` at (0.60, 0.65)" in system
+    # The scene graph speaks the user's callout at the editor's exact position.
+    assert "`Mid` (u=0.60, v=0.65)" in system
     # Tool results reaching the model are renamed too.
     tool_turn_texts = [
         t.text for call in scripted.calls for t in call.get("turns", []) if t.role == "tool"

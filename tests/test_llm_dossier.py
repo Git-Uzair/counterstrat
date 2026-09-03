@@ -331,8 +331,10 @@ def test_zone_map_formats_and_reaches_prompts():
 
     card = _mk_synthetic_card()
     client = ScriptedClient(["draft"])
-    generate(client, card, teambook, scripts, lexicon, zone_map=text)
-    assert "`BombsiteB` at (0.61, 0.34), lower level" in client.calls[0]["system"]
+    generate(client, card, teambook, scripts, lexicon, anchors=anchors)
+    # generate() now renders the scene graph from the same anchors
+    assert "`BombsiteB` (u=0.61, v=0.34, lower level)" in client.calls[0]["system"]
+    assert "u: 0=west edge -> 1=east edge" in client.calls[0]["system"]
 
 
 @pytest.mark.live
