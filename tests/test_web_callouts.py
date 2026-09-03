@@ -293,6 +293,140 @@ def test_callout_positions_from_lake(cfg: AppConfig, client: TestClient):
     assert zones["BombsiteA"]["u"] is not None
 
 
+def _seed_empty_tables(cfg: AppConfig, match_id: str = "m1") -> None:
+    # No rosters.parquet: build_team_clusters skips missing files but would
+    # crash on a schemaless one. serialize_match needs rounds.round_num.
+    lake = cfg.data_root / "lake" / match_id
+    pl.DataFrame(
+        {"match_id": pl.Series([], dtype=pl.String), "round_num": pl.Series([], dtype=pl.Int64)}
+    ).write_parquet(lake / "rounds.parquet")
+    pl.DataFrame({"match_id": pl.Series([], dtype=pl.String)}).write_parquet(lake / "kills.parquet")
+
+
+def test_put_zones_places_zone_rebuilds_and_anchors_at_user_point(
+    cfg: AppConfig, client: TestClient
+):
+    """Pointing at the radar creates a zone; the rebuild bakes it into the
+    lake; its label anchors exactly where the user clicked."""
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [190.0, 200.0, 210.0, 900.0],
+                "Y": [-310.0, -300.0, -290.0, 900.0],
+                "Z": [0.0] * 4,
+                "last_place_name": ["Middle", "Middle", "Middle", "BombsiteA"],
+                "is_alive": [True] * 4,
+                "steamid": [1, 1, 1, 2],
+                "round_num": [1] * 4,
+                "tick": [0, 4, 8, 12],
+                "clock_s": [0.0, 1.0, 2.0, 3.0],
+                "team_name": ["CT", "CT", "CT", "TERRORIST"],
+            }
+        ),
+    )
+    _seed_empty_tables(cfg)
+
+    # Click at world (200, -300): u=(200+1024)/2048, v=(1024+300)/2048.
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Sandbags", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["zones"][0]["name"] == "Sandbags"
+    # TestClient runs the background rebuild before returning control.
+    job = client.get(f"/api/jobs/{body['job_id']}").json()
+    assert job["stage"] == "done", job
+
+    ticks = pl.read_parquet(cfg.data_root / "lake" / "m1" / "ticks.parquet")
+    assert ticks["last_place_name"].to_list() == [
+        "Sandbags",
+        "Sandbags",
+        "Sandbags",
+        "BombsiteA",
+    ]
+    assert ticks["place_default"].to_list()[:3] == ["Middle"] * 3
+
+    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
+    sb = zones["Sandbags"]
+    assert sb["custom"] is True and sb["radius"] == 100.0
+    # Anchor = the user's click, not a tick medoid.
+    assert abs(sb["u"] - 612 / 1024) < 1e-3 and abs(sb["v"] - 662 / 1024) < 1e-3
+    assert zones["Middle"]["custom"] is False
+
+    # The LLM zone map speaks it at the same point.
+    from counterstrat.llm.prompts import format_zone_map
+    from counterstrat.web.routes import map_zone_anchors
+
+    zm = format_zone_map(map_zone_anchors(cfg, MAP))
+    assert "`Sandbags` at (0.60, 0.65)" in zm
+
+    # Deleting via empty collection folds the ticks back.
+    r = client.put(f"/api/maps/{MAP}/zones", json={"zones": []})
+    assert r.status_code == 200
+    ticks = pl.read_parquet(cfg.data_root / "lake" / "m1" / "ticks.parquet")
+    assert ticks["last_place_name"].to_list()[:3] == ["Middle"] * 3
+
+
+def test_put_zones_validation(cfg: AppConfig, client: TestClient):
+    # No radar calibration -> cannot place.
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "A", "u": 0.5, "v": 0.5, "radius": 100.0}]},
+    )
+    assert r.status_code == 400 and "calibration" in r.json()["detail"]
+
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [200.0],
+                "Y": [-300.0],
+                "Z": [0.0],
+                "last_place_name": ["Middle"],
+                "is_alive": [True],
+                "steamid": [1],
+                "round_num": [1],
+                "tick": [0],
+                "clock_s": [0.0],
+                "team_name": ["CT"],
+            }
+        ),
+    )
+    _seed_empty_tables(cfg)
+    # Far from any player data -> rejected (cannot ground the zone).
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "A", "u": 0.01, "v": 0.01, "radius": 100.0}]},
+    )
+    assert r.status_code == 400 and "player data" in r.json()["detail"]
+    # Name collision with a game zone.
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Middle", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+    )
+    assert r.status_code == 400 and "reserved" in r.json()["detail"]
+    # Name collision with an alias value.
+    client.put(f"/api/maps/{MAP}/aliases", json={"aliases": {"Water": "Pond"}})
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Pond", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+    )
+    assert r.status_code == 400 and "reserved" in r.json()["detail"]
+    # And the reverse: an alias may not take a custom zone's name.
+    client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Sandbags", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+    )
+    r = client.put(f"/api/maps/{MAP}/aliases", json={"aliases": {"Water": "Sandbags"}})
+    assert r.status_code == 400
+
+
 def test_chat_session_speaks_user_callouts(cfg: AppConfig):
     """The model sees one vocabulary: user names, defaults only where unnamed -
     and the zone map hands it the editor's exact label coordinates."""

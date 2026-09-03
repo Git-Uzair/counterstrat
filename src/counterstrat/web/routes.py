@@ -27,6 +27,7 @@ from pydantic import BaseModel
 
 from counterstrat.aliases import alias_fingerprint, load_aliases, load_renamer, save_aliases
 from counterstrat.config import AppConfig
+from counterstrat.customzones import CustomZone, load_custom_zones, save_custom_zones
 from counterstrat.corpus import load_manifest
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
@@ -514,13 +515,15 @@ def _radar_calibration(cfg: AppConfig, map_name: str):
 
 
 def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str] | None:
-    """Card zones when compiled (the mined vocabulary), else VPK place names."""
+    """Card zones when compiled (the mined vocabulary), else VPK place names;
+    the user's custom zones always join the list."""
+    custom = {z.name for z in load_custom_zones(cfg.data_root, map_name)}
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
     if card_path.exists():
         card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
-        return sorted((card_data.get("zones") or {}).keys())
-    if places:
-        return sorted({p.place_name for p in places})
+        return sorted(set((card_data.get("zones") or {}).keys()) | custom)
+    if places or custom:
+        return sorted({p.place_name for p in places} | custom)
     return None
 
 
@@ -614,6 +617,12 @@ def _zone_anchors(cfg: AppConfig, map_name: str, zones: list[str], places: list)
         if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
             level = "lower" if is_lower_level(cal, z) else "default"
             anchors[zone] = (round(u, 4), round(v, 4), level)
+    # Custom zones anchor at the USER'S stored center - the click point is
+    # authoritative over any tick medoid, in the editor and in prompts alike.
+    for cz in load_custom_zones(cfg.data_root, map_name):
+        u, v = game_to_norm(cal, cz.x, cz.y)
+        if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
+            anchors[cz.name] = (round(u, 4), round(v, 4), cz.level)
     return anchors
 
 
@@ -634,6 +643,7 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
     if zones is None:
         raise HTTPException(status_code=404, detail=f"No map card or VPK zone data for {map_name}")
     aliases = load_aliases(cfg.data_root, map_name)
+    custom = {z.name: z for z in load_custom_zones(cfg.data_root, map_name)}
     anchors = _zone_anchors(cfg, map_name, zones, places)
     levels = sorted({a[2] for a in anchors.values()}) or ["default"]
     return {
@@ -646,6 +656,8 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
                 "u": anchors.get(z, (None, None, None))[0],
                 "v": anchors.get(z, (None, None, None))[1],
                 "level": anchors.get(z, (None, None, None))[2],
+                "custom": z in custom,
+                "radius": custom[z].radius if z in custom else None,
             }
             for z in zones
         ],
@@ -667,6 +679,108 @@ def put_aliases(map_name: str, req: AliasUpdateRequest, cfg: ConfigDep) -> dict[
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"map_name": map_name, "aliases": saved}
+
+
+def _infer_world_z(
+    cfg: AppConfig, map_name: str, x: float, y: float, level: str, cal
+) -> float | None:
+    """Median Z of the nearest same-level ticks; None when nobody ever played
+    near the point (a zone the data cannot ground is rejected)."""
+    from counterstrat.radar.coords import level_expr
+
+    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
+    for match_id, rec in sorted(manifest.items()):
+        if rec.map_name != map_name:
+            continue
+        ticks_path = cfg.data_root / "lake" / match_id / "ticks.parquet"
+        if not ticks_path.exists():
+            continue
+        try:
+            df = (
+                pl.read_parquet(ticks_path, columns=["X", "Y", "Z", "is_alive"])
+                .filter(pl.col("is_alive"))
+                .drop_nulls(["X", "Y", "Z"])
+            )
+            if df.is_empty():
+                continue
+            df = df.with_columns(level_expr(cal, "Z").alias("_lvl")).filter(pl.col("_lvl") == level)
+            near = (
+                df.with_columns(((pl.col("X") - x) ** 2 + (pl.col("Y") - y) ** 2).alias("_d2"))
+                .sort("_d2")
+                .head(50)
+            )
+            if near.is_empty() or float(near["_d2"].min()) ** 0.5 > 300.0:
+                return None
+            return float(near["Z"].median())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Z inference unavailable from %s: %s", ticks_path, exc)
+    return None
+
+
+class ZonePlacement(BaseModel):
+    name: str
+    u: float
+    v: float
+    level: str = "default"
+    radius: float = 150.0
+
+
+class ZoneUpdateRequest(BaseModel):
+    zones: list[ZonePlacement]
+
+
+@router.put("/maps/{map_name}/zones")
+def put_zones(
+    map_name: str, req: ZoneUpdateRequest, cfg: ConfigDep, background_tasks: BackgroundTasks
+) -> dict[str, Any]:
+    """Persist the user's custom zones and rebuild the map's derived data.
+
+    Full-collection semantics like aliases: zones absent from the request are
+    deleted and their ticks fold back to the game vocabulary on rebuild.
+    """
+    from counterstrat.radar.coords import pixel_to_game
+    from counterstrat.web.maintenance import run_zone_rebuild
+
+    cal = _radar_calibration(cfg, map_name)
+    if cal is None:
+        raise HTTPException(status_code=400, detail="No radar calibration for this map")
+    places = _map_places(cfg, map_name)
+    existing = {c.name for c in load_custom_zones(cfg.data_root, map_name)}
+    base = {z for z in (_callout_zone_names(cfg, map_name, places) or []) if z not in existing}
+    reserved = base | set(load_aliases(cfg.data_root, map_name).values())
+
+    zones: list[CustomZone] = []
+    for p in req.zones:
+        x, y = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
+        z = _infer_world_z(cfg, map_name, x, y, p.level, cal)
+        if z is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No player data near {p.name!r} - place it where players have been",
+            )
+        zones.append(
+            CustomZone(
+                name=p.name,
+                x=round(x, 1),
+                y=round(y, 1),
+                z=round(z, 1),
+                level=p.level,
+                radius=p.radius,
+            )
+        )
+    try:
+        saved = save_custom_zones(cfg.data_root, map_name, zones, reserved=reserved)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    job_id = uuid.uuid4().hex[:12]
+    save_job_state(cfg.data_root, JobState(job_id=job_id, stage="queued", map_name=map_name))
+    background_tasks.add_task(run_zone_rebuild, job_id, map_name, cfg)
+    return {
+        "map_name": map_name,
+        "zones": [z.model_dump() for z in saved],
+        "job_id": job_id,
+    }
 
 
 @router.get("/reports/{team_key}/{map_name}")

@@ -53,13 +53,29 @@ def _lake_paths(data_root: Path, match_id: str) -> LakePaths:
 
 
 def _effective_tick_places(ticks_df: pl.DataFrame) -> set[str]:
-    if "last_place_name" not in ticks_df.columns:
-        return set()
-    return {
-        str(p)
-        for p in ticks_df["last_place_name"].drop_nulls().unique().to_list()
-        if str(p).strip()
-    }
+    """Zone names the lake speaks: effective names UNION the preserved game
+    names (place_default) - a custom zone that swallows a parent's every tick
+    must not erase the parent from the map vocabulary."""
+    out: set[str] = set()
+    for col in ("last_place_name", "place_default"):
+        if col in ticks_df.columns:
+            out |= {str(p) for p in ticks_df[col].drop_nulls().unique().to_list() if str(p).strip()}
+    return out
+
+
+def _lexicon_or_fallback(map_name: str, places: list[str]):
+    """Lexicon with the bundled overlay when it still fits, plain otherwise.
+
+    An overlay can reference zones a tick-derived place list does not carry
+    (chat.py uses the same fallback); the vocabulary must never fail closed.
+    """
+    overlay = get_default_overlay_path(map_name)
+    if overlay.exists():
+        try:
+            return build_lexicon(map_name, places, overlay)
+        except ValueError as exc:
+            logger.warning("Overlay skipped for %s: %s", map_name, exc)
+    return build_lexicon(map_name, places, None)
 
 
 def compile_map_card(
@@ -75,8 +91,7 @@ def compile_map_card(
     all_places = sorted(set(places) | _effective_tick_places(ticks_df))
     if not all_places:
         return None
-    overlay = get_default_overlay_path(map_name)
-    lex = build_lexicon(map_name, all_places, overlay if overlay.exists() else None)
+    lex = _lexicon_or_fallback(map_name, all_places)
     return compile_card(
         lexicon=lex,
         graph=zone_graph(ticks_df),
@@ -156,7 +171,6 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
 
     # 3. Re-serialize scripts per match with a mapper trained on the new
     # vocabulary.
-    overlay = get_default_overlay_path(map_name)
     for mid in matches:
         lake = _lake_paths(cfg.data_root, mid)
         if not Path(lake.ticks).exists():
@@ -170,7 +184,7 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
             places = list(card.zones.keys())
         else:
             places = sorted(_effective_tick_places(ticks_df)) or ["Default"]
-        lex = build_lexicon(map_name, places, overlay if overlay.exists() else None)
+        lex = _lexicon_or_fallback(map_name, places)
         scripts = serialize_match(lake, mapper, lex, card.checksum if card else "none")
         if scripts:
             scripts_dir = cfg.data_root / "scripts" / mid
