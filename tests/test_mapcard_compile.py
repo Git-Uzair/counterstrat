@@ -204,3 +204,50 @@ def test_card_token_trimming(synthetic_bundle):
     card = compile_card(**bundle)
     y = card.to_yaml()
     assert len(y) / 4 <= 4000
+
+
+def test_card_yaml_labels_units(synthetic_bundle):
+    card = compile_card(
+        synthetic_bundle["lexicon"],
+        synthetic_bundle["graph"],
+        synthetic_bundle["ticks"],
+        synthetic_bundle["rounds"],
+        synthetic_bundle["map_name"],
+        synthetic_bundle["patch_version"],
+    )
+    text = card.to_yaml()
+    assert "topology:  # seconds to move between adjacent zones" in text
+    assert "timings:  # earliest seconds each side reaches the zone" in text
+    assert "rotates:  # site-to-site routes; run_s = seconds at run speed" in text
+    # comments must not change parsed content
+    import yaml as _yaml
+
+    assert _yaml.safe_load(text)["topology"] == card.topology
+
+
+def test_sites_inferred_from_names_when_untagged(synthetic_bundle):
+    # de_inferno ships no overlay: every zone has tags=[], so rotates/timings/
+    # objectives.sites all came out empty. Bombsite* names are the fallback.
+    from counterstrat.mapcard.lexicon import Lexicon, ZoneDef, _compute_checksum
+
+    lex = synthetic_bundle["lexicon"]
+    bare = {
+        z: ZoneDef(id=z, aliases=d.aliases, tags=[], engine_place=d.engine_place)
+        for z, d in lex.zones.items()
+    }
+    lex_bare = Lexicon(
+        map_name=lex.map_name, zones=bare, checksum=_compute_checksum(lex.map_name, bare)
+    )
+    card = compile_card(
+        lex_bare,
+        synthetic_bundle["graph"],
+        synthetic_bundle["ticks"],
+        synthetic_bundle["rounds"],
+        synthetic_bundle["map_name"],
+        synthetic_bundle["patch_version"],
+    )
+    assert card.objectives["sites"] == ["BombsiteA", "BombsiteB"]
+    assert card.rotates, "rotates must derive from the mined graph via inferred sites"
+    assert "BombsiteA" in card.timings["CT"] and "BombsiteB" in card.timings["T"]
+    assert "site" in card.zones["BombsiteA"]["tags"]
+    assert "site" in card.zones["BombsiteB"]["tags"]

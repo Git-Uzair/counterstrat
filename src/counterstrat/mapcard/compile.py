@@ -28,7 +28,19 @@ class MapCard(BaseModel):
     checksum: str
 
     def to_yaml(self) -> str:
-        return yaml.dump(self.model_dump(), sort_keys=False)
+        # Unit labels ride as comments so parsed content (and checksums, which
+        # hash the comment-free dump in compile_card) never change.
+        text = yaml.dump(self.model_dump(), sort_keys=False)
+        text = text.replace(
+            "\ntopology:\n", "\ntopology:  # seconds to move between adjacent zones\n", 1
+        )
+        text = text.replace(
+            "\ntimings:\n", "\ntimings:  # earliest seconds each side reaches the zone\n", 1
+        )
+        text = text.replace(
+            "\nrotates:\n", "\nrotates:  # site-to-site routes; run_s = seconds at run speed\n", 1
+        )
+        return text
 
 
 def _compute_quadrant(
@@ -87,11 +99,23 @@ def _compute_elevation(
     return "mixed"
 
 
+def _site_zones(lexicon: Lexicon) -> list[str]:
+    """Site zones: overlay tags first; engine Bombsite* names as the fallback.
+
+    de_inferno ships no overlay, so every zone arrives untagged and the tag-only
+    lookup left rotates/timings/objectives.sites empty (2026-09-04 plan, Task 1).
+    """
+    tagged = sorted(z for z, def_ in lexicon.zones.items() if "site" in def_.tags)
+    if tagged:
+        return tagged
+    return sorted(z for z in lexicon.zones if z.lower().startswith("bombsite"))
+
+
 def _build_rotates(
     lexicon: Lexicon,
     graph: ZoneGraph,
+    sites: list[str],
 ) -> list[dict[str, Any]]:
-    sites = sorted([z for z, def_ in lexicon.zones.items() if "site" in def_.tags])
     if len(sites) < 2:
         return []
 
@@ -156,11 +180,12 @@ def _build_rotates(
 def _build_timings(
     lexicon: Lexicon,
     ticks: pl.DataFrame,
+    sites: list[str],
 ) -> dict[str, dict[str, float]]:
     target_tags = {"site", "mid_control", "choke"}
     target_zones = {
         z for z, def_ in lexicon.zones.items() if any(t in target_tags for t in def_.tags)
-    }
+    } | set(sites)
     timings: dict[str, dict[str, float]] = {"CT": {}, "T": {}}
 
     if ticks.is_empty() or not target_zones:
@@ -264,13 +289,18 @@ def compile_card(
             for row in agg.iter_rows(named=True):
                 zone_stats[row["last_place_name"]] = row
 
+    sites = _site_zones(lexicon)
+
     zones: dict[str, dict[str, Any]] = {}
     for zone_id in sorted(lexicon.zones.keys()):
         zdef = lexicon.zones[zone_id]
+        tags = list(zdef.tags)
+        if zone_id in sites and "site" not in tags:
+            tags.append("site")  # name-inferred: keep the card self-describing
         z_entry: dict[str, Any] = {
             "id": zone_id,
             "aliases": list(zdef.aliases),
-            "tags": list(zdef.tags),
+            "tags": tags,
         }
         if zone_id in zone_stats:
             st = zone_stats[zone_id]
@@ -293,13 +323,12 @@ def compile_card(
             topology[from_zone] = dict(sorted(neighbors.items()))
 
     # 4. Rotates
-    rotates = _build_rotates(lexicon, graph)
+    rotates = _build_rotates(lexicon, graph, sites)
 
     # 5. Timings
-    timings = _build_timings(lexicon, ticks)
+    timings = _build_timings(lexicon, ticks, sites)
 
     # 6. Objectives
-    sites = sorted([z for z, def_ in lexicon.zones.items() if "site" in def_.tags])
     objectives: dict[str, Any] = {
         "sites": sites,
         "round_seconds": ROUND_SECONDS,

@@ -24,18 +24,29 @@ class ZoneGraph(BaseModel):
     edges: dict[tuple[str, str], EdgeStat]
 
 
+def _key_cols(ticks: pl.DataFrame) -> list[str]:
+    """Grouping key; includes match_id when present so multi-match frames
+    cannot interleave the same (steamid, round_num) across matches."""
+    return (["match_id"] if "match_id" in ticks.columns else []) + _KEY
+
+
 def zone_graph(ticks: pl.DataFrame) -> ZoneGraph:
+    key = _key_cols(ticks)
+    # clock_s < 0 is freeze time; those rows belong to the NEXT round but can
+    # arrive under the previous round_num, so a round-end position followed by
+    # the respawn teleport would otherwise read as a zone transition.
     df = ticks.filter(
         pl.col("is_alive")
         & pl.col("last_place_name").is_not_null()
         & (pl.col("last_place_name") != "")
-    ).sort([*_KEY, "tick"])
+        & (pl.col("clock_s") >= 0.0)
+    ).sort([*key, "tick"])
     if df.height < 2:
         return ZoneGraph(edges={})
 
     df = df.with_columns(
-        pl.col("last_place_name").shift(1).over(_KEY).alias("_prev_zone"),
-        (pl.col("tick") - pl.col("tick").shift(1).over(_KEY)).alias("_gap"),
+        pl.col("last_place_name").shift(1).over(key).alias("_prev_zone"),
+        (pl.col("tick") - pl.col("tick").shift(1).over(key)).alias("_gap"),
     )
 
     # The sampling interval is the smallest gap between two kept samples of the
@@ -48,14 +59,14 @@ def zone_graph(ticks: pl.DataFrame) -> ZoneGraph:
     df = df.with_columns(
         (pl.col("_prev_zone").is_null() | (pl.col("_prev_zone") != pl.col("last_place_name")))
         .cum_sum()
-        .over(_KEY)
+        .over(key)
         .alias("_run")
     )
-    df = df.with_columns(pl.col("clock_s").first().over([*_KEY, "_run"]).alias("_run_start_s"))
+    df = df.with_columns(pl.col("clock_s").first().over([*key, "_run"]).alias("_run_start_s"))
     # On a boundary row the previous row is the last sample of the previous run,
     # so its run start is when the player entered the zone they are leaving.
     df = df.with_columns(
-        (pl.col("clock_s") - pl.col("_run_start_s").shift(1).over(_KEY))
+        (pl.col("clock_s") - pl.col("_run_start_s").shift(1).over(key))
         .clip(upper_bound=MAX_TRANSIT_S)
         .alias("_transit_s")
     )
@@ -64,6 +75,9 @@ def zone_graph(ticks: pl.DataFrame) -> ZoneGraph:
         pl.col("_prev_zone").is_not_null()
         & (pl.col("_prev_zone") != pl.col("last_place_name"))
         & (pl.col("_gap") <= step)
+        # A clock that went backwards is a round boundary (respawn teleport),
+        # not movement: transit must be strictly positive.
+        & (pl.col("_transit_s") > 0.0)
     )
 
     agg = transitions.group_by(["_prev_zone", "last_place_name"]).agg(
