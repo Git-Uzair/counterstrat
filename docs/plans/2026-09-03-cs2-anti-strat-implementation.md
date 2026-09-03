@@ -2037,7 +2037,7 @@ baselines. This is the falsifiable core and the ablation vehicle.
     fast = `first_contact.t < 25`).
 - Consumes: Tasks 16–18.
 
-- [ ] **Step 1: Failing tests** — offline, scripted client:
+- [x] **Step 1: Failing tests** — offline, scripted client:
 
 ```python
 def test_ground_truth_labels(synthetic_scripts):
@@ -2058,11 +2058,11 @@ def test_time_ordered_split(synthetic_corpus):
            min(m.registered_at for m in held)
 ```
 
-- [ ] **Step 2–4: implement + PASS offline arms.** LLM arms run only via
+- [x] **Step 2–4: implement + PASS offline arms.** LLM arms run only via
   `python -m counterstrat.eval.benchmark` with keys (models per dev policy;
   writes `data/eval/report.json`; per-arm cost logged from `LLMResult`
   usage). This is a research harness, not a product surface.
-- [ ] **Step 5: Commit** `"feat: per-round predictor + eval benchmark"`
+- [x] **Step 5: Commit** `"feat: per-round predictor + eval benchmark"`
 
 **Done when:** offline arms + labels + split proven on synthetic corpus;
 LLM arms wired and runnable. **Deferred to N4:** the ≥300-held-out-round
