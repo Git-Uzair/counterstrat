@@ -288,21 +288,37 @@
           selectTarget(team, teamDisplayName, mapName, card, null);
         });
 
-        // Several demos of this team on this map: allow drilling into one game.
+        // Per-demo chips: drill into one game, or delete a demo outright.
         const matches = mStats.matches || [];
-        if (matches.length > 1) {
+        if (matches.length >= 1) {
           const demosEl = document.createElement("div");
           demosEl.className = "team-card-demos";
           matches.forEach(function (m) {
-            const chip = document.createElement("button");
-            chip.type = "button";
+            const chip = document.createElement("span");
             chip.className = "demo-chip";
             chip.title = `Analyze only match ${m.match_id} (${m.rounds} rounds)`;
-            chip.textContent = `${m.match_id.slice(0, 8)} · ${m.rounds}r`;
-            chip.addEventListener("click", function (ev) {
+
+            const label = document.createElement("button");
+            label.type = "button";
+            label.className = "demo-chip-label";
+            label.textContent = `${m.match_id.slice(0, 8)} · ${m.rounds}r`;
+            label.addEventListener("click", function (ev) {
               ev.stopPropagation();
               selectTarget(team, teamDisplayName, mapName, card, m.match_id);
             });
+
+            const del = document.createElement("button");
+            del.type = "button";
+            del.className = "demo-chip-delete";
+            del.textContent = "×";
+            del.title = `Delete demo ${m.match_id} and everything mined from it`;
+            del.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              deleteDemo(m.match_id, teamDisplayName, mapName);
+            });
+
+            chip.appendChild(label);
+            chip.appendChild(del);
             demosEl.appendChild(chip);
           });
           card.appendChild(demosEl);
@@ -313,6 +329,35 @@
     });
 
     el.catalogCount.textContent = `${totalPairs} target${totalPairs === 1 ? "" : "s"}`;
+  }
+
+  function deleteDemo(matchId, displayName, mapName) {
+    const ok = window.confirm(
+      `Delete demo ${matchId} (${displayName} on ${mapName})?\n\n` +
+        "The demo file, its parsed data, and everything mined from it are removed. " +
+        "Team profiles are rebuilt from the remaining demos."
+    );
+    if (!ok) return;
+    fetch(`/api/demos/${encodeURIComponent(matchId)}`, { method: "DELETE" })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().then(function (body) {
+            throw new Error((body && body.detail) || `Server returned ${res.status}`);
+          });
+        }
+        return res.json();
+      })
+      .then(function () {
+        // Selection may reference deleted data: reset the workspace state.
+        if (state.currentMatchId === matchId || state.currentMapName === mapName) {
+          state.currentSessionId = null;
+          state.currentMatchId = null;
+        }
+        loadTeams();
+      })
+      .catch(function (err) {
+        alert("Delete failed: " + err.message);
+      });
   }
 
   function selectTarget(team, displayName, mapName, cardEl, matchId) {

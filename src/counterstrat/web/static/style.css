@@ -1361,3 +1361,29 @@ textarea#chat-input:disabled {
   font-size: 0.75rem;
   font-family: var(--font-mono);
 }
+
+/* Demo chip: scope label + delete control */
+
+.demo-chip { display: inline-flex; align-items: stretch; padding: 0; overflow: hidden; }
+
+.demo-chip-label {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 4px 2px 8px;
+  cursor: pointer;
+}
+
+.demo-chip-delete {
+  border: none;
+  border-left: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.demo-chip-delete:hover { color: var(--color-error-text); background-color: var(--color-error-bg); }

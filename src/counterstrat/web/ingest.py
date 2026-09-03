@@ -20,11 +20,6 @@ from counterstrat.mapcard.transitions import zone_graph
 from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mapcard.zones import ZoneMapper
-from counterstrat.mining.brief import build_scout_brief
-from counterstrat.mining.econ_policy import build_econ_policy
-from counterstrat.mining.gaps import build_gap_report
-from counterstrat.mining.tendencies import build_teambook
-from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.roundscript.serialize import serialize_match
 from counterstrat.teams import build_team_clusters, write_team_clusters
@@ -264,6 +259,8 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
         if not team_keys:
             team_keys = {s.t_team_key for s in scripts} | {s.ct_team_key for s in scripts}
 
+        from counterstrat.web.maintenance import mine_team_artifacts
+
         mined: set[str] = set()
         for tk in sorted(team_keys):
             cluster = clusters.get(tk)
@@ -273,26 +270,7 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             mined.add(team_id)
             keys = cluster.all_keys() if cluster else {tk}
             team_scripts = _scripts_for_keys(cfg.data_root, rec.map_name, keys, team_id, scripts)
-            tb = build_teambook(team_scripts, team_id)
-            tb_dir = cfg.data_root / "teambooks" / team_id / rec.map_name
-            tb_dir.mkdir(parents=True, exist_ok=True)
-            (tb_dir / "teambook.json").write_text(tb.model_dump_json(indent=2), encoding="utf-8")
-
-            # Instant scout brief from the same accumulated scripts (plan Task 8).
-            try:
-                brief = build_scout_brief(
-                    team_scripts,
-                    team_id,
-                    teambook=tb,
-                    utility_book=build_utility_book(team_scripts, team_id),
-                    gap_report=build_gap_report(team_scripts, team_id),
-                    econ_policy=build_econ_policy(team_scripts, team_id),
-                )
-                (tb_dir / "scout_brief.json").write_text(
-                    brief.model_dump_json(indent=2), encoding="utf-8"
-                )
-            except Exception as exc:  # noqa: BLE001 - a brief failure must not fail ingest
-                logger.warning("Scout brief generation failed for %s: %s", tk, exc)
+            mine_team_artifacts(cfg, team_id, rec.map_name, team_scripts)
 
         # 5. Done
         state.stage = "done"

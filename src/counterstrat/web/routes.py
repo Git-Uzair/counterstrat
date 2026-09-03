@@ -206,6 +206,23 @@ def list_demos(cfg: ConfigDep) -> list[dict[str, Any]]:
     return out
 
 
+@router.delete("/demos/{match_id}")
+def remove_demo(match_id: str, request: Request, cfg: ConfigDep) -> dict[str, Any]:
+    """Delete one demo and everything derived from it, then rebuild the rest."""
+    from counterstrat.web.maintenance import delete_demo
+
+    try:
+        rec = delete_demo(cfg, match_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Demo '{match_id}' not found") from exc
+    # In-memory chat sessions may reference the deleted match; drop them all -
+    # live ones rebuild from their transcripts on next access.
+    sessions = getattr(request.app.state, "chat_sessions", None)
+    if isinstance(sessions, dict):
+        sessions.clear()
+    return {"deleted": match_id, "map_name": rec.map_name}
+
+
 @router.get("/teams")
 def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
     """One entry per team CLUSTER: stand-in lineups merge, demos accumulate."""

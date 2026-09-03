@@ -72,6 +72,9 @@ def test_static_app_js(client_app: TestClient) -> None:
     # Team clustering round: single-match drill-down.
     assert "match_id" in resp.text
     assert "demo-chip" in resp.text
+    # Feature A: demo deletion from the sidebar.
+    assert "deleteDemo" in resp.text
+    assert 'method: "DELETE"' in resp.text
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
