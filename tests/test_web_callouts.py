@@ -104,16 +104,14 @@ def test_callouts_for_vpk_only_map(cfg: AppConfig, client: TestClient):
     assert r.status_code == 200 and r.json()["aliases"] == {"AMain": "A Ramp"}
 
 
-def test_tick_centroids_beat_volume_origins(cfg: AppConfig, client: TestClient):
-    """Played maps anchor labels where players stand, not at entity pivots."""
-    _seed_vents(cfg, MAP, {"Middle": (500.0, -500.0, 0.0)})
-    _seed_calibration(cfg, MAP)
+def _seed_match(cfg: AppConfig, map_name: str, ticks: pl.DataFrame, match_id: str = "m1") -> None:
+    """Register one corpus match whose lake holds the given ticks."""
     (cfg.data_root / "corpus.jsonl").write_text(
         json.dumps(
             {
-                "match_id": "m1",
-                "path": "demos/m1.dem",
-                "map_name": MAP,
+                "match_id": match_id,
+                "path": f"demos/{match_id}.dem",
+                "map_name": map_name,
                 "patch_version": "1",
                 "demo_version_guid": "g",
                 "server_name": "s",
@@ -123,22 +121,88 @@ def test_tick_centroids_beat_volume_origins(cfg: AppConfig, client: TestClient):
         + "\n",
         encoding="utf-8",
     )
-    lake = cfg.data_root / "lake" / "m1"
+    lake = cfg.data_root / "lake" / match_id
     lake.mkdir(parents=True)
-    pl.DataFrame(
-        {
-            "X": [0.0, 10.0],
-            "Y": [0.0, 10.0],
-            "Z": [0.0, 0.0],
-            "last_place_name": ["Middle", "Middle"],
-            "is_alive": [True, True],
-        }
-    ).write_parquet(lake / "ticks.parquet")
+    ticks.write_parquet(lake / "ticks.parquet")
+
+
+def test_tick_centroids_beat_volume_origins(cfg: AppConfig, client: TestClient):
+    """Played maps anchor labels where players stand, not at entity pivots."""
+    _seed_vents(cfg, MAP, {"Middle": (500.0, -500.0, 0.0)})
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [0.0, 10.0, 20.0],
+                "Y": [0.0, 10.0, 20.0],
+                "Z": [0.0, 0.0, 0.0],
+                "last_place_name": ["Middle", "Middle", "Middle"],
+                "is_alive": [True, True, True],
+            }
+        ),
+    )
 
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
-    # Tick centroid (5, 5), not the volume origin (500, -500).
-    assert abs(zones["Middle"]["u"] - (1029 / 2048)) < 1e-3
-    assert abs(zones["Middle"]["v"] - (1019 / 2048)) < 1e-3
+    # Tick median (10, 10), not the volume origin (500, -500).
+    assert abs(zones["Middle"]["u"] - (1034 / 2048)) < 1e-3
+    assert abs(zones["Middle"]["v"] - (1014 / 2048)) < 1e-3
+
+
+def test_anchor_sits_on_occupied_ground_not_ring_center(cfg: AppConfig, client: TestClient):
+    """Ring/L-shaped zones: a mean (or raw per-axis median) can land where nobody
+    ever stands; the anchor must snap to a real tick so the label is on-zone."""
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [100.0, -100.0, 0.0, 10.0, 80.0],
+                "Y": [0.0, 10.0, 120.0, -100.0, 80.0],
+                "Z": [0.0, 0.0, 0.0, 0.0, 0.0],
+                "last_place_name": ["Middle"] * 5,
+                "is_alive": [True] * 5,
+            }
+        ),
+    )
+
+    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
+    # Per-axis median (10, 10) is the unoccupied ring center; the closest real
+    # tick is (100, 0) and that is where the label must sit.
+    assert abs(zones["Middle"]["u"] - (1124 / 2048)) < 1e-3
+    assert abs(zones["Middle"]["v"] - (1024 / 2048)) < 1e-3
+
+
+def test_anchor_follows_zones_dominant_level(cfg: AppConfig, client: TestClient):
+    """A zone straddling nuke's two levels labels the level most of its ticks
+    are on, and its anchor snaps to ground on THAT level - never to a stray
+    tick from the other radar image."""
+    _seed_calibration(cfg, MAP, lower_max=-450.0)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                # 6 lower-level ticks vs an upper cluster whose x is the
+                # whole-zone median: without the dominant-level filter the
+                # anchor snaps upper and the level flips.
+                "X": [0.0, 60.0, 90.0, 91.0, 320.0, 350.0, 200.0, 205.0, 210.0],
+                "Y": [0.0] * 9,
+                "Z": [-600.0] * 6 + [0.0] * 3,
+                "last_place_name": ["Middle"] * 9,
+                "is_alive": [True] * 9,
+            }
+        ),
+    )
+
+    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
+    mid = zones["Middle"]
+    assert mid["level"] == "lower"
+    # Median of the lower ticks' x is 90.5 -> snaps to the tick at (90, 0).
+    assert abs(mid["u"] - (1114 / 2048)) < 1e-3
+    assert abs(mid["v"] - (1024 / 2048)) < 1e-3
 
 
 def test_callouts_levels_split_upper_and_lower(cfg: AppConfig, client: TestClient):
@@ -207,38 +271,25 @@ def test_callout_positions_from_lake(cfg: AppConfig, client: TestClient):
         ),
         encoding="utf-8",
     )
-    (cfg.data_root / "corpus.jsonl").write_text(
-        json.dumps(
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
             {
-                "match_id": "m1",
-                "path": "demos/m1.dem",
-                "map_name": MAP,
-                "patch_version": "1",
-                "demo_version_guid": "g",
-                "server_name": "s",
-                "registered_at": "2026-09-03T00:00:00+00:00",
+                "X": [0.0, 10.0, 20.0, -500.0],
+                "Y": [0.0, 10.0, 20.0, 500.0],
+                "Z": [0.0, 0.0, 0.0, 0.0],
+                "last_place_name": ["Middle", "Middle", "Middle", "BombsiteA"],
+                "is_alive": [True, True, True, True],
             }
-        )
-        + "\n",
-        encoding="utf-8",
+        ),
     )
-    lake = cfg.data_root / "lake" / "m1"
-    lake.mkdir(parents=True)
-    pl.DataFrame(
-        {
-            "X": [0.0, 10.0, -500.0],
-            "Y": [0.0, 10.0, 500.0],
-            "Z": [0.0, 0.0, 0.0],
-            "last_place_name": ["Middle", "Middle", "BombsiteA"],
-            "is_alive": [True, True, True],
-        }
-    ).write_parquet(lake / "ticks.parquet")
 
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
     mid = zones["Middle"]
-    # Mean (5, 5) world -> u=(5+1024)/2048, v=(1024-5)/2048.
-    assert abs(mid["u"] - (1029 / 2048)) < 1e-3
-    assert abs(mid["v"] - (1019 / 2048)) < 1e-3
+    # Median (10, 10) world -> u=(10+1024)/2048, v=(1024-10)/2048.
+    assert abs(mid["u"] - (1034 / 2048)) < 1e-3
+    assert abs(mid["v"] - (1014 / 2048)) < 1e-3
     assert zones["BombsiteA"]["u"] is not None
 
 

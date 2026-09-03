@@ -524,7 +524,7 @@ def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str
 
 def _tick_positions(cfg: AppConfig, map_name: str, zones: list[str], cal) -> dict[str, tuple]:
     """Fallback anchors from lake ticks for zones the VPK volumes did not name."""
-    from counterstrat.radar.coords import game_to_norm, is_lower_level
+    from counterstrat.radar.coords import game_to_norm, is_lower_level, level_expr
 
     manifest = load_manifest(cfg.data_root / "corpus.jsonl")
     for match_id, rec in sorted(manifest.items()):
@@ -535,10 +535,40 @@ def _tick_positions(cfg: AppConfig, map_name: str, zones: list[str], cal) -> dic
             continue
         try:
             df = pl.read_parquet(ticks_path, columns=["X", "Y", "Z", "last_place_name", "is_alive"])
+            occupied = df.filter(
+                pl.col("is_alive") & pl.col("last_place_name").is_in(zones)
+            ).drop_nulls(["X", "Y", "Z"])
+            # A zone straddling a two-level map (nuke Ramp/Secret) labels the
+            # lower radar only when clearly below - a strict majority flips a
+            # ~50% connector between images match to match - and its anchor
+            # comes from that level's ticks only, so the label never lands on
+            # the other image's geometry.
+            occupied = occupied.with_columns(level_expr(cal, "Z").alias("_lvl"))
+            dominant = occupied.group_by("last_place_name").agg(
+                pl.when((pl.col("_lvl") == "lower").mean() >= 0.6)
+                .then(pl.lit("lower"))
+                .otherwise(pl.lit("default"))
+                .alias("_dom")
+            )
+            occupied = occupied.join(dominant, on="last_place_name").filter(
+                pl.col("_lvl") == pl.col("_dom")
+            )
+            # Per-axis medians center on the occupancy mass (immune to the
+            # outliers that drag a mean off-zone); snapping to the closest real
+            # tick then keeps the label on walkable ground even for ring- and
+            # L-shaped zones whose geometric center nobody ever stands on.
+            medians = occupied.group_by("last_place_name").agg(
+                pl.col("X").median().alias("_mx"), pl.col("Y").median().alias("_my")
+            )
             centroids = (
-                df.filter(pl.col("is_alive") & pl.col("last_place_name").is_in(zones))
+                occupied.join(medians, on="last_place_name")
+                .with_columns(
+                    ((pl.col("X") - pl.col("_mx")) ** 2 + (pl.col("Y") - pl.col("_my")) ** 2).alias(
+                        "_d2"
+                    )
+                )
                 .group_by("last_place_name")
-                .agg(pl.col("X").mean(), pl.col("Y").mean(), pl.col("Z").mean())
+                .agg(pl.col("X", "Y", "Z").sort_by(["_d2", "X", "Y", "Z"]).first())
             )
             out: dict[str, tuple] = {}
             for row in centroids.iter_rows(named=True):
