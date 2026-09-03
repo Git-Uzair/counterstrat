@@ -186,3 +186,26 @@ def test_system_prompt_carries_card_teambook_and_tool_rules(chat_cfg: AppConfig)
         assert zone in system
     assert f"TeamBook: {SYNTHETIC_TEAM}" in system
     assert "get_tendencies" in system and "low_n" in system
+
+
+def test_chat_system_prompt_is_igl_grade(chat_cfg: AppConfig):
+    """Task 7: exploit-first contract, doctrine, and noise suppression."""
+    scripted = _scripted()
+    client = _client(chat_cfg, scripted)
+    sid = client.post(
+        "/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP}
+    ).json()["session_id"]
+    client.post(f"/api/chat/sessions/{sid}/messages", json={"text": "q"})
+
+    system = scripted.calls[0]["system"]
+    # The answer contract.
+    for anchor in ("Read", "Evidence", "Counter-call", "Confidence", "180 words"):
+        assert anchor in system, anchor
+    # The anti-strat doctrine.
+    assert "trigger -> response -> punish" in system
+    assert "get_playbook" in system and "get_gap_report" in system
+    # Noise suppression: the fixture's n=1 CT semi_eco situational row is not
+    # signal, so its level-2 key must not be rendered into the prompt...
+    assert "| semi_eco | ahead | won |" not in system
+    # ...while its side+buy rollup still is.
+    assert "| semi_eco | any | any |" in system

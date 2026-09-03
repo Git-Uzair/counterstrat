@@ -15,7 +15,7 @@ from counterstrat.config import AppConfig
 from counterstrat.lake.duck import connect_lake
 from counterstrat.llm.agent import AgentReply, run_agent
 from counterstrat.llm.base import ChatTurn, make_client
-from counterstrat.llm.prompts import build_system
+from counterstrat.llm.prompts import build_chat_system
 from counterstrat.llm.tools import SessionContext
 from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
@@ -33,20 +33,6 @@ from counterstrat.web.routes import ConfigDep
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat")
-
-CHAT_TOOL_RULES = """You are now in an interactive analyst chat, not writing a dossier: ignore
-the seven-section dossier structure above and answer the analyst's question directly.
-
-Tool-usage rules:
-- Always check a tendency (get_tendencies), a round (list_rounds / get_round_script), a role card
-  (get_role_cards) or the lake (sql_query) before asserting anything about this team. Never answer
-  a factual question from memory.
-- State the sample size n behind every frequency you quote, and hedge explicitly whenever the
-  tendency is flagged low_n.
-- Cite rounds as match_id:round_num, taken only from tool output.
-- Wrap every zone name in backticks and use only zones from the Map Card above.
-- If the tools do not cover the question, say so plainly instead of guessing.
-"""
 
 
 class ChatSession(BaseModel):
@@ -134,12 +120,8 @@ def _lake_connection(cfg: AppConfig) -> Any:
 
 
 def _system_prompt(card: MapCard, teambook: TeamBook) -> str:
-    """Map Card + TeamBook + tool rules, all in one cacheable system block."""
-    return (
-        f"{build_system(card.to_yaml())}\n"
-        f"<teambook>\n{teambook.to_table_text()}\n</teambook>\n\n"
-        f"{CHAT_TOOL_RULES}"
-    )
+    """Doctrine + map card + signal-filtered teambook, in one cacheable block."""
+    return build_chat_system(card.to_yaml(), teambook)
 
 
 def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str) -> ChatSession:
