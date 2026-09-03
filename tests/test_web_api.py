@@ -177,3 +177,34 @@ def test_list_demos_empty_and_populated(client_app: TestClient, test_cfg: AppCon
     assert demos[0]["match_id"] == "demo123"
     assert demos[0]["map_name"] == "de_dust2"
     assert demos[0]["team_keys"] == []
+
+
+def test_find_vpk_and_vrf_from_other_working_directory(
+    monkeypatch, tmp_path: Path, test_cfg: AppConfig
+):
+    from counterstrat.web.ingest import REPO_ROOT, _find_vpk_path, _find_vrf_cli
+
+    assert REPO_ROOT.exists()
+
+    # Create dummy maps and tools inside a fake repo root
+    fake_repo = tmp_path / "fake_repo"
+    vpk_file = fake_repo / "maps" / "de_anubis" / "de_anubis.vpk"
+    vpk_file.parent.mkdir(parents=True, exist_ok=True)
+    vpk_file.write_bytes(b"vpk")
+
+    vrf_file = fake_repo / "tools" / "vrf" / "Source2Viewer-CLI.exe"
+    vrf_file.parent.mkdir(parents=True, exist_ok=True)
+    vrf_file.write_bytes(b"vrf")
+
+    monkeypatch.setattr("counterstrat.web.ingest.REPO_ROOT", fake_repo)
+
+    # Change current working directory to somewhere else
+    other_dir = tmp_path / "somewhere_else"
+    other_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(other_dir)
+
+    found_vpk = _find_vpk_path("de_anubis", test_cfg)
+    assert found_vpk == vpk_file
+
+    found_vrf = _find_vrf_cli()
+    assert found_vrf == vrf_file

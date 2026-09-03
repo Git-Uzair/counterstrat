@@ -25,6 +25,8 @@ from counterstrat.roundscript.serialize import serialize_match
 
 logger = logging.getLogger(__name__)
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
 
 class JobState(BaseModel):
     job_id: str
@@ -57,6 +59,8 @@ def load_job_state(data_root: Path, job_id: str) -> JobState | None:
 
 def _find_vpk_path(map_name: str, cfg: AppConfig) -> Path | None:
     candidates: list[Path | None] = [
+        REPO_ROOT / "maps" / map_name / f"{map_name}.vpk",
+        REPO_ROOT / f"maps/{map_name}/{map_name}.vpk",
         Path("maps") / map_name / f"{map_name}.vpk",
     ]
     if cfg.cs2_install_path:
@@ -69,6 +73,8 @@ def _find_vpk_path(map_name: str, cfg: AppConfig) -> Path | None:
 
 def _find_vrf_cli() -> Path | None:
     candidates = [
+        REPO_ROOT / "tools" / "vrf" / "Source2Viewer-CLI.exe",
+        REPO_ROOT / "tools" / "vrf" / "Source2Viewer-CLI",
         Path("tools") / "vrf" / "Source2Viewer-CLI.exe",
         Path("tools") / "vrf" / "Source2Viewer-CLI",
     ]
@@ -135,11 +141,14 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
                     )
                     card_path.parent.mkdir(parents=True, exist_ok=True)
                     card_path.write_text(card.to_yaml(), encoding="utf-8")
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Mapcard compilation failed for %s: %s", rec.map_name, exc)
+                    state.detail = ""
+                except Exception as exc:
+                    logger.exception("Mapcard compilation failed: %s", exc)  # noqa: TRY401
                     state.detail = f"card missing: supply maps/{rec.map_name}/{rec.map_name}.vpk"
             else:
                 state.detail = f"card missing: supply maps/{rec.map_name}/{rec.map_name}.vpk"
+        else:
+            state.detail = ""
 
         ticks = pl.read_parquet(lake.ticks)
         mapper = ZoneMapper.fit(ticks)

@@ -331,7 +331,16 @@
       body: JSON.stringify({ team_key: teamKey, map_name: mapName }),
     })
       .then(function (res) {
-        if (!res.ok) throw new Error("Failed to create chat session");
+        if (!res.ok) {
+          return res.json().then(
+            function (errData) {
+              throw new Error((errData && errData.detail) || "Failed to create chat session");
+            },
+            function () {
+              throw new Error("Failed to create chat session");
+            }
+          );
+        }
         return res.json();
       })
       .then(function (data) {

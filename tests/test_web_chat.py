@@ -141,7 +141,7 @@ def test_create_session_unknown_team_404(chat_cfg: AppConfig):
     assert "TeamBook" in r.json()["detail"]
 
 
-def test_create_session_missing_card_404(tmp_path: Path):
+def test_create_session_missing_card_fallback_degraded(tmp_path: Path):
     cfg = AppConfig(data_root=tmp_path)
     tb_path = cfg.data_root / "teambooks" / SYNTHETIC_TEAM / MAP / "teambook.json"
     tb_path.parent.mkdir(parents=True, exist_ok=True)
@@ -149,11 +149,15 @@ def test_create_session_missing_card_404(tmp_path: Path):
         build_teambook(build_synthetic_scripts(), SYNTHETIC_TEAM).model_dump_json(),
         encoding="utf-8",
     )
-    r = _client(cfg, _scripted()).post(
-        "/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP}
-    )
-    assert r.status_code == 404
-    assert "Map card" in r.json()["detail"]
+    client = _client(cfg, _scripted())
+    r = client.post("/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP})
+    assert r.status_code == 200
+    sid = r.json()["session_id"]
+    assert sid
+
+    # Message exchange works in degraded session
+    msg = client.post(f"/api/chat/sessions/{sid}/messages", json={"text": "default setup?"})
+    assert msg.status_code == 200
 
 
 def test_chat_message_503_without_api_key(chat_cfg: AppConfig):

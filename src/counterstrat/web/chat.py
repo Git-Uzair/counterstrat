@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import polars as pl
 import yaml
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,10 +17,14 @@ from counterstrat.llm.agent import AgentReply, run_agent
 from counterstrat.llm.base import ChatTurn, make_client
 from counterstrat.llm.prompts import build_system
 from counterstrat.llm.tools import SessionContext
-from counterstrat.mapcard.compile import MapCard
+from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
+from counterstrat.mapcard.transitions import zone_graph
+from counterstrat.mapcard.vents import parse_places, unique_places
+from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.roundscript.models import RoundScript
+from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
 from counterstrat.web.routes import ConfigDep
 
 logger = logging.getLogger(__name__)
@@ -140,22 +145,13 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
         raise HTTPException(
             status_code=404, detail=f"TeamBook for {team_key} on {map_name} not found"
         )
-    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
-    if not card_path.exists():
-        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
 
     try:
         teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
-        card = MapCard(**yaml.safe_load(card_path.read_text(encoding="utf-8")))
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Failed to load chat session data: {exc}"
         ) from exc
-
-    overlay_path = get_default_overlay_path(map_name)
-    lexicon = build_lexicon(
-        map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
-    )
 
     scripts: dict[str, RoundScript] = {}
     for match_id in teambook.generated_from:
@@ -166,6 +162,145 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
                 logger.warning("Skipping unreadable round script %s: %s", script_path, exc)
                 continue
             scripts[f"{script.match_id}:{script.round_num}"] = script
+
+    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
+    card: MapCard | None = None
+    if card_path.exists():
+        try:
+            card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+            if isinstance(card_data, dict):
+                card = MapCard(**card_data)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to load map card from %s: %s", card_path, exc)
+            card = None
+
+    if card is None:
+        vpk_path = _find_vpk_path(map_name, cfg)
+        vrf_cli = _find_vrf_cli()
+        if vpk_path and vrf_cli:
+            ticks_df: pl.DataFrame | None = None
+            rounds_df: pl.DataFrame | None = None
+            for match_id in teambook.generated_from:
+                tp = cfg.data_root / "lake" / match_id / "ticks.parquet"
+                rp = cfg.data_root / "lake" / match_id / "rounds.parquet"
+                if tp.exists() and rp.exists():
+                    try:
+                        ticks_df = pl.read_parquet(tp)
+                        rounds_df = pl.read_parquet(rp)
+                        break
+                    except Exception:  # noqa: BLE001, S112
+                        continue
+            if ticks_df is None or rounds_df is None:
+                lake_root = cfg.data_root / "lake"
+                for rp in lake_root.glob("*/rounds.parquet"):
+                    tp = rp.parent / "ticks.parquet"
+                    if tp.exists():
+                        try:
+                            tdf = pl.read_parquet(tp)
+                            rdf = pl.read_parquet(rp)
+                            if "map_name" in rdf.columns and map_name in rdf["map_name"].to_list():
+                                ticks_df = tdf
+                                rounds_df = rdf
+                                break
+                        except Exception:  # noqa: BLE001, S112
+                            continue
+            if ticks_df is not None and rounds_df is not None:
+                try:
+                    assets_dir = cfg.data_root / "tmp_assets" / map_name
+                    assets = extract_map_assets(vpk_path, vrf_cli, assets_dir)
+                    places = unique_places(parse_places(assets.vents))
+                    overlay_path = get_default_overlay_path(map_name)
+                    lexicon_card = build_lexicon(
+                        map_name, places, overlay_path if overlay_path.exists() else None
+                    )
+                    graph = zone_graph(ticks_df)
+                    card = compile_card(
+                        lexicon=lexicon_card,
+                        graph=graph,
+                        ticks=ticks_df,
+                        rounds=rounds_df,
+                        map_name=map_name,
+                        patch_version="unknown",
+                    )
+                    card_path.parent.mkdir(parents=True, exist_ok=True)
+                    card_path.write_text(card.to_yaml(), encoding="utf-8")
+                except Exception as exc:
+                    logger.exception("Mapcard compilation failed: %s", exc)  # noqa: TRY401
+                    card = None
+
+    if card is None:
+        card = MapCard(
+            map=map_name,
+            game_version="unknown",
+            nav_source="none",
+            frame={},
+            zones={},
+            topology={},
+            rotates=[],
+            timings={},
+            objectives={},
+            sightlines=[],
+            checksum="degraded",
+        )
+
+    overlay_path = get_default_overlay_path(map_name)
+    if card.zones:
+        lexicon = build_lexicon(
+            map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
+        )
+    else:
+        places_set: set[str] = set()
+        for s in scripts.values():
+            for b in s.beats:
+                for _, z in b.t_form.zones:
+                    if z:
+                        places_set.add(z)
+                for _, z in b.ct_form.zones:
+                    if z:
+                        places_set.add(z)
+            for k in s.kills:
+                if k.zone:
+                    places_set.add(k.zone)
+            if s.first_contact and s.first_contact.zone:
+                places_set.add(s.first_contact.zone)
+            for u in s.utility:
+                if u.from_zone:
+                    places_set.add(u.from_zone)
+                if u.to_zone:
+                    places_set.add(u.to_zone)
+            if s.plant and s.plant.site:
+                places_set.add(s.plant.site)
+        for match_id in teambook.generated_from:
+            tp = cfg.data_root / "lake" / match_id / "ticks.parquet"
+            if tp.exists():
+                try:
+                    tdf = pl.read_parquet(tp, columns=["last_place_name"])
+                    places_set.update(
+                        str(p)
+                        for p in tdf["last_place_name"].drop_nulls().unique().to_list()
+                        if str(p).strip()
+                    )
+                except Exception:  # noqa: BLE001, S110
+                    pass
+
+        overlay_zones: list[str] = []
+        valid_overlay: Path | None = None
+        if overlay_path.exists():
+            try:
+                overlay_data = yaml.safe_load(overlay_path.read_text(encoding="utf-8")) or {}
+                overlay_zones = list((overlay_data.get("zones") or {}).keys())
+                valid_overlay = overlay_path
+            except Exception:  # noqa: BLE001
+                valid_overlay = None
+
+        all_places = sorted(places_set | set(overlay_zones))
+        if not all_places:
+            all_places = ["Default"]
+
+        try:
+            lexicon = build_lexicon(map_name, all_places, valid_overlay)
+        except Exception:  # noqa: BLE001
+            lexicon = build_lexicon(map_name, all_places, None)
 
     ctx = SessionContext(
         team_key=team_key,
