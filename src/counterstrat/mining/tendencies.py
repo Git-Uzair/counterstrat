@@ -48,6 +48,12 @@ class RoleCard(BaseModel):
     modal_zone_fe15: dict[str, str]  # side -> modal zone at B+15
     opening_duel_rate: float  # share of team first-contacts involving them
     lurk_rate: float  # share of rounds with lurk role_hint
+    # Extended profile (plan Task 5); defaults keep pre-upgrade JSON loadable.
+    opening_kill_rate: float = 0.0  # of their FC involvements, share won
+    opening_zones: dict[str, int] = {}  # zone -> FC involvement count
+    awp_rounds: int = 0  # rounds with an awp kill by this player
+    trade_discipline: float = 0.0  # share of their deaths traded within 4s
+    median_fc_t: float | None = None  # median FC time when involved
 
 
 class TeamBook(BaseModel):
@@ -412,18 +418,38 @@ def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
     team_fc_rounds = [s for s in participating if s.first_contact is not None]
     total_fc = len(team_fc_rounds)
 
+    # Per-player kill-log aggregates (plan Task 5).
+    awp_rounds: dict[str, set[str]] = defaultdict(set)
+    deaths: Counter[str] = Counter()
+    deaths_traded: Counter[str] = Counter()
+    for s in participating:
+        round_id = f"{s.match_id}:{s.round_num}"
+        for k in s.kills:
+            if "awp" in k.weapon.lower():
+                awp_rounds[k.killer].add(round_id)
+            deaths[k.victim] += 1
+            if k.traded_within_4s:
+                deaths_traded[k.victim] += 1
+
     roles: list[RoleCard] = []
     for player in sorted(player_rounds.keys()):
         rounds_cnt = player_rounds[player]
         lurk_rate = player_lurks[player] / rounds_cnt if rounds_cnt > 0 else 0.0
 
-        fc_involved = sum(
-            1
+        fc_hits = [
+            s.first_contact
             for s in team_fc_rounds
             if s.first_contact is not None
-            and (s.first_contact.killer == player or s.first_contact.victim == player)
-        )
+            and player in (s.first_contact.killer, s.first_contact.victim)
+        ]
+        fc_involved = len(fc_hits)
         opening_duel_rate = fc_involved / total_fc if total_fc > 0 else 0.0
+        opening_kill_rate = (
+            sum(1 for fc in fc_hits if fc.killer == player) / fc_involved if fc_involved else 0.0
+        )
+        opening_zones = dict(Counter(fc.zone for fc in fc_hits if fc.zone).most_common())
+        median_fc_t = float(median(fc.t for fc in fc_hits)) if fc_hits else None
+        trade_discipline = deaths_traded[player] / deaths[player] if deaths[player] else 0.0
 
         modal_fe15: dict[str, str] = {}
         for side in ("T", "CT"):
@@ -441,6 +467,11 @@ def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
                 modal_zone_fe15=modal_fe15,
                 opening_duel_rate=opening_duel_rate,
                 lurk_rate=lurk_rate,
+                opening_kill_rate=opening_kill_rate,
+                opening_zones=opening_zones,
+                awp_rounds=len(awp_rounds[player]),
+                trade_discipline=trade_discipline,
+                median_fc_t=median_fc_t,
             )
         )
 

@@ -260,6 +260,78 @@ def test_multiround_prev_outcome_tracking():
     assert t_for(28).key.prev_outcome == "first"
 
 
+# --- Task 5: extended player profiles ------------------------------------------
+
+
+def test_role_card_profile_fields():
+    scripts = _mk_scripts(n=12, first_contact_zone="Middle", minority_zone="Water", minority=3)
+    tb = build_teambook(scripts, "abc")
+    p1 = next(r for r in tb.roles if r.player == "p1")
+    p2 = next(r for r in tb.roles if r.player == "p2")
+
+    # p1 killed every first contact: 9 in Middle, 3 in Water, at t=15..26.
+    assert abs(p1.opening_kill_rate - 1.0) < 1e-9
+    assert p1.opening_zones == {"Middle": 9, "Water": 3}
+    assert p1.median_fc_t is not None and abs(p1.median_fc_t - 20.5) < 1e-9
+    assert p1.awp_rounds == 0  # ak47 only
+    assert p1.trade_discipline == 0.0  # never died
+
+    # p2 never touched the opening duel.
+    assert p2.opening_kill_rate == 0.0
+    assert p2.opening_zones == {}
+    assert p2.median_fc_t is None
+
+
+def test_role_card_awp_and_trade_discipline():
+    scripts = _mk_scripts(n=4, minority=0)
+    # p1 secures an AWP kill in round m1; p2 dies but is traded in m2.
+    scripts[0].kills.append(
+        KillEvent(
+            t=30.0,
+            killer="p1",
+            victim="e2",
+            killer_side="T",
+            zone="Middle",
+            weapon="awp",
+            headshot=False,
+            traded_within_4s=False,
+        )
+    )
+    scripts[1].kills.append(
+        KillEvent(
+            t=33.0,
+            killer="e1",
+            victim="p2",
+            killer_side="CT",
+            zone="Water",
+            weapon="m4a1",
+            headshot=False,
+            traded_within_4s=True,
+        )
+    )
+    tb = build_teambook(scripts, "abc")
+    p1 = next(r for r in tb.roles if r.player == "p1")
+    p2 = next(r for r in tb.roles if r.player == "p2")
+    assert p1.awp_rounds == 1
+    assert abs(p2.trade_discipline - 1.0) < 1e-9
+
+
+def test_role_card_old_json_still_loads(synthetic_scripts):
+    tb = build_teambook(synthetic_scripts, "abc")
+    dumped = tb.model_dump()
+    for r in dumped["roles"]:
+        for field in (
+            "opening_kill_rate",
+            "opening_zones",
+            "awp_rounds",
+            "trade_discipline",
+            "median_fc_t",
+        ):
+            r.pop(field, None)
+    old = TeamBook.model_validate(dumped)
+    assert all(r.opening_kill_rate == 0.0 for r in old.roles)
+
+
 # --- Task 1: hierarchical levels + signal filtering ---------------------------
 
 
