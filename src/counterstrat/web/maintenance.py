@@ -1,21 +1,223 @@
-"""Corpus maintenance: demo deletion and full derived-artifact rebuild."""
+"""Corpus maintenance: demo deletion, zone rebuilds, derived-artifact rebuild."""
 
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
 
+import polars as pl
+
 from counterstrat.config import AppConfig
 from counterstrat.corpus import DemoRecord, load_manifest
+from counterstrat.customzones import load_custom_zones, rezone_ticks
+from counterstrat.lake.extract import LakePaths
+from counterstrat.mapcard.compile import MapCard, compile_card
+from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
+from counterstrat.mapcard.transitions import zone_graph
+from counterstrat.mapcard.vents import parse_places, unique_places
+from counterstrat.mapcard.zones import ZoneMapper
 from counterstrat.mining.brief import build_scout_brief
 from counterstrat.mining.econ_policy import build_econ_policy
 from counterstrat.mining.gaps import build_gap_report
 from counterstrat.mining.tendencies import build_teambook
 from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
+from counterstrat.roundscript.serialize import serialize_match
 from counterstrat.teams import build_team_clusters, write_team_clusters
 
 logger = logging.getLogger(__name__)
+
+_LAKE_TABLES = [
+    "rounds",
+    "kills",
+    "damages",
+    "shots",
+    "grenades",
+    "smokes",
+    "infernos",
+    "bomb",
+    "item_purchase",
+    "ticks",
+    "rosters",
+    "player_blind",
+]
+
+
+def _lake_paths(data_root: Path, match_id: str) -> LakePaths:
+    """LakePaths for an already-extracted match directory."""
+    root = data_root / "lake" / match_id
+    return LakePaths(
+        root=str(root), **{name: str(root / f"{name}.parquet") for name in _LAKE_TABLES}
+    )
+
+
+def _effective_tick_places(ticks_df: pl.DataFrame) -> set[str]:
+    if "last_place_name" not in ticks_df.columns:
+        return set()
+    return {
+        str(p)
+        for p in ticks_df["last_place_name"].drop_nulls().unique().to_list()
+        if str(p).strip()
+    }
+
+
+def compile_map_card(
+    map_name: str,
+    places: list[str],
+    ticks_df: pl.DataFrame,
+    rounds_df: pl.DataFrame,
+    patch_version: str,
+) -> MapCard | None:
+    """Compile a card whose zone set is the VPK places UNION the effective
+    tick vocabulary - custom zones ride into the card (and so into prompts,
+    lint, and the editor) automatically."""
+    all_places = sorted(set(places) | _effective_tick_places(ticks_df))
+    if not all_places:
+        return None
+    overlay = get_default_overlay_path(map_name)
+    lex = build_lexicon(map_name, all_places, overlay if overlay.exists() else None)
+    return compile_card(
+        lexicon=lex,
+        graph=zone_graph(ticks_df),
+        ticks=ticks_df,
+        rounds=rounds_df,
+        map_name=map_name,
+        patch_version=patch_version,
+    )
+
+
+def _cached_vpk_places(cfg: AppConfig, map_name: str) -> list[str]:
+    """VPK place names from the tmp_assets vents cache; [] when not extracted.
+
+    No VRF run here - the cache exists for any map that compiled a card.
+    """
+    vents = (
+        cfg.data_root
+        / "tmp_assets"
+        / map_name
+        / "maps"
+        / map_name
+        / "entities"
+        / "default_ents.vents"
+    )
+    if not vents.exists():
+        return []
+    try:
+        return unique_places(parse_places(vents))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Unreadable vents for %s: %s", map_name, exc)
+        return []
+
+
+def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
+    """Bake the map's custom zones into the lake and rebuild all derivatives.
+
+    Order matters: ticks first (the vocabulary), then the card
+    (zones/topology), then scripts (movements/beats/utility via a mapper
+    trained on re-zoned ticks), then miners, then stale LLM caches.
+    """
+    zones = load_custom_zones(cfg.data_root, map_name)
+    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
+    matches = [mid for mid, rec in sorted(manifest.items()) if rec.map_name == map_name]
+
+    # 1. Re-zone every match's ticks, atomically.
+    for mid in matches:
+        ticks_path = cfg.data_root / "lake" / mid / "ticks.parquet"
+        if not ticks_path.exists():
+            continue
+        df = rezone_ticks(pl.read_parquet(ticks_path), zones)
+        tmp = ticks_path.with_suffix(f".tmp_{os.getpid()}")
+        df.write_parquet(tmp)
+        os.replace(tmp, ticks_path)
+
+    # 2. Recompile the card from the first match (mirrors ingest).
+    card: MapCard | None = None
+    if matches:
+        first_lake = _lake_paths(cfg.data_root, matches[0])
+        if Path(first_lake.ticks).exists():
+            ticks_df = pl.read_parquet(first_lake.ticks)
+            rounds_df = (
+                pl.read_parquet(first_lake.rounds)
+                if Path(first_lake.rounds).exists()
+                else pl.DataFrame()
+            )
+            card = compile_map_card(
+                map_name,
+                _cached_vpk_places(cfg, map_name),
+                ticks_df,
+                rounds_df,
+                manifest[matches[0]].patch_version,
+            )
+            if card is not None:
+                card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
+                card_path.parent.mkdir(parents=True, exist_ok=True)
+                card_path.write_text(card.to_yaml(), encoding="utf-8")
+
+    # 3. Re-serialize scripts per match with a mapper trained on the new
+    # vocabulary.
+    overlay = get_default_overlay_path(map_name)
+    for mid in matches:
+        lake = _lake_paths(cfg.data_root, mid)
+        if not Path(lake.ticks).exists():
+            continue
+        ticks_df = pl.read_parquet(lake.ticks)
+        try:
+            mapper = ZoneMapper.fit(ticks_df)
+        except ValueError:
+            continue  # no valid tick rows - keep old scripts
+        if card is not None:
+            places = list(card.zones.keys())
+        else:
+            places = sorted(_effective_tick_places(ticks_df)) or ["Default"]
+        lex = build_lexicon(map_name, places, overlay if overlay.exists() else None)
+        scripts = serialize_match(lake, mapper, lex, card.checksum if card else "none")
+        if scripts:
+            scripts_dir = cfg.data_root / "scripts" / mid
+            shutil.rmtree(scripts_dir, ignore_errors=True)
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+            for s in scripts:
+                (scripts_dir / f"round_{s.round_num}.json").write_text(
+                    s.to_json(), encoding="utf-8"
+                )
+
+    # 4. Re-mine every teambook (recluster + prune, existing machinery).
+    stats = rebuild_artifacts(cfg)
+
+    # 5. Stale LLM caches for THIS map speak the old vocabulary - delete.
+    tb_root = cfg.data_root / "teambooks"
+    if tb_root.exists():
+        for team_dir in tb_root.iterdir():
+            if not team_dir.is_dir():
+                continue
+            for stale in ("dossier.md", "insights.json"):
+                p = team_dir / map_name / stale
+                if p.exists():
+                    p.unlink()
+
+    return {"matches": len(matches), "zones": len(zones), **stats}
+
+
+def run_zone_rebuild(job_id: str, map_name: str, cfg: AppConfig) -> None:
+    """Background-job wrapper mirroring run_ingest's state machine."""
+    from counterstrat.web.ingest import JobState, load_job_state, save_job_state
+
+    state = load_job_state(cfg.data_root, job_id) or JobState(job_id=job_id, stage="queued")
+    state.map_name = map_name
+    try:
+        state.stage = "serializing"
+        save_job_state(cfg.data_root, state)
+        result = rebuild_map_zones(cfg, map_name)
+        state.stage = "mining"
+        save_job_state(cfg.data_root, state)
+        state.stage = "done"
+        state.detail = f"rebuilt {result['matches']} match(es), {result['zones']} custom zone(s)"
+        save_job_state(cfg.data_root, state)
+    except Exception as exc:
+        logger.exception("Zone rebuild job %s failed", job_id)
+        state.stage = "error"
+        state.detail = str(exc)
+        save_job_state(cfg.data_root, state)
 
 
 def mine_team_artifacts(

@@ -14,9 +14,8 @@ from pydantic import BaseModel
 from counterstrat.config import AppConfig
 from counterstrat.corpus import load_manifest, register_demo
 from counterstrat.lake.extract import extract_lake
-from counterstrat.mapcard.compile import MapCard, compile_card
+from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
-from counterstrat.mapcard.transitions import zone_graph
 from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mapcard.zones import ZoneMapper
@@ -155,6 +154,14 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
 
         lake = extract_lake(rec, cfg.data_root / "lake")
 
+        # A map with user-defined callout zones bakes them into every new
+        # demo's ticks before anything downstream reads the vocabulary.
+        from counterstrat.customzones import load_custom_zones, rezone_ticks
+
+        custom = load_custom_zones(cfg.data_root, rec.map_name)
+        if custom:
+            rezone_ticks(pl.read_parquet(lake.ticks), custom).write_parquet(lake.ticks)
+
         # 2. Map Card & Lexicon
         state.stage = "mapcard"
         save_job_state(cfg.data_root, state)
@@ -174,26 +181,19 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             vrf_cli = _find_vrf_cli()
             if vpk_path and vrf_cli:
                 try:
+                    from counterstrat.web.maintenance import compile_map_card
+
                     assets_dir = cfg.data_root / "tmp_assets" / rec.map_name
                     assets = extract_map_assets(vpk_path, vrf_cli, assets_dir)
                     places = unique_places(parse_places(assets.vents))
-                    overlay_path = get_default_overlay_path(rec.map_name)
-                    lexicon_card = build_lexicon(
-                        rec.map_name, places, overlay_path if overlay_path.exists() else None
-                    )
                     ticks_df = pl.read_parquet(lake.ticks)
                     rounds_df = pl.read_parquet(lake.rounds)
-                    graph = zone_graph(ticks_df)
-                    card = compile_card(
-                        lexicon=lexicon_card,
-                        graph=graph,
-                        ticks=ticks_df,
-                        rounds=rounds_df,
-                        map_name=rec.map_name,
-                        patch_version=rec.patch_version,
+                    card = compile_map_card(
+                        rec.map_name, places, ticks_df, rounds_df, rec.patch_version
                     )
-                    card_path.parent.mkdir(parents=True, exist_ok=True)
-                    card_path.write_text(card.to_yaml(), encoding="utf-8")
+                    if card is not None:
+                        card_path.parent.mkdir(parents=True, exist_ok=True)
+                        card_path.write_text(card.to_yaml(), encoding="utf-8")
                     state.detail = ""
                 except Exception as exc:
                     logger.exception("Mapcard compilation failed: %s", exc)  # noqa: TRY401
