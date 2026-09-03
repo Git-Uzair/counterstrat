@@ -31,7 +31,7 @@ from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.teams import load_or_build_clusters, resolve_team_id
-from counterstrat.web.ingest import JobState, load_job_state, run_ingest, save_job_state
+from counterstrat.web.ingest import JobState, _rekey, load_job_state, run_ingest, save_job_state
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +264,11 @@ def get_scout_brief(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, A
 
 
 def _load_team_bundle(cfg: AppConfig, team_key: str, map_name: str):
-    """Card, teambook, scripts and lexicon for one (team, map); raises 404s."""
+    """Card, teambook, re-keyed scripts and lexicon for one (team, map); raises 404s.
+
+    ``team_key`` must already be the canonical cluster id. Scripts are re-keyed
+    to it so miners see one team identity across stand-in lineups.
+    """
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
     if not card_path.exists():
         raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
@@ -279,13 +283,37 @@ def _load_team_bundle(cfg: AppConfig, team_key: str, map_name: str):
     lex = build_lexicon(
         map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
     )
+    cluster = load_or_build_clusters(cfg.data_root).get(team_key)
+    keys = cluster.all_keys() if cluster else {team_key}
     scripts: list[RoundScript] = []
     for mid in teambook.generated_from:
         scripts_dir = cfg.data_root / "scripts" / mid
         if scripts_dir.exists():
             for sp in sorted(scripts_dir.glob("round_*.json")):
-                scripts.append(RoundScript.model_validate_json(sp.read_text(encoding="utf-8")))
+                script = RoundScript.model_validate_json(sp.read_text(encoding="utf-8"))
+                scripts.append(_rekey(script, keys, team_key))
     return card, teambook, scripts, lex
+
+
+def _game_labels(cfg: AppConfig, team_key: str, teambook: TeamBook, scripts) -> dict[str, str]:
+    """Human game labels: 'Game 1 (vs team_x)' keyed by match id."""
+    clusters = load_or_build_clusters(cfg.data_root)
+    labels: dict[str, str] = {}
+    for i, mid in enumerate(teambook.generated_from, start=1):
+        opponent = None
+        for s in scripts:
+            if s.match_id != mid:
+                continue
+            opp_key = s.ct_team_key if s.t_team_key == team_key else s.t_team_key
+            if opp_key:
+                oc = clusters.get(opp_key)
+                if oc is not None and oc.name and oc.name != oc.team_id:
+                    opponent = oc.name
+                else:
+                    opponent = str(opp_key)[:8]
+            break
+        labels[mid] = f"Game {i} (vs {opponent})" if opponent else f"Game {i}"
+    return labels
 
 
 _MOCK_INSIGHTS = (
@@ -331,12 +359,16 @@ def get_insights(
 
     key = cfg.anthropic_api_key if cfg.provider == "anthropic" else cfg.gemini_api_key
     if not key and mock == "1":
+        from counterstrat.llm.insights import default_game_labels
+
+        labels = default_game_labels(list(teambook.generated_from))
         payload: dict[str, Any] = {
             "team_key": team_key,
             "map_name": map_name,
             "text": _MOCK_INSIGHTS,
             "warnings": [],
             "generated_from": list(teambook.generated_from),
+            "games": [{"label": labels[mid], "match_id": mid} for mid in teambook.generated_from],
             "model": "mock",
         }
         cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -365,6 +397,7 @@ def get_insights(
             econ_policy=build_econ_policy(scripts, team_key),
             scripts=scripts,
             lexicon=lex,
+            game_labels=_game_labels(cfg, team_key, teambook, scripts),
         )
     except HTTPException:
         raise
@@ -377,6 +410,7 @@ def get_insights(
         "text": insights.text,
         "warnings": insights.warnings,
         "generated_from": insights.generated_from,
+        "games": insights.games,
         "model": insights.usage.model,
     }
     cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -402,31 +436,10 @@ def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = 
             detail=f"No API key configured for provider '{cfg.provider}'. Please set it in Settings.",
         )
 
-    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
-    if not card_path.exists():
-        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
-
-    tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
-    if not tb_path.exists():
-        raise HTTPException(
-            status_code=404, detail=f"TeamBook for {team_key} on {map_name} not found"
-        )
-
+    # Bundle loading resolves the cluster and re-keys scripts, so the dossier
+    # mines the full merged corpus across stand-in lineups.
+    card, teambook, scripts, lex = _load_team_bundle(cfg, team_key, map_name)
     try:
-        card = MapCard(**yaml.safe_load(card_path.read_text(encoding="utf-8")))
-        teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
-        overlay_path = get_default_overlay_path(map_name)
-        lex = build_lexicon(
-            map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
-        )
-
-        scripts: list[RoundScript] = []
-        for mid in teambook.generated_from:
-            scripts_dir = cfg.data_root / "scripts" / mid
-            if scripts_dir.exists():
-                for sp in sorted(scripts_dir.glob("round_*.json")):
-                    scripts.append(RoundScript.model_validate_json(sp.read_text(encoding="utf-8")))
-
         from counterstrat.llm.base import make_client
         from counterstrat.llm.dossier import generate as generate_dossier
 

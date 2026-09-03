@@ -478,15 +478,19 @@
     panel.className = "first-look-panel insights-panel";
     panel.id = "ai-first-read";
     panel.innerHTML =
-      '<div class="first-look-header">AI First Read' +
+      '<div class="first-look-header insights-header">' +
+      '<span class="insights-title"><span class="insights-chevron">▾</span> AI First Read</span>' +
       '<button type="button" id="insights-generate" class="btn btn-sm btn-outline fl-generate">' +
       (generate ? "Generating..." : "Generate") +
       "</button></div>" +
       '<div id="insights-body" class="insights-body">' +
       (generate
-        ? '<p class="insights-hint">Reading every round of every demo...</p>'
+        ? '<p class="insights-hint">Reading every round of every game...</p>'
         : '<p class="insights-hint">No AI read generated for this data yet.</p>') +
       "</div>";
+    panel.querySelector(".insights-title").addEventListener("click", function () {
+      panel.classList.toggle("collapsed");
+    });
     const brief = document.getElementById("first-look");
     if (brief && brief.nextSibling) {
       el.messagesContainer.insertBefore(panel, brief.nextSibling);
@@ -514,7 +518,14 @@
       .then(function (data) {
         const body = panel.querySelector("#insights-body");
         const demoCount = (data.generated_from || []).length || 1;
-        let html = formatMessageText(data.text);
+        let html = "";
+        if (data.games && data.games.length) {
+          html +=
+            '<div class="insights-games">' +
+            data.games.map(function (g) { return escapeHtml(g.label); }).join(" · ") +
+            "</div>";
+        }
+        html += formatMessageText(data.text);
         if (data.warnings && data.warnings.length) {
           html +=
             '<div class="insights-warnings">Verification warnings: ' +

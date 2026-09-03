@@ -1335,3 +1335,29 @@ textarea#chat-input:disabled {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
+
+/* AI First Read: internal scroll, collapse toggle, games legend */
+
+.insights-body {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.insights-title { cursor: pointer; user-select: none; }
+
+.insights-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.insights-panel.collapsed .insights-body { display: none; }
+.insights-panel.collapsed .insights-chevron { transform: rotate(-90deg); }
+
+.insights-games {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+}

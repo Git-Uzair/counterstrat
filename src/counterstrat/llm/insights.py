@@ -8,6 +8,8 @@ Modern context windows fit multiple demos comfortably; the value is in the
 model connecting causes, not in us pre-chewing the data.
 """
 
+import re
+
 from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import LLMClient, LLMResult
@@ -27,7 +29,30 @@ class Insights(BaseModel):
     text: str
     warnings: list[str] = Field(default_factory=list)
     generated_from: list[str]
+    games: list[dict] = Field(default_factory=list)  # [{label, match_id, opponent}]
     usage: LLMResult
+
+
+# Internal window codes -> plain language for prompts and any rendered artifact.
+_WINDOW_LABEL = {"post-FC": "after first contact", "post-PL": "after the plant"}
+
+
+def _friendly_window(window: str) -> str:
+    if window in _WINDOW_LABEL:
+        return _WINDOW_LABEL[window]
+    if window.startswith("B+"):
+        seconds = int(window[2:])
+        return "at round start" if seconds == 0 else f"{seconds}s into the round"
+    return window
+
+
+def default_game_labels(generated_from: list[str]) -> dict[str, str]:
+    return {mid: f"Game {i}" for i, mid in enumerate(generated_from, start=1)}
+
+
+def _friendly_round(round_id: str, labels: dict[str, str]) -> str:
+    mid, _, rn = round_id.partition(":")
+    return f"{labels.get(mid, mid[:8])} R{rn}"
 
 
 def build_insights_system(card_yaml: str) -> str:
@@ -40,24 +65,40 @@ tendency.
 {card_yaml}
 </map_card>
 
-Write 5-10 insights the IGL can use in the next match, ordered by expected impact,
-as markdown with one `##` heading per insight. Each insight has:
-- **Read** - the conditioned pattern in one sentence ("after X, they do Y").
-- **Why** - the causal chain behind it, reasoned from the rounds, not just the frequency.
+Write the brief in markdown with EXACTLY these six sections, in this order:
+## T Pistol - their T-side pistol round default, and the punish.
+## CT Pistol - their CT-side pistol round setup, and the punish.
+## Eco & Force Habits - how they play low-buy rounds, and how to farm them safely.
+## T Full Buy - their full-buy attack (defaults, executes, tempo), and the counter.
+## CT Full Buy - their full-buy defense (setup, rotations, utility), and the counter.
+## Gotchas - 2-5 bullets of anything else worth knowing: player habits, utility
+crutches, timing tells, gaps, momentum behavior. Non-obvious observations only.
+
+Inside every section write:
+- **Read** - the pattern in one or two sentences ("after X, they do Y").
+- **Why** - the causal chain, reasoned from the rounds, not just the frequency.
 - **Punish** - the exact counter-call a caller can lift word-for-word.
-- **Evidence** - `match_id:round_num` cites and the sample size n.
+- **Evidence** - cite as (Game 1, rounds 3, 7) plus the sample size n.
+
+Language rules - the reader is a player, not a database:
+- Refer to games as Game 1, Game 2 (the Games list in the data maps them). NEVER
+  print raw match ids or hashes.
+- Say "first contact", "after the plant", "30s into the round" - never internal
+  codes like FC, PL, B+30.
+- Wrap every zone name in backticks and use only zones from the Map Card.
 
 Hard rules:
-- Never present a consequence of normal play as an insight. Examples of banned
-  tautologies: CTs leaving the other site post-plant to retake; Ts not standing on
-  bombsites early; teams saving on a lost eco. An insight must be something a
-  different team in the same situation would plausibly do differently.
+- Never present a consequence of normal play as an insight. Banned tautologies:
+  CTs leaving the other site post-plant to retake; Ts not standing on bombsites
+  early; teams saving on a lost eco. A read must be something a different team in
+  the same situation would plausibly do differently.
 - Prefer conditioned reads (previous round, economy state, first-contact outcome,
-  utility spent) over raw frequencies. Cross-reference the round scripts to verify
-  any pattern you claim - the scripts are the ground truth.
-- Wrap every zone name in backticks and use only zones from the Map Card. Cite only
-  rounds that exist in the data. State n for every claim; when the data is too thin
-  for a read, say exactly that in one line rather than forcing one.
+  utility spent) over raw frequencies. Cross-reference the round scripts - they are
+  the ground truth.
+- Pistol sections have tiny samples (one T and one CT pistol per game): state n
+  honestly and when the data is too thin for a read, say so in one line and give a
+  solid default recommendation instead of forcing a pattern.
+- Cite only rounds that exist in the data.
 """
 
 
@@ -68,32 +109,35 @@ def build_insights_user(
     gap_report: GapReport,
     econ_policy: EconPolicy,
     scripts: list[RoundScript],
+    game_labels: dict[str, str] | None = None,
 ) -> str:
+    labels = game_labels or default_game_labels(teambook.generated_from)
     total_rounds = sum(t.n for t in teambook.tendencies if t.level == 0)
     sections = [
         (
-            f"Data coverage: {len(teambook.generated_from)} demo(s), {total_rounds} rounds "
-            f"of {teambook.team_key} on {teambook.map_name} "
-            f"(match ids: {', '.join(teambook.generated_from)})."
+            f"Data coverage: {len(teambook.generated_from)} game(s), {total_rounds} rounds "
+            f"of {teambook.team_key} on {teambook.map_name}."
         ),
         "",
-        teambook.to_table_text(),
-        "",
-        "## Utility Book",
+        "## Games",
     ]
+    for mid in teambook.generated_from:
+        sections.append(f"- {labels.get(mid, mid[:8])}")
+    sections += ["", teambook.to_table_text(), "", "## Utility Book"]
     for p in utility_book.patterns:
         lineup = f" [{p.lineup_id}]" if p.lineup_id else ""
+        evidence = ", ".join(_friendly_round(e, labels) for e in p.evidence[:4])
         sections.append(
             f"- {p.side} {p.nade} -> `{p.to_zone}`{lineup}: {p.count}/{p.rounds_seen} rounds, "
-            f"median {p.median_t:.0f}s, early-share {p.early_share:.0%} "
-            f"(evidence: {', '.join(p.evidence[:4])})"
+            f"median {p.median_t:.0f}s, early-share {p.early_share:.0%} (evidence: {evidence})"
         )
-    sections += ["", "## Gap Findings (15s windows; post-PL rows are the planted site only)"]
+    sections += ["", "## Gap Findings (15s formation windows; plant rows = the planted site only)"]
     for f in gap_report.findings:
+        evidence = ", ".join(_friendly_round(e, labels) for e in f.evidence[:4])
         sections.append(
-            f"- {f.side} vacate `{f.zone}` at {f.window} on '{f.trigger}': "
+            f"- {f.side} vacate `{f.zone}` {_friendly_window(f.window)} on '{f.trigger}': "
             f"{f.vacancy_rate:.0%} of {f.n} (baseline {f.baseline_rate:.0%}, lift {f.lift:+.0%}; "
-            f"evidence: {', '.join(f.evidence[:4])})"
+            f"evidence: {evidence})"
         )
     sections += ["", "## Economy Policy"]
     for state, dist in econ_policy.policy.items():
@@ -109,14 +153,45 @@ def build_insights_user(
             f"- {r.player}: opening-duel rate {r.opening_duel_rate:.0%} "
             f"(wins {r.opening_kill_rate:.0%}, zones {r.opening_zones}), "
             f"lurk {r.lurk_rate:.0%}, awp rounds {r.awp_rounds}, "
-            f"traded when dying {r.trade_discipline:.0%}, modal B+15 {r.modal_zone_fe15}"
+            f"traded when dying {r.trade_discipline:.0%}, modal zones 15s in {r.modal_zone_fe15}"
         )
     sections += ["", "## All Round Scripts (ground truth; movements included)"]
     for s in sorted(scripts, key=lambda s: (s.match_id, s.round_num)):
-        sections.append(f"### {s.match_id}:{s.round_num}")
+        pistol = " (pistol round)" if s.round_num in (1, 13) else ""
+        sections.append(
+            f"### {labels.get(s.match_id, s.match_id[:8])}, round {s.round_num}{pistol}"
+        )
         sections.append(s.to_text(include_movements=True))
         sections.append("")
     return "\n".join(sections)
+
+
+_GAME_CITE_RE = re.compile(r"Game\s+(\d+)\s*,?\s*rounds?\s+(\d[\d,\s]*(?:and\s+\d+)?)", re.IGNORECASE)
+_HASH_RE = re.compile(r"\b[0-9a-f]{12,}\b")
+
+
+def _check_friendly_citations(
+    text: str, generated_from: list[str], scripts: list[RoundScript]
+) -> list[str]:
+    """Verify (Game N, rounds ...) cites against real rounds; flag leaked hashes."""
+    rounds_by_match: dict[str, set[int]] = {}
+    for s in scripts:
+        rounds_by_match.setdefault(s.match_id, set()).add(s.round_num)
+    by_game = {i: rounds_by_match.get(mid, set()) for i, mid in enumerate(generated_from, start=1)}
+    warnings: list[str] = []
+    for m in _GAME_CITE_RE.finditer(text):
+        game_no = int(m.group(1))
+        cited = [int(x) for x in re.findall(r"\d+", m.group(2))]
+        valid = by_game.get(game_no)
+        if valid is None:
+            warnings.append(f"Cited Game {game_no} does not exist")
+            continue
+        for rn in cited:
+            if rn not in valid:
+                warnings.append(f"Cited Game {game_no} round {rn} does not exist")
+    if _HASH_RE.search(text):
+        warnings.append("Internal match-id hash leaked into the text")
+    return warnings
 
 
 def generate_insights(
@@ -129,9 +204,11 @@ def generate_insights(
     econ_policy: EconPolicy,
     scripts: list[RoundScript],
     lexicon: Lexicon,
+    game_labels: dict[str, str] | None = None,
     max_tokens: int | None = None,  # None = the model's own maximum: never cut analysis short
 ) -> Insights:
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
+    labels = game_labels or default_game_labels(teambook.generated_from)
     system = build_insights_system(card.to_yaml())
     user = build_insights_user(
         teambook=teambook,
@@ -139,13 +216,14 @@ def generate_insights(
         gap_report=gap_report,
         econ_policy=econ_policy,
         scripts=scripts,
+        game_labels=labels,
     )
     result = client.complete(system=system, user=user, max_tokens=max_tokens)
 
     valid_evidence = {f"{s.match_id}:{s.round_num}" for s in scripts}
     lint = lint_dossier(result.text, teambook, lexicon, valid_evidence)
     warnings = [f"Unknown zone: {z}" for z in lint.unknown_zones]
-    warnings += [f"Bad citation: {c}" for c in lint.bad_citations]
+    warnings += _check_friendly_citations(result.text, list(teambook.generated_from), scripts)
     if result.truncated:
         warnings.append(
             "Output hit the model's token ceiling and is cut short - regenerate "
@@ -156,5 +234,8 @@ def generate_insights(
         text=result.text,
         warnings=warnings,
         generated_from=list(teambook.generated_from),
+        games=[
+            {"label": labels.get(mid, mid[:8]), "match_id": mid} for mid in teambook.generated_from
+        ],
         usage=result,
     )
