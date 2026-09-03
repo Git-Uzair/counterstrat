@@ -153,8 +153,19 @@ def _projectile_rows(
     if traj.is_empty():
         return []
 
+    # Trajectories keep emitting STATIONARY rows for seconds after the pop
+    # (measured: median 5s, max 22s of repeated final positions), so the last
+    # row is not the detonation. The last row where the position still
+    # changed matches the player_blind/damages ground truth within one tick
+    # (median +0.02s across four demos) - that is the pop.
+    moved = (
+        (pl.col("X") != pl.col("X").shift(1).over("entity_id"))
+        | (pl.col("Y") != pl.col("Y").shift(1).over("entity_id"))
+        | (pl.col("Z") != pl.col("Z").shift(1).over("entity_id"))
+    ).fill_null(True)
     per_nade = (
         traj.sort(["entity_id", "tick"])
+        .with_columns(moved.alias("_moved"))
         .group_by("entity_id", maintain_order=True)
         .agg(
             pl.first("grenade_type").alias("grenade_type"),
@@ -163,10 +174,10 @@ def _projectile_rows(
             pl.first("X").alias("origin_x"),
             pl.first("Y").alias("origin_y"),
             pl.first("Z").alias("origin_z"),
-            pl.last("X").alias("landing_x"),
-            pl.last("Y").alias("landing_y"),
-            pl.last("Z").alias("landing_z"),
-            pl.last("tick").alias("det_tick"),
+            pl.col("X").filter(pl.col("_moved")).last().alias("landing_x"),
+            pl.col("Y").filter(pl.col("_moved")).last().alias("landing_y"),
+            pl.col("Z").filter(pl.col("_moved")).last().alias("landing_z"),
+            pl.col("tick").filter(pl.col("_moved")).last().alias("det_tick"),
         )
     )
     to_zones = mapper.zones(per_nade, "landing_x", "landing_y", "landing_z").to_list()

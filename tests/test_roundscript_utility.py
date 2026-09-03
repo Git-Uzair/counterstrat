@@ -55,6 +55,98 @@ def _two_synthetic_lineups(
     return events, pl.DataFrame(rows)
 
 
+def _mini_lake(tmp_path: Path):
+    """One flash: 104 moving trajectory rows (1.61s flight), then a 5s
+    stationary tail of repeated rows - the demoparser artifact that made
+    every flash/HE look seconds late."""
+    from counterstrat.lake.extract import LakePaths
+
+    moving = [
+        {
+            "entity_id": 7,
+            "grenade_type": "CFlashbangProjectile",
+            "thrower": "donk",
+            "thrower_steamid": 111,
+            "tick": 1640 + i,
+            "X": 100.0 + 10.0 * i,
+            "Y": 100.0 + 10.0 * i,
+            "Z": 64.0,
+            "round_num": 5,
+        }
+        for i in range(104)  # last moving tick = 1743 -> pop at 11.61s
+    ]
+    final = moving[-1]
+    tail = [
+        {**final, "tick": 1743 + j}
+        for j in range(1, 322)  # ~5s of stationary post-pop rows
+    ]
+    grenades = pl.DataFrame(moving + tail)
+    rounds = pl.DataFrame({"round_num": [5], "freeze_end": [1000], "start": [0], "end": [9000]})
+    rosters = pl.DataFrame(
+        {
+            "round_num": [5],
+            "side": ["TERRORIST"],
+            "team_key": ["abc"],
+            "steamids": [[111]],
+            "clan_name": ["x"],
+        }
+    )
+    blinds = pl.DataFrame(
+        {
+            "attacker_steamid": [111],
+            "user_name": ["victim1"],
+            "blind_duration": [2.5],
+            "tick": [1744],  # the real pop moment
+        }
+    )
+    grenades.write_parquet(tmp_path / "grenades.parquet")
+    rounds.write_parquet(tmp_path / "rounds.parquet")
+    rosters.write_parquet(tmp_path / "rosters.parquet")
+    blinds.write_parquet(tmp_path / "player_blind.parquet")
+    names = [
+        "rounds",
+        "kills",
+        "damages",
+        "shots",
+        "grenades",
+        "smokes",
+        "infernos",
+        "bomb",
+        "item_purchase",
+        "ticks",
+        "rosters",
+        "player_blind",
+    ]
+    return LakePaths(root=str(tmp_path), **{n: str(tmp_path / f"{n}.parquet") for n in names})
+
+
+def _mini_mapper() -> ZoneMapper:
+    return ZoneMapper.fit(
+        pl.DataFrame(
+            {
+                "X": [100.0, 150.0, 1100.0, 1150.0],
+                "Y": [100.0, 150.0, 1100.0, 1150.0],
+                "Z": [64.0] * 4,
+                "last_place_name": ["TSpawn", "TSpawn", "Window", "Window"],
+            }
+        )
+    )
+
+
+def test_projectile_pop_is_last_moving_row_not_trajectory_tail(tmp_path):
+    """The flash's time is its POP (last moving row), never the stationary
+    tail - and the blind join must land on that same moment."""
+    lake = _mini_lake(tmp_path)
+    evs = utility_events(lake, _mini_mapper(), 5)
+    assert len(evs) == 1
+    e = evs[0]
+    assert e.nade == "flash" and e.thrower == "donk" and e.side == "T"
+    # Pop at tick 1743 -> (1743 - 1000) / 64 = 11.609s; the tail would say 16.6s.
+    assert abs(e.t - (1743 - 1000) / 64.0) < 1e-6
+    # The victim blinded at the pop is attributed to this flash.
+    assert e.blinded and e.blinded[0][0] == "victim1"
+
+
 def test_cluster_lineups_two_smokes():
     evs, xyz = _two_synthetic_lineups(n_each=5, separation=800.0)
     names = cluster_lineups(evs, xyz, eps=150.0, min_samples=3)
