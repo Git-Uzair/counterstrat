@@ -2126,7 +2126,7 @@ of Tasks 2–17 functions.
   degraded: no topology/rotate answers — the system prompt says so).
   Mining runs for **both** team_keys found in the demo.
 
-- [ ] **Step 1: Failing tests** (httpx `TestClient`):
+- [x] **Step 1: Failing tests** (httpx `TestClient`):
 
 ```python
 def test_upload_rejects_garbage(client_app):
@@ -2167,8 +2167,8 @@ def test_settings_roundtrip_never_echoes_key(client_app):
 (`TestClient` runs BackgroundTasks synchronously on response completion —
 `_poll_until_done` is then a bounded loop reading the job file.)
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement.**
-- [ ] **Step 4: PASS.** - [ ] **Step 5: Commit** `"feat: web backend + ingest"`
+- [x] **Step 2: fails.** - [x] **Step 3: implement.**
+- [x] **Step 4: PASS.** - [x] **Step 5: Commit** `"feat: web backend + ingest"`
 
 **Done when:** uploading the fixture demo through HTTP produces lake +
 scripts + two TeamBooks and a `done` job; garbage uploads 400; job state
