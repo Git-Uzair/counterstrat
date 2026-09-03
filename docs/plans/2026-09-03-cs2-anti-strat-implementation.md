@@ -1543,7 +1543,7 @@ into one engine place, flag which places need community subdivision.
     "are engine places enough?"; feeds Task 9 overlay work if needed).
 - Consumes: Tasks 3, 7, 13.
 
-- [ ] **Step 1: Failing tests** — synthetic clusters, no demo needed:
+- [x] **Step 1: Failing tests** — synthetic clusters, no demo needed:
 
 ```python
 def test_cluster_lineups_two_smokes():
@@ -1565,10 +1565,10 @@ plus `@pytest.mark.demo`: fixture demo has 173 smokes / 131 infernos
 `min_samples=3` on the single demo, and every event's `to_zone` must be a
 valid lexicon zone (`lex.is_valid_zone`).
 
-- [ ] **Step 2: fails.** - [ ] **Step 3: implement** (sklearn DBSCAN;
+- [x] **Step 2: fails.** - [x] **Step 3: implement** (sklearn DBSCAN;
   deterministic ordinal assignment: clusters sorted by size desc then
-  centroid lex order). - [ ] **Step 4: PASS.**
-- [ ] **Step 5: Commit** `"feat: utility grammar + lineup clustering"`
+  centroid lex order). - [x] **Step 4: PASS.**
+- [x] **Step 5: Commit** `"feat: utility grammar + lineup clustering"`
 
 **Done when:** synthetic clustering exact; fixture events all speak lexicon
 zones; `subdivision_report` runs and its output is committed to

@@ -66,6 +66,7 @@ class LakePaths(BaseModel):
     item_purchase: str
     ticks: str
     rosters: str
+    player_blind: str = ""
 
 
 def _sample_ticks(parser: DemoParser, rounds: pl.DataFrame, step: int = 4) -> pl.DataFrame:
@@ -176,11 +177,18 @@ def extract_lake(record: DemoRecord, out_root: Path) -> LakePaths:
     except Exception:  # noqa: BLE001
         purchases = pl.DataFrame()
 
+    try:
+        blind_df = parser.parse_event("player_blind", other=["total_rounds_played"])
+        player_blind = pl.from_pandas(blind_df)
+    except Exception:  # noqa: BLE001
+        player_blind = pl.DataFrame()
+
     ticks = _sample_ticks(parser, rounds)
     rosters = _rosters(parser, rounds)
     rounds = _attach_team_keys(rounds, rosters)
 
     tables["item_purchase"] = purchases
+    tables["player_blind"] = player_blind
     tables["ticks"] = ticks
     tables["rosters"] = rosters
     tables["rounds"] = rounds

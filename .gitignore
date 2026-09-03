@@ -1,5 +1,6 @@
 .venv/
-data/
+data/*
+!data/mapcards/
 tools/
 scratch/
 demos/
