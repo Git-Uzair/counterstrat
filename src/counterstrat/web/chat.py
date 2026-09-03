@@ -22,7 +22,10 @@ from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
 from counterstrat.mapcard.transitions import zone_graph
 from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
+from counterstrat.mining.econ_policy import build_econ_policy
+from counterstrat.mining.gaps import build_gap_report
 from counterstrat.mining.tendencies import TeamBook
+from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
 from counterstrat.web.routes import ConfigDep
@@ -302,6 +305,7 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
         except Exception:  # noqa: BLE001
             lexicon = build_lexicon(map_name, all_places, None)
 
+    script_list = list(scripts.values())
     ctx = SessionContext(
         team_key=team_key,
         map_name=map_name,
@@ -310,6 +314,9 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
         card=card,
         con=_lake_connection(cfg),
         scripts=scripts,
+        utility_book=build_utility_book(script_list, team_key),
+        gap_report=build_gap_report(script_list, team_key),
+        econ_policy=build_econ_policy(script_list, team_key),
     )
     return ChatSession(
         session_id=session_id,

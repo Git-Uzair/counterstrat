@@ -38,13 +38,18 @@ def _run(ctx: SessionContext, name: str, arguments: dict) -> dict:
 # --- Tool specs & tool execution ---
 
 
-def test_tool_specs_expose_the_five_contract_tools():
+def test_tool_specs_expose_the_contract_tools():
     names = [s.name for s in tool_specs()]
     assert names == [
         "get_tendencies",
         "list_rounds",
         "get_round_script",
         "get_role_cards",
+        "get_playbook",
+        "get_utility_book",
+        "get_gap_report",
+        "get_economy_read",
+        "get_player_profile",
         "sql_query",
     ]
     for spec in tool_specs():
