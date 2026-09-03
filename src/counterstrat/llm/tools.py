@@ -144,12 +144,15 @@ def _tool_get_tendencies(ctx: SessionContext, args: dict) -> str:
     rows = [
         {
             "key": t.key.model_dump(),
+            "level": t.level,
             "first_contact_zone": t.first_contact_zone,
             "opening_formation": t.opening_formation,
             "site_committed": t.site_committed,
             "median_first_contact_s": t.median_first_contact_s,
             "n": t.n,
             "low_n": t.low_n,
+            "fc_concentration": t.fc_concentration,
+            "signal": t.signal,
             "evidence": t.evidence,
         }
         for t in ctx.teambook.tendencies

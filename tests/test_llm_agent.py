@@ -57,8 +57,9 @@ def test_get_tendencies_filters_side_and_buy_class(session_ctx: SessionContext):
     assert t_side["tendencies"]
     assert all(row["key"]["side"] == "T" for row in t_side["tendencies"])
 
-    # The mined n=3 group: T full buys while ahead after a win.
-    biggest = max(t_side["tendencies"], key=lambda row: row["n"])
+    # The mined n=3 level-2 group: T full buys while ahead after a win.
+    l2_rows = [row for row in t_side["tendencies"] if row["level"] == 2]
+    biggest = max(l2_rows, key=lambda row: row["n"])
     assert biggest["n"] == 3 and biggest["low_n"] is False
     assert biggest["evidence"] == ["m1:2", "m1:3", "m1:4"]
     assert round(biggest["first_contact_zone"]["Middle"] * 100) == 67

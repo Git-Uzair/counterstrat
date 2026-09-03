@@ -237,7 +237,9 @@ def _match_tendencies(
 ) -> list[Tendency]:
     """Tendencies for the round's key, relaxing the key until something matches."""
     buy_class, score_bucket, prev_outcome = key
-    same_side = [t for t in tendencies if t.key.side == side]
+    # The ladder below does its own backoff over full situational keys, so it
+    # must only see level-2 rows: coarser rollups would double-count rounds.
+    same_side = [t for t in tendencies if t.key.side == side and t.level == 2]
     if use_buy:
         ladder = [
             lambda t: (

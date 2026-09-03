@@ -8,15 +8,20 @@ from pydantic import BaseModel, ConfigDict
 
 from counterstrat.roundscript.models import RoundScript
 
+# A distribution is a "read" only when it is concentrated and sampled: below
+# either bar the row is noise and must not be quoted as signal (plan Task 1).
+SIGNAL_MIN_N = 3
+SIGNAL_MIN_CONCENTRATION = 0.5
+
 
 class TendencyKey(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     map_name: str
     side: str  # "T" | "CT"
-    buy_class: str  # "full_eco" | "semi_eco" | "semi_buy" | "full_buy"
-    score_bucket: str  # "behind" | "even" | "ahead"
-    prev_outcome: str  # "won" | "lost" | "first"
+    buy_class: str  # "full_eco" | "semi_eco" | "semi_buy" | "full_buy" | "any"
+    score_bucket: str  # "behind" | "even" | "ahead" | "any"
+    prev_outcome: str  # "won" | "lost" | "first" | "any"
 
 
 class Tendency(BaseModel):
@@ -29,6 +34,12 @@ class Tendency(BaseModel):
     n: int
     evidence: list[str]  # "match_id:round_num"
     low_n: bool = False
+    # Aggregation level: 0 = side only, 1 = side+buy, 2 = full situational key.
+    # Defaults keep pre-upgrade teambook.json artifacts loadable.
+    level: int = 2
+    fc_concentration: float = 0.0  # max share in first_contact_zone
+    site_concentration: float = 0.0  # max share in site_committed
+    signal: bool = False  # n and concentration clear the bars above
 
 
 class RoleCard(BaseModel):
@@ -52,10 +63,15 @@ class TeamBook(BaseModel):
             f"# TeamBook: {self.team_key} ({self.map_name})",
             "",
             "## Tendencies",
-            "| Side | Buy | Score | Prev | FC Zone | Opening Formation | Site | Median FC | N | Low N |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "Levels: 0 = side rollup, 1 = side+buy, 2 = full situation. Level-2 rows",
+            "are shown only when they carry signal (n >= 3 and a >= 50% concentration).",
+            "",
+            "| Lvl | Side | Buy | Score | Prev | FC Zone | Opening Formation | Site | Median FC | N | Signal |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for t in self.tendencies:
+            if t.level == 2 and not t.signal:
+                continue  # fine-grained noise stays out of prompts; tools can still fetch it
             fc_str = ", ".join(f"{z} ({p:.0%})" for z, p in t.first_contact_zone.items()) or "-"
             form_str = (
                 ", ".join(f"{sig} ({p:.0%})" for sig, p in list(t.opening_formation.items())[:2])
@@ -65,10 +81,11 @@ class TeamBook(BaseModel):
             med_fc = (
                 f"{t.median_first_contact_s:.1f}s" if t.median_first_contact_s is not None else "-"
             )
-            low_n_str = "Yes" if t.low_n else "No"
+            signal_str = "Yes" if t.signal else ("low_n" if t.low_n else "No")
             lines.append(
-                f"| {t.key.side} | {t.key.buy_class} | {t.key.score_bucket} | {t.key.prev_outcome} | "
-                f"{fc_str} | {form_str} | {site_str} | {med_fc} | {t.n} | {low_n_str} |"
+                f"| {t.level} | {t.key.side} | {t.key.buy_class} | {t.key.score_bucket} | "
+                f"{t.key.prev_outcome} | {fc_str} | {form_str} | {site_str} | {med_fc} | "
+                f"{t.n} | {signal_str} |"
             )
         if self.roles:
             lines.extend(
@@ -90,26 +107,51 @@ class TeamBook(BaseModel):
         return "\n".join(lines)
 
     def to_sentences(self) -> list[str]:
-        sentences: list[str] = []
-        for t in self.tendencies:
-            top_fc, fc_p = ("none", 0.0)
-            if t.first_contact_zone:
-                top_fc, fc_p = min(t.first_contact_zone.items(), key=lambda x: (-x[1], x[0]))
-            pct_str = f"{round(fc_p * 100)}%"
-            action = "attacks" if t.key.side == "T" else "contests"
-            side_str = "CT " if t.key.side == "CT" else ""
-            if top_fc != "none":
-                s = (
-                    f"On {side_str}{t.key.buy_class} when {t.key.score_bucket}, team {action} {top_fc} "
-                    f"{pct_str} of the time (n={t.n})."
+        """One sentence per read: most specific signal rows win, noise is named as such."""
+
+        def covers(specific: Tendency, coarse: Tendency) -> bool:
+            if specific.level <= coarse.level or specific.key.side != coarse.key.side:
+                return False
+            return coarse.key.buy_class in ("any", specific.key.buy_class)
+
+        emitted: list[Tendency] = []
+        for level in (2, 1, 0):
+            for t in self.tendencies:
+                if t.level != level or not t.signal:
+                    continue
+                if any(covers(e, t) for e in emitted):
+                    continue
+                emitted.append(t)
+
+        sentences = [self._sentence(t) for t in emitted]
+        for side in ("T", "CT"):
+            if any(t.key.side == side for t in emitted):
+                continue
+            l0 = next((t for t in self.tendencies if t.level == 0 and t.key.side == side), None)
+            if l0 is not None:
+                sentences.append(
+                    f"No concentrated first-contact read on {side} side "
+                    f"(n={l0.n}) - treat their openings as mixed."
                 )
-            else:
-                s = (
-                    f"On {side_str}{t.key.buy_class} when {t.key.score_bucket}, team had no first contact "
-                    f"(n={t.n})."
-                )
-            sentences.append(s)
         return sentences
+
+    def _sentence(self, t: Tendency) -> str:
+        top_fc, fc_p = ("none", 0.0)
+        if t.first_contact_zone:
+            top_fc, fc_p = min(t.first_contact_zone.items(), key=lambda x: (-x[1], x[0]))
+        pct_str = f"{round(fc_p * 100)}%"
+        action = "attacks" if t.key.side == "T" else "contests"
+        parts = []
+        if t.key.side == "CT":
+            parts.append("CT")
+        if t.key.buy_class != "any":
+            parts.append(t.key.buy_class)
+        prefix = f"On {' '.join(parts)}" if parts else "Overall"
+        if t.key.score_bucket != "any":
+            prefix += f" when {t.key.score_bucket}"
+        if top_fc != "none":
+            return f"{prefix}, team {action} {top_fc} {pct_str} of the time (n={t.n})."
+        return f"{prefix}, team had no first contact (n={t.n})."
 
 
 def _extract_fe15_zone(sentence: str) -> str:
@@ -156,6 +198,85 @@ def _normalize_site(site_str: str | None) -> str:
     return "none"
 
 
+def _mine_bucket(level: int, key: TendencyKey, g_scripts: list[RoundScript]) -> Tendency:
+    """Aggregate one bucket of rounds into a Tendency at the given level."""
+    side = key.side
+    n = len(g_scripts)
+
+    # first_contact_zone
+    fc_counts: Counter[str] = Counter()
+    for s in g_scripts:
+        z = s.first_contact.zone if s.first_contact else "none"
+        fc_counts[z] += 1
+    fc_dist = {z: count / n for z, count in fc_counts.items()}
+    first_contact_zone = dict(sorted(fc_dist.items(), key=lambda x: (-x[1], x[0])))
+
+    # opening_formation: find beat B+15
+    form_counts: Counter[str] = Counter()
+    for s in g_scripts:
+        beat_b15 = next(
+            (
+                b
+                for b in s.beats
+                if b.label == "B+15" or abs(b.t - 15.0) < 1.0 or b.label.startswith("B+15")
+            ),
+            None,
+        )
+        if beat_b15:
+            form = beat_b15.t_form if side == "T" else beat_b15.ct_form
+            sig = " ".join(f"{cnt}x{zone}" for cnt, zone in form.zones) if form.zones else "none"
+        else:
+            sig = "none"
+        form_counts[sig] += 1
+    form_dist = {sig: count / n for sig, count in form_counts.items()}
+    opening_formation = dict(sorted(form_dist.items(), key=lambda x: (-x[1], x[0])))
+
+    # site_committed
+    site_counts: Counter[str] = Counter()
+    for s in g_scripts:
+        site = _normalize_site(s.plant.site) if s.plant else "none"
+        site_counts[site] += 1
+    site_dist = {site: count / n for site, count in site_counts.items()}
+    site_committed = dict(sorted(site_dist.items(), key=lambda x: (-x[1], x[0])))
+
+    # lineup_sets
+    lineup_counts: Counter[str] = Counter()
+    for s in g_scripts:
+        lineups = {u.lineup_id for u in s.utility if u.side == side and u.lineup_id}
+        l_str = ",".join(sorted(lineups))
+        lineup_counts[l_str] += 1
+    lineup_dist = {l_str: count / n for l_str, count in lineup_counts.items()}
+    lineup_sets = dict(sorted(lineup_dist.items(), key=lambda x: (-x[1], x[0])))
+
+    # median_first_contact_s
+    fc_times = [s.first_contact.t for s in g_scripts if s.first_contact is not None]
+    med_fc = float(median(fc_times)) if fc_times else None
+
+    # evidence
+    evidence = sorted(
+        [f"{s.match_id}:{s.round_num}" for s in g_scripts],
+        key=lambda x: (x.split(":")[0], int(x.split(":")[1])),
+    )
+
+    fc_concentration = max(first_contact_zone.values(), default=0.0)
+    site_concentration = max(site_committed.values(), default=0.0)
+    return Tendency(
+        key=key,
+        first_contact_zone=first_contact_zone,
+        opening_formation=opening_formation,
+        site_committed=site_committed,
+        lineup_sets=lineup_sets,
+        median_first_contact_s=med_fc,
+        n=n,
+        evidence=evidence,
+        low_n=n < SIGNAL_MIN_N,
+        level=level,
+        fc_concentration=fc_concentration,
+        site_concentration=site_concentration,
+        signal=n >= SIGNAL_MIN_N and fc_concentration >= SIGNAL_MIN_CONCENTRATION,
+    )
+
+
 def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
     """Mine deterministic Level-2 TeamBook profile for team_key from RoundScripts."""
     participating = [s for s in scripts if s.t_team_key == team_key or s.ct_team_key == team_key]
@@ -176,8 +297,10 @@ def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
     for s in participating:
         scripts_by_match[s.match_id].append(s)
 
-    # Key tuple -> list[RoundScript]
-    grouped_scripts: dict[tuple[str, str, str, str, str], list[RoundScript]] = defaultdict(list)
+    # (level, map, side, buy, score, prev) -> list[RoundScript]
+    grouped_scripts: dict[tuple[int, str, str, str, str, str], list[RoundScript]] = defaultdict(
+        list
+    )
 
     for m_scripts in scripts_by_match.values():
         m_scripts.sort(key=lambda s: s.round_num)
@@ -215,13 +338,14 @@ def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
             econ = s.economy.get(side)
             buy_class = econ.buy_type if econ and hasattr(econ, "buy_type") else "full_buy"
 
-            k_tuple = (s.map_name, side, buy_class, score_bucket, prev_outcome)
-            grouped_scripts[k_tuple].append(s)
+            grouped_scripts[(2, s.map_name, side, buy_class, score_bucket, prev_outcome)].append(s)
+            grouped_scripts[(1, s.map_name, side, buy_class, "any", "any")].append(s)
+            grouped_scripts[(0, s.map_name, side, "any", "any", "any")].append(s)
 
     tendencies: list[Tendency] = []
-    for k_tuple, g_scripts in grouped_scripts.items():
-        map_name, side, buy_class, score_bucket, prev_outcome = k_tuple
-        n = len(g_scripts)
+    for (level, map_name, side, buy_class, score_bucket, prev_outcome), g in sorted(
+        grouped_scripts.items()
+    ):
         key = TendencyKey(
             map_name=map_name,
             side=side,
@@ -229,83 +353,14 @@ def build_teambook(scripts: list[RoundScript], team_key: str) -> TeamBook:
             score_bucket=score_bucket,
             prev_outcome=prev_outcome,
         )
+        tendencies.append(_mine_bucket(level, key, g))
 
-        # first_contact_zone
-        fc_counts: Counter[str] = Counter()
-        for s in g_scripts:
-            z = s.first_contact.zone if s.first_contact else "none"
-            fc_counts[z] += 1
-        fc_dist = {z: count / n for z, count in fc_counts.items()}
-        first_contact_zone = dict(sorted(fc_dist.items(), key=lambda x: (-x[1], x[0])))
-
-        # opening_formation: find beat B+15
-        form_counts: Counter[str] = Counter()
-        for s in g_scripts:
-            beat_b15 = next(
-                (
-                    b
-                    for b in s.beats
-                    if b.label == "B+15" or abs(b.t - 15.0) < 1.0 or b.label.startswith("B+15")
-                ),
-                None,
-            )
-            if beat_b15:
-                form = beat_b15.t_form if side == "T" else beat_b15.ct_form
-                sig = (
-                    " ".join(f"{cnt}x{zone}" for cnt, zone in form.zones) if form.zones else "none"
-                )
-            else:
-                sig = "none"
-            form_counts[sig] += 1
-        form_dist = {sig: count / n for sig, count in form_counts.items()}
-        opening_formation = dict(sorted(form_dist.items(), key=lambda x: (-x[1], x[0])))
-
-        # site_committed
-        site_counts: Counter[str] = Counter()
-        for s in g_scripts:
-            site = _normalize_site(s.plant.site) if s.plant else "none"
-            site_counts[site] += 1
-        site_dist = {site: count / n for site, count in site_counts.items()}
-        site_committed = dict(sorted(site_dist.items(), key=lambda x: (-x[1], x[0])))
-
-        # lineup_sets
-        lineup_counts: Counter[str] = Counter()
-        for s in g_scripts:
-            lineups = {u.lineup_id for u in s.utility if u.side == side and u.lineup_id}
-            l_str = ",".join(sorted(lineups))
-            lineup_counts[l_str] += 1
-        lineup_dist = {l_str: count / n for l_str, count in lineup_counts.items()}
-        lineup_sets = dict(sorted(lineup_dist.items(), key=lambda x: (-x[1], x[0])))
-
-        # median_first_contact_s
-        fc_times = [s.first_contact.t for s in g_scripts if s.first_contact is not None]
-        med_fc = float(median(fc_times)) if fc_times else None
-
-        # evidence
-        evidence = sorted(
-            [f"{s.match_id}:{s.round_num}" for s in g_scripts],
-            key=lambda x: (x.split(":")[0], int(x.split(":")[1])),
-        )
-
-        tendencies.append(
-            Tendency(
-                key=key,
-                first_contact_zone=first_contact_zone,
-                opening_formation=opening_formation,
-                site_committed=site_committed,
-                lineup_sets=lineup_sets,
-                median_first_contact_s=med_fc,
-                n=n,
-                evidence=evidence,
-                low_n=n < 3,
-            )
-        )
-
-    # Sort tendencies deterministically
+    # Sort deterministically: rollups first, then by side and sample size.
     tendencies.sort(
         key=lambda t: (
-            -t.n,
+            t.level,
             t.key.side,
+            -t.n,
             t.key.buy_class,
             t.key.score_bucket,
             t.key.prev_outcome,

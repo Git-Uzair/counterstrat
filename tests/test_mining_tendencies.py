@@ -188,8 +188,9 @@ def test_teambook_to_table_and_sentences():
 def test_low_n_flag():
     scripts = _mk_scripts(n=2, first_contact_zone="Middle", minority_zone="Water", minority=0)
     tb = build_teambook(scripts, "abc")
-    assert len(tb.tendencies) == 1
-    assert tb.tendencies[0].low_n is True
+    # One group mined at three aggregation levels; every row is low_n.
+    assert {t.level for t in tb.tendencies} == {0, 1, 2}
+    assert all(t.low_n for t in tb.tendencies)
 
 
 def test_empty_scripts_and_no_participating():
@@ -241,7 +242,7 @@ def test_multiround_prev_outcome_tracking():
 
     def t_for(rn: int) -> Tendency:
         target = f"match_single:{rn}"
-        return next(t for t in tb.tendencies if target in t.evidence)
+        return next(t for t in tb.tendencies if t.level == 2 and target in t.evidence)
 
     # Round 1 is first in match
     assert t_for(1).key.prev_outcome == "first"
@@ -257,6 +258,68 @@ def test_multiround_prev_outcome_tracking():
     assert t_for(26).key.prev_outcome == "won"
     # Round 28 is OT second-half start (25 + 3)
     assert t_for(28).key.prev_outcome == "first"
+
+
+# --- Task 1: hierarchical levels + signal filtering ---------------------------
+
+
+def test_teambook_has_aggregate_levels(synthetic_scripts):
+    tb = build_teambook(synthetic_scripts, "abc")
+    levels = {t.level for t in tb.tendencies}
+    assert levels == {0, 1, 2}
+    l0_t = [t for t in tb.tendencies if t.level == 0 and t.key.side == "T"]
+    assert len(l0_t) == 1
+    assert l0_t[0].n == 4  # all four synthetic T rounds
+    assert l0_t[0].key.buy_class == "any"
+    assert l0_t[0].key.score_bucket == "any"
+    assert l0_t[0].key.prev_outcome == "any"
+
+
+def test_concentration_and_signal_flags(synthetic_scripts):
+    tb = build_teambook(synthetic_scripts, "abc")
+    for t in tb.tendencies:
+        top = max(t.first_contact_zone.values(), default=0.0)
+        assert abs(t.fc_concentration - top) < 1e-9
+        top_site = max(t.site_committed.values(), default=0.0)
+        assert abs(t.site_concentration - top_site) < 1e-9
+        assert t.signal == (t.n >= 3 and t.fc_concentration >= 0.5)
+
+
+def test_table_text_hides_noisy_level2_rows(synthetic_scripts):
+    tb = build_teambook(synthetic_scripts, "abc")
+    txt = tb.to_table_text()
+    for t in tb.tendencies:
+        row_key = f"| {t.key.buy_class} | {t.key.score_bucket} | {t.key.prev_outcome} |"
+        if t.level == 2 and not t.signal:
+            assert row_key not in txt
+        if t.level < 2:
+            assert row_key in txt
+
+
+def test_sentences_prefer_specific_signal_rows(synthetic_scripts):
+    tb = build_teambook(synthetic_scripts, "abc")
+    sentences = tb.to_sentences()
+    assert sentences
+    # No sentence may quote a sub-threshold sample as a read.
+    signal_ns = {t.n for t in tb.tendencies if t.signal}
+    for s in sentences:
+        if "No concentrated" not in s:
+            n = int(s.rsplit("(n=", 1)[1].rstrip(".)"))
+            assert n in signal_ns and n >= 3
+
+
+def test_old_teambook_json_still_loads(synthetic_scripts):
+    tb = build_teambook(synthetic_scripts, "abc")
+    dumped = tb.model_dump()
+    for t in dumped["tendencies"]:
+        # Simulate a pre-upgrade artifact: no level/concentration/signal fields.
+        t.pop("level", None)
+        t.pop("fc_concentration", None)
+        t.pop("site_concentration", None)
+        t.pop("signal", None)
+    old = TeamBook.model_validate(dumped)
+    assert all(t.level == 2 for t in old.tendencies)
+    assert all(t.signal is False for t in old.tendencies)
 
 
 @pytest.mark.demo
@@ -276,15 +339,20 @@ def test_teambook_demo_smoke(anubis_bundle):
         for ev in t.evidence:
             assert ev in script_ids
 
-    # sum of n for each side equals rounds played on that side
+    # sum of level-2 n for each side equals rounds played on that side
     t_rounds = sum(1 for s in scripts if s.t_team_key == team_key)
     ct_rounds = sum(1 for s in scripts if s.ct_team_key == team_key)
-    n_t = sum(t.n for t in tb.tendencies if t.key.side == "T")
-    n_ct = sum(t.n for t in tb.tendencies if t.key.side == "CT")
+    n_t = sum(t.n for t in tb.tendencies if t.key.side == "T" and t.level == 2)
+    n_ct = sum(t.n for t in tb.tendencies if t.key.side == "CT" and t.level == 2)
     assert n_t == t_rounds
     assert n_ct == ct_rounds
+    # ... and the level-0 rollup carries the same totals in one row per side.
+    for side, rounds in (("T", t_rounds), ("CT", ct_rounds)):
+        l0 = [t for t in tb.tendencies if t.key.side == side and t.level == 0]
+        assert len(l0) == 1 and l0[0].n == rounds
 
     table = tb.to_table_text()
     assert "Tendencies" in table
     sentences = tb.to_sentences()
-    assert len(sentences) == len(tb.tendencies)
+    assert len(sentences) >= 1
+    assert all("(n=" in s for s in sentences)
