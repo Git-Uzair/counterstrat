@@ -46,6 +46,27 @@ def test_job_unknown_404(client_app: TestClient):
     assert client_app.get("/api/jobs/nope").status_code == 404
 
 
+def test_teams_catalog_merges_stand_in_lineups(client_app: TestClient, test_cfg: AppConfig):
+    """One catalog entry per team cluster with per-map demo lists."""
+    from test_teams_clusters import SQUAD_A, SQUAD_B, SQUAD_C, SQUAD_D, _write_match
+
+    _write_match(
+        test_cfg.data_root, "m_one", "de_ancient", [(SQUAD_A, "team_7yrant"), (SQUAD_C, "opp1")]
+    )
+    _write_match(
+        test_cfg.data_root, "m_two", "de_ancient", [(SQUAD_B, "team_7yrant"), (SQUAD_D, "opp2")]
+    )
+
+    teams = client_app.get("/api/teams").json()
+    assert len(teams) == 3  # 7yrant merged + two opponents
+    seven = next(t for t in teams if t["names"] == ["team_7yrant"])
+    assert seven["demos"] == 2 and seven["rounds"] == 8
+    ancient = seven["map_stats"]["de_ancient"]
+    assert ancient["demos"] == 2 and ancient["rounds"] == 8
+    assert [m["match_id"] for m in ancient["matches"]] == ["m_one", "m_two"]
+    assert all(m["rounds"] == 4 for m in ancient["matches"])
+
+
 def test_scout_brief_endpoint(client_app: TestClient, test_cfg: AppConfig):
     assert client_app.get("/api/teams/ghost/de_anubis/brief").status_code == 404
 
@@ -311,12 +332,15 @@ def test_list_teams_map_stats(client_app: TestClient, test_cfg: AppConfig):
     assert team_a["demos"] == 2
     assert team_a["rounds"] == 3
     assert "map_stats" in team_a
-    assert team_a["map_stats"]["de_anubis"] == {"demos": 1, "rounds": 2}
-    assert team_a["map_stats"]["de_mirage"] == {"demos": 1, "rounds": 1}
+    anubis = team_a["map_stats"]["de_anubis"]
+    assert anubis["demos"] == 1 and anubis["rounds"] == 2
+    assert [m["match_id"] for m in anubis["matches"]] == ["m1"]
+    mirage = team_a["map_stats"]["de_mirage"]
+    assert mirage["demos"] == 1 and mirage["rounds"] == 1
 
     team_b = teams_by_key["team_b"]
     assert team_b["demos"] == 1
     assert team_b["rounds"] == 1
-    assert "map_stats" in team_b
-    assert team_b["map_stats"]["de_anubis"] == {"demos": 1, "rounds": 1}
+    assert team_b["map_stats"]["de_anubis"]["demos"] == 1
+    assert team_b["map_stats"]["de_anubis"]["rounds"] == 1
     assert "de_mirage" not in team_b["map_stats"]

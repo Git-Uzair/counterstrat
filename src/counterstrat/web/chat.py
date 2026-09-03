@@ -24,10 +24,11 @@ from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mining.econ_policy import build_econ_policy
 from counterstrat.mining.gaps import build_gap_report
-from counterstrat.mining.tendencies import TeamBook
+from counterstrat.mining.tendencies import TeamBook, build_teambook
 from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
-from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
+from counterstrat.teams import load_or_build_clusters
+from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli, _rekey
 from counterstrat.web.routes import ConfigDep
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class ChatSession(BaseModel):
 class CreateSessionRequest(BaseModel):
     team_key: str
     map_name: str
+    match_id: str | None = None  # scope the session to one match ("what happened THAT game")
 
 
 class CreateSessionResponse(BaseModel):
@@ -124,7 +126,19 @@ def _system_prompt(card: MapCard, teambook: TeamBook) -> str:
     return build_chat_system(card.to_yaml(), teambook)
 
 
-def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str) -> ChatSession:
+def _build_session(
+    cfg: AppConfig,
+    session_id: str,
+    team_key: str,
+    map_name: str,
+    match_id: str | None = None,
+) -> ChatSession:
+    # Any lineup key resolves to its team cluster; scripts below are re-keyed to
+    # the canonical id so stand-in lineups analyze as one team.
+    cluster = load_or_build_clusters(cfg.data_root).get(team_key)
+    team_key = cluster.team_id if cluster else team_key
+    cluster_keys = cluster.all_keys() if cluster else {team_key}
+
     tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
     if not tb_path.exists():
         raise HTTPException(
@@ -138,15 +152,30 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
             status_code=500, detail=f"Failed to load chat session data: {exc}"
         ) from exc
 
+    source_matches = list(teambook.generated_from)
+    if match_id is not None:
+        if match_id not in source_matches:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Match {match_id} has no rounds for {team_key} on {map_name}",
+            )
+        source_matches = [match_id]
+
     scripts: dict[str, RoundScript] = {}
-    for match_id in teambook.generated_from:
-        for script_path in sorted((cfg.data_root / "scripts" / match_id).glob("round_*.json")):
+    for mid in source_matches:
+        for script_path in sorted((cfg.data_root / "scripts" / mid).glob("round_*.json")):
             try:
                 script = RoundScript.model_validate_json(script_path.read_text(encoding="utf-8"))
             except Exception as exc:  # noqa: BLE001 - one bad script must not kill chat
                 logger.warning("Skipping unreadable round script %s: %s", script_path, exc)
                 continue
+            script = _rekey(script, cluster_keys, team_key)
             scripts[f"{script.match_id}:{script.round_num}"] = script
+
+    if match_id is not None:
+        # Single-match scope: every artifact is re-mined from just that match so
+        # tendencies, gaps and economy reads describe THIS game only.
+        teambook = build_teambook(list(scripts.values()), team_key)
 
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
     card: MapCard | None = None
@@ -165,9 +194,9 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
         if vpk_path and vrf_cli:
             ticks_df: pl.DataFrame | None = None
             rounds_df: pl.DataFrame | None = None
-            for match_id in teambook.generated_from:
-                tp = cfg.data_root / "lake" / match_id / "ticks.parquet"
-                rp = cfg.data_root / "lake" / match_id / "rounds.parquet"
+            for mid in teambook.generated_from:
+                tp = cfg.data_root / "lake" / mid / "ticks.parquet"
+                rp = cfg.data_root / "lake" / mid / "rounds.parquet"
                 if tp.exists() and rp.exists():
                     try:
                         ticks_df = pl.read_parquet(tp)
@@ -255,8 +284,8 @@ def _build_session(cfg: AppConfig, session_id: str, team_key: str, map_name: str
                     places_set.add(u.to_zone)
             if s.plant and s.plant.site:
                 places_set.add(s.plant.site)
-        for match_id in teambook.generated_from:
-            tp = cfg.data_root / "lake" / match_id / "ticks.parquet"
+        for mid in teambook.generated_from:
+            tp = cfg.data_root / "lake" / mid / "ticks.parquet"
             if tp.exists():
                 try:
                     tdf = pl.read_parquet(tp, columns=["last_place_name"])
@@ -318,7 +347,14 @@ def _get_session(request: Request, cfg: AppConfig, sid: str) -> ChatSession:
     meta, turns = _read_transcript(cfg, sid)
     if meta is None:
         raise HTTPException(status_code=404, detail=f"Chat session '{sid}' not found")
-    session = _build_session(cfg, sid, str(meta.get("team_key")), str(meta.get("map_name")))
+    restored_match = meta.get("match_id")
+    session = _build_session(
+        cfg,
+        sid,
+        str(meta.get("team_key")),
+        str(meta.get("map_name")),
+        str(restored_match) if restored_match else None,
+    )
     session.history = turns
     store[sid] = session
     return session
@@ -329,15 +365,16 @@ def create_session(
     req: CreateSessionRequest, request: Request, cfg: ConfigDep
 ) -> CreateSessionResponse:
     session_id = uuid.uuid4().hex[:12]
-    session = _build_session(cfg, session_id, req.team_key, req.map_name)
+    session = _build_session(cfg, session_id, req.team_key, req.map_name, req.match_id)
     _sessions(request)[session_id] = session
     _append_record(
         _transcript_path(cfg, session_id),
         {
             "type": "meta",
             "session_id": session_id,
-            "team_key": req.team_key,
+            "team_key": session.ctx.team_key,
             "map_name": req.map_name,
+            "match_id": req.match_id,
         },
     )
     return CreateSessionResponse(session_id=session_id)

@@ -160,6 +160,45 @@ def test_create_session_missing_card_fallback_degraded(tmp_path: Path):
     assert msg.status_code == 200
 
 
+def test_chat_session_match_scope(chat_cfg: AppConfig):
+    """match_id scopes every artifact to that one game; merged mode sees all."""
+    # Add a second demo's scripts and a merged teambook spanning both.
+    scripts_m1 = build_synthetic_scripts()
+    scripts_m2 = [s.model_copy(update={"match_id": "m2"}) for s in scripts_m1]
+    for s in scripts_m2:
+        p = chat_cfg.data_root / "scripts" / "m2" / f"round_{s.round_num}.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(s.to_json(), encoding="utf-8")
+    tb_path = chat_cfg.data_root / "teambooks" / SYNTHETIC_TEAM / MAP / "teambook.json"
+    tb_path.write_text(
+        build_teambook(scripts_m1 + scripts_m2, SYNTHETIC_TEAM).model_dump_json(),
+        encoding="utf-8",
+    )
+
+    scripted = _scripted()
+    client = _client(chat_cfg, scripted)
+
+    merged = client.post("/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP})
+    assert merged.status_code == 200
+    client.post(f"/api/chat/sessions/{merged.json()['session_id']}/messages", json={"text": "q"})
+    # The agent loop may call the LLM more than once per message: sample the last.
+    assert "Data coverage: 2 demo(s), 18 rounds" in scripted.calls[-1]["system"]
+
+    scoped = client.post(
+        "/api/chat/sessions",
+        json={"team_key": SYNTHETIC_TEAM, "map_name": MAP, "match_id": "m2"},
+    )
+    assert scoped.status_code == 200
+    client.post(f"/api/chat/sessions/{scoped.json()['session_id']}/messages", json={"text": "q"})
+    assert "Data coverage: 1 demo(s), 9 rounds" in scripted.calls[-1]["system"]
+
+    missing = client.post(
+        "/api/chat/sessions",
+        json={"team_key": SYNTHETIC_TEAM, "map_name": MAP, "match_id": "ghost"},
+    )
+    assert missing.status_code == 404
+
+
 def test_chat_message_503_without_api_key(chat_cfg: AppConfig):
     client = _client(chat_cfg)  # no client_factory -> real make_client, no keys configured
     sid = client.post(

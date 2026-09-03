@@ -7,6 +7,7 @@ that scope wrong silently plots the opponent, so it is built once in
 """
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -109,14 +110,22 @@ def _sid(value: Any) -> str | None:
     return None if value is None else str(int(value))
 
 
-def build_team_scope(rosters: pl.LazyFrame | None, team_key: str, f: LayerFilters) -> TeamScope:
-    """Resolves which (match, round, side) and which players belong to ``team_key``."""
-    if rosters is None:
-        return _empty_scope(team_key)
+def build_team_scope(
+    rosters: pl.LazyFrame | None, team_key: str | Sequence[str], f: LayerFilters
+) -> TeamScope:
+    """Resolves which (match, round, side) and which players belong to ``team_key``.
+
+    ``team_key`` may be a single lineup key or a team cluster's key set; the
+    scope's canonical key is the first (sorted) entry.
+    """
+    keys = sorted([team_key] if isinstance(team_key, str) else list(team_key))
+    canonical = keys[0] if keys else ""
+    if rosters is None or not keys:
+        return _empty_scope(canonical)
 
     rounds = (
         _keys(rosters.select("match_id", "round_num", "side", "team_key", "steamids"))
-        .filter(pl.col("team_key") == team_key)
+        .filter(pl.col("team_key").is_in(keys))
         .with_columns(side_expr("side"))
         .collect()
     )
@@ -127,7 +136,7 @@ def build_team_scope(rosters: pl.LazyFrame | None, team_key: str, f: LayerFilter
     rounds = rounds.sort("match_id", "round_num")
 
     if rounds.is_empty():
-        return _empty_scope(team_key)
+        return _empty_scope(canonical)
 
     members = (
         rounds.explode("steamids", empty_as_null=True)
@@ -139,7 +148,7 @@ def build_team_scope(rosters: pl.LazyFrame | None, team_key: str, f: LayerFilter
     if f.players:
         members = members.filter(pl.col("steamid").is_in(f.players))
     return TeamScope(
-        team_key=team_key,
+        team_key=canonical,
         rounds=rounds.select("match_id", "round_num", "side"),
         members=members,
     )
@@ -446,14 +455,14 @@ def bomb_layer(
 def build_layers(
     frames: dict[str, pl.LazyFrame | None],
     cal: RadarCalibration,
-    team_key: str,
+    team_key: str | Sequence[str],
     f: LayerFilters,
 ) -> dict[str, Any]:
     """Assembles the full radar payload for one (team, map) selection."""
     scope = build_team_scope(frames.get("rosters"), team_key, f)
     return {
         "map_name": cal.map_name,
-        "team_key": team_key,
+        "team_key": scope.team_key,
         "image_px": cal.image_px,
         "lower_altitude_max": cal.lower_altitude_max,
         "filters": f.model_dump(),

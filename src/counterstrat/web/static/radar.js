@@ -45,6 +45,7 @@
     teamKey: null,
     mapName: null,
     displayName: null,
+    matchId: null, // non-null = single-match scope
     info: null,
     payload: null,
     loading: false,
@@ -118,6 +119,7 @@
 
   function layersUrl() {
     const params = new URLSearchParams();
+    if (state.matchId) params.set("matches", state.matchId);
     if (el.side.value) params.set("side", el.side.value);
     if (el.round.value) params.set("rounds", el.round.value);
     if (selectionFilterActive()) {
@@ -640,10 +642,11 @@
     load();
   }
 
-  function onTargetSelected(teamKey, mapName, displayName) {
+  function onTargetSelected(teamKey, mapName, displayName, matchId) {
     state.teamKey = teamKey;
     state.mapName = mapName;
     state.displayName = displayName;
+    state.matchId = matchId || null;
     state.payload = null;
     state.info = null;
     state.level = "default";
@@ -651,7 +654,9 @@
     state.selected = null;
     state.view = { k: 1, tx: 0, ty: 0 };
     el.tabRadar.disabled = false;
-    el.tabRadar.title = `Radar overlay for ${displayName} on ${mapName}`;
+    el.tabRadar.title = state.matchId
+      ? `Radar overlay for ${displayName} on ${mapName} (match ${state.matchId})`
+      : `Radar overlay for ${displayName} on ${mapName}`;
     el.round.value = "";
     renderPlayerPanel();
     draw();
@@ -697,9 +702,9 @@
   }
 
   window.CounterStratRadar = {
-    onTargetSelected: function (teamKey, mapName, displayName) {
+    onTargetSelected: function (teamKey, mapName, displayName, matchId) {
       if (!el.radarView) return;
-      onTargetSelected(teamKey, mapName, displayName);
+      onTargetSelected(teamKey, mapName, displayName, matchId);
     },
   };
 

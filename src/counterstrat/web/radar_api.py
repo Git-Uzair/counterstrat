@@ -13,6 +13,7 @@ from counterstrat.config import AppConfig
 from counterstrat.corpus import load_manifest
 from counterstrat.radar.extract import RadarAssets, extract_radar_assets, load_cached_assets
 from counterstrat.radar.layers import LayerFilters, build_layers, lake_frames
+from counterstrat.teams import load_or_build_clusters
 from counterstrat.web.ingest import _find_vrf_cli
 from counterstrat.web.routes import ConfigDep
 
@@ -141,18 +142,29 @@ def get_radar_layers(
     level: LayerLevel = "all",
     rounds: str | None = None,
     players: str | None = None,
+    matches: str | None = None,
     trail_rounds: Annotated[int | None, Query(ge=1, le=30)] = 4,
     stride: Annotated[int, Query(ge=1, le=64)] = 8,
     grid: Annotated[int, Query(ge=8, le=256)] = 128,
 ) -> dict[str, Any]:
-    """Normalized coordinate layers for one (team, map) selection."""
+    """Normalized coordinate layers for one (team, map) selection.
+
+    ``matches`` (csv of match ids) scopes the view to specific demos; the team
+    key may be a cluster id or any lineup key - stand-in lineups merge.
+    """
     # Resolve the corpus BEFORE the radar assets: a map with no ingested match
     # must answer 404, not the 503 that an un-extractable radar would raise.
     _check_map_name(map_name)
     manifest = load_manifest(cfg.data_root / "corpus.jsonl")
     match_ids = sorted(mid for mid, rec in manifest.items() if rec.map_name == map_name)
+    if matches:
+        wanted = {part.strip() for part in matches.split(",") if part.strip()}
+        match_ids = [mid for mid in match_ids if mid in wanted]
     if not match_ids:
         raise HTTPException(status_code=404, detail=f"No ingested matches on map '{map_name}'")
+
+    cluster = load_or_build_clusters(cfg.data_root).get(team_key)
+    team_keys: list[str] = sorted(cluster.all_keys()) if cluster else [team_key]
 
     cal = _resolve_assets(map_name, cfg).calibration
     filters = LayerFilters(
@@ -165,4 +177,4 @@ def get_radar_layers(
         players=_parse_players(players),
     )
     frames = lake_frames(cfg.data_root / "lake", match_ids)
-    return build_layers(frames, cal, team_key, filters)
+    return build_layers(frames, cal, team_keys, filters)

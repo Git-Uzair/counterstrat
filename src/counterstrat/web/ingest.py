@@ -27,6 +27,7 @@ from counterstrat.mining.tendencies import build_teambook
 from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.roundscript.serialize import serialize_match
+from counterstrat.teams import build_team_clusters, write_team_clusters
 
 logger = logging.getLogger(__name__)
 
@@ -92,16 +93,36 @@ def _find_vrf_cli() -> Path | None:
     return None
 
 
-def _scripts_for_team(
-    data_root: Path, map_name: str, team_key: str, current: list[RoundScript]
-) -> list[RoundScript]:
-    """Current match's scripts plus every stored script for this (team, map).
+def _rekey(script: RoundScript, keys: set[str], canonical: str) -> RoundScript:
+    """The script with any cluster lineup key replaced by the canonical team id."""
+    update: dict[str, str] = {}
+    if script.t_team_key in keys and script.t_team_key != canonical:
+        update["t_team_key"] = canonical
+    if script.ct_team_key in keys and script.ct_team_key != canonical:
+        update["ct_team_key"] = canonical
+    return script.model_copy(update=update) if update else script
 
-    Without this union each ingest would rebuild the teambook from one demo and
-    overwrite the accumulated profile (plan Task 0).
+
+def _scripts_for_keys(
+    data_root: Path,
+    map_name: str,
+    keys: set[str],
+    canonical: str,
+    current: list[RoundScript],
+) -> list[RoundScript]:
+    """Current + stored scripts on this map where either side's key is in ``keys``.
+
+    Matching side keys are rewritten to ``canonical`` so miners and tools see one
+    team identity across stand-in lineups (team clustering). Without this union
+    each ingest would rebuild the teambook from one demo and overwrite the
+    accumulated profile (plan Task 0).
     """
     current_ids = {s.match_id for s in current}
-    out = list(current)
+    out = [
+        _rekey(s, keys, canonical)
+        for s in current
+        if keys & {s.t_team_key, s.ct_team_key} or canonical in (s.t_team_key, s.ct_team_key)
+    ]
     manifest = load_manifest(data_root / "corpus.jsonl")
     for match_id, rec in sorted(manifest.items()):
         if rec.map_name != map_name or match_id in current_ids:
@@ -112,9 +133,16 @@ def _scripts_for_team(
             except Exception as exc:  # noqa: BLE001 - one bad script must not kill mining
                 logger.warning("Skipping unreadable round script %s: %s", script_path, exc)
                 continue
-            if team_key in (s.t_team_key, s.ct_team_key):
-                out.append(s)
+            if keys & {s.t_team_key, s.ct_team_key}:
+                out.append(_rekey(s, keys, canonical))
     return out
+
+
+def _scripts_for_team(
+    data_root: Path, map_name: str, team_key: str, current: list[RoundScript]
+) -> list[RoundScript]:
+    """Single-key convenience wrapper over :func:`_scripts_for_keys`."""
+    return _scripts_for_keys(data_root, map_name, {team_key}, team_key, current)
 
 
 def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
@@ -229,13 +257,24 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             for k in (s.t_team_key, s.ct_team_key)
             if k and str(k) not in ("T", "CT", "None", "")
         }
+        # Cluster lineups into team identities (stand-in lineups merge) now that
+        # this match's rosters are in the lake.
+        clusters = build_team_clusters(cfg.data_root)
+        write_team_clusters(cfg.data_root, clusters)
         if not team_keys:
             team_keys = {s.t_team_key for s in scripts} | {s.ct_team_key for s in scripts}
 
-        for tk in team_keys:
-            team_scripts = _scripts_for_team(cfg.data_root, rec.map_name, tk, scripts)
-            tb = build_teambook(team_scripts, tk)
-            tb_dir = cfg.data_root / "teambooks" / tk / rec.map_name
+        mined: set[str] = set()
+        for tk in sorted(team_keys):
+            cluster = clusters.get(tk)
+            team_id = cluster.team_id if cluster else tk
+            if team_id in mined:
+                continue  # both lineups of one team can appear in team_keys
+            mined.add(team_id)
+            keys = cluster.all_keys() if cluster else {tk}
+            team_scripts = _scripts_for_keys(cfg.data_root, rec.map_name, keys, team_id, scripts)
+            tb = build_teambook(team_scripts, team_id)
+            tb_dir = cfg.data_root / "teambooks" / team_id / rec.map_name
             tb_dir.mkdir(parents=True, exist_ok=True)
             (tb_dir / "teambook.json").write_text(tb.model_dump_json(indent=2), encoding="utf-8")
 
@@ -243,11 +282,11 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             try:
                 brief = build_scout_brief(
                     team_scripts,
-                    tk,
+                    team_id,
                     teambook=tb,
-                    utility_book=build_utility_book(team_scripts, tk),
-                    gap_report=build_gap_report(team_scripts, tk),
-                    econ_policy=build_econ_policy(team_scripts, tk),
+                    utility_book=build_utility_book(team_scripts, team_id),
+                    gap_report=build_gap_report(team_scripts, team_id),
+                    econ_policy=build_econ_policy(team_scripts, team_id),
                 )
                 (tb_dir / "scout_brief.json").write_text(
                     brief.model_dump_json(indent=2), encoding="utf-8"

@@ -63,6 +63,14 @@ def test_trails_spread_across_rounds(frames, cal) -> None:
     assert {t["round_num"] for t in both} == {1, 2}
 
 
+def test_team_scope_accepts_cluster_key_set(frames) -> None:
+    """A cluster's key set unions rounds across lineup keys (team identity merge)."""
+    merged = build_team_scope(frames["rosters"], ["teamA", "teamB"], LayerFilters())
+    solo = build_team_scope(frames["rosters"], "teamA", LayerFilters())
+    assert merged.rounds.height == 2 * solo.rounds.height
+    assert merged.team_key == "teamA"  # canonical = first sorted key
+
+
 def test_players_filter_scopes_member_layers(frames, cal) -> None:
     """Task 9: a players filter isolates one player's trails/heatmap/utility."""
     payload = build_layers(frames, cal, "teamA", LayerFilters(players=[1]))

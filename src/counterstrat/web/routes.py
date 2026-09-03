@@ -7,7 +7,6 @@ import logging
 import shutil
 import time
 import uuid
-from collections import defaultdict
 from typing import Annotated, Any, Literal
 
 import polars as pl
@@ -31,6 +30,7 @@ from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.roundscript.models import RoundScript
+from counterstrat.teams import load_or_build_clusters, resolve_team_id
 from counterstrat.web.ingest import JobState, load_job_state, run_ingest, save_job_state
 
 logger = logging.getLogger(__name__)
@@ -208,63 +208,27 @@ def list_demos(cfg: ConfigDep) -> list[dict[str, Any]]:
 
 @router.get("/teams")
 def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
-    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
-    lake_dir = cfg.data_root / "lake"
-    if not lake_dir.exists():
-        return []
-
-    teams_data: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {
-            "names": set(),
-            "maps": set(),
-            "demos": set(),
-            "rounds": set(),
-            "map_stats": defaultdict(lambda: {"demos": set(), "rounds": set()}),
-        }
-    )
-
-    for match_id, rec in manifest.items():
-        rosters_path = lake_dir / match_id / "rosters.parquet"
-        if not rosters_path.exists():
-            continue
-        try:
-            df = pl.read_parquet(rosters_path)
-            for row in df.iter_rows(named=True):
-                tk = row.get("team_key")
-                if not tk or str(tk) in ("T", "CT", "None"):
-                    continue
-                tk_str = str(tk)
-                entry = teams_data[tk_str]
-                clan = row.get("clan_name")
-                if clan and str(clan).strip():
-                    entry["names"].add(str(clan).strip())
-                entry["maps"].add(rec.map_name)
-                entry["demos"].add(match_id)
-                entry["map_stats"][rec.map_name]["demos"].add(match_id)
-                r_num = row.get("round_num")
-                if r_num is not None:
-                    entry["rounds"].add((match_id, r_num))
-                    entry["map_stats"][rec.map_name]["rounds"].add((match_id, r_num))
-        except Exception:  # noqa: BLE001, S112
-            continue
+    """One entry per team CLUSTER: stand-in lineups merge, demos accumulate."""
+    clusters = load_or_build_clusters(cfg.data_root)
+    unique = {c.team_id: c for c in clusters.values()}
 
     result = []
-    for tk in sorted(teams_data.keys()):
-        data = teams_data[tk]
+    for team_id in sorted(unique):
+        c = unique[team_id]
+        map_stats: dict[str, dict[str, Any]] = {}
+        for match_id, tm in sorted(c.matches.items()):
+            st = map_stats.setdefault(tm.map_name, {"demos": 0, "rounds": 0, "matches": []})
+            st["demos"] += 1
+            st["rounds"] += tm.rounds
+            st["matches"].append({"match_id": match_id, "rounds": tm.rounds})
         result.append(
             {
-                "team_key": tk,
-                "names": sorted(data["names"]),
-                "maps": sorted(data["maps"]),
-                "demos": len(data["demos"]),
-                "rounds": len(data["rounds"]),
-                "map_stats": {
-                    m: {
-                        "demos": len(s["demos"]),
-                        "rounds": len(s["rounds"]),
-                    }
-                    for m, s in data["map_stats"].items()
-                },
+                "team_key": team_id,
+                "names": [c.name] if c.name and c.name != team_id else [],
+                "maps": sorted(map_stats),
+                "demos": len(c.matches),
+                "rounds": sum(tm.rounds for tm in c.matches.values()),
+                "map_stats": map_stats,
             }
         )
     return result
@@ -272,6 +236,7 @@ def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
 
 @router.get("/teams/{team_key}/{map_name}/teambook")
 def get_teambook(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, Any]:
+    team_key = resolve_team_id(cfg.data_root, team_key)
     tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
     if not tb_path.exists():
         raise HTTPException(
@@ -286,6 +251,7 @@ def get_teambook(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, Any]
 @router.get("/teams/{team_key}/{map_name}/brief")
 def get_scout_brief(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, Any]:
     """The deterministic post-ingest First Look brief (plan Task 8)."""
+    team_key = resolve_team_id(cfg.data_root, team_key)
     brief_path = cfg.data_root / "teambooks" / team_key / map_name / "scout_brief.json"
     if not brief_path.exists():
         raise HTTPException(
@@ -341,6 +307,7 @@ def get_insights(
     Without ``generate=1`` this only serves a fresh cache (404 otherwise), so
     the UI can poll cheaply and let the analyst trigger the paid call.
     """
+    team_key = resolve_team_id(cfg.data_root, team_key)
     tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
     if not tb_path.exists():
         raise HTTPException(
@@ -418,6 +385,7 @@ def get_insights(
 
 @router.get("/reports/{team_key}/{map_name}")
 def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = None) -> Response:
+    team_key = resolve_team_id(cfg.data_root, team_key)
     dossier_path = cfg.data_root / "teambooks" / team_key / map_name / "dossier.md"
     if dossier_path.exists():
         return Response(

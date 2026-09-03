@@ -1308,3 +1308,30 @@ textarea#chat-input:disabled {
   color: var(--color-warning-text);
   font-size: 0.75rem;
 }
+
+/* Per-demo drill-down chips on catalog cards (team clustering) */
+
+.team-card-demos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-color);
+}
+
+.demo-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.demo-chip:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}

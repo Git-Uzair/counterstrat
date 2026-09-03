@@ -78,6 +78,33 @@ def test_teambook_from_accumulated_scripts_spans_matches(tmp_path, synthetic_scr
     assert merged_total == 2 * sum(t.n for t in single.tendencies)
 
 
+def test_scripts_for_keys_rewrites_stand_in_lineup(tmp_path, synthetic_scripts):
+    """A prior match under a different lineup key merges and is re-keyed."""
+    from counterstrat.web.ingest import _scripts_for_keys
+
+    def swap(s):
+        update = {"match_id": "m0"}
+        if s.t_team_key == SYNTHETIC_TEAM:
+            update["t_team_key"] = "lineup2"
+        if s.ct_team_key == SYNTHETIC_TEAM:
+            update["ct_team_key"] = "lineup2"
+        return s.model_copy(update=update)
+
+    prior = [swap(s) for s in synthetic_scripts]
+    _write_scripts(tmp_path, prior)
+    _write_manifest(tmp_path, [("m0", "de_anubis"), ("m1", "de_anubis")])
+
+    merged = _scripts_for_keys(
+        tmp_path, "de_anubis", {SYNTHETIC_TEAM, "lineup2"}, SYNTHETIC_TEAM, synthetic_scripts
+    )
+
+    assert {s.match_id for s in merged} == {"m0", "m1"}
+    assert len(merged) == 2 * len(synthetic_scripts)
+    assert not any("lineup2" in (s.t_team_key, s.ct_team_key) for s in merged)
+    team_rounds = [s for s in merged if SYNTHETIC_TEAM in (s.t_team_key, s.ct_team_key)]
+    assert len(team_rounds) == len(merged)
+
+
 def test_scripts_for_team_survives_unreadable_script(tmp_path, synthetic_scripts):
     _write_manifest(tmp_path, [("m4", "de_anubis")])
     bad = tmp_path / "scripts" / "m4" / "round_1.json"

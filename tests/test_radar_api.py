@@ -137,6 +137,14 @@ def test_layers_rejects_bad_rounds_and_bad_side(radar_client: TestClient) -> Non
     assert radar_client.get("/api/radar/teamA/de_anubis/layers?side=X").status_code == 422
 
 
+def test_layers_matches_filter(radar_client: TestClient) -> None:
+    """matches=<id> scopes the whole payload to one demo; unknown id -> 404."""
+    full = radar_client.get("/api/radar/teamA/de_anubis/layers").json()
+    scoped = radar_client.get("/api/radar/teamA/de_anubis/layers?matches=m1").json()
+    assert scoped["rounds"] == full["rounds"]  # fixture has exactly one match
+    assert radar_client.get("/api/radar/teamA/de_anubis/layers?matches=ghost").status_code == 404
+
+
 def test_layers_unknown_map_is_404(radar_client: TestClient) -> None:
     r = radar_client.get("/api/radar/teamA/de_dust2/layers")
     assert r.status_code == 404

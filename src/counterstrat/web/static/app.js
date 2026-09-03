@@ -285,8 +285,28 @@
         `;
 
         card.addEventListener("click", function () {
-          selectTarget(team, teamDisplayName, mapName, card);
+          selectTarget(team, teamDisplayName, mapName, card, null);
         });
+
+        // Several demos of this team on this map: allow drilling into one game.
+        const matches = mStats.matches || [];
+        if (matches.length > 1) {
+          const demosEl = document.createElement("div");
+          demosEl.className = "team-card-demos";
+          matches.forEach(function (m) {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "demo-chip";
+            chip.title = `Analyze only match ${m.match_id} (${m.rounds} rounds)`;
+            chip.textContent = `${m.match_id.slice(0, 8)} · ${m.rounds}r`;
+            chip.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              selectTarget(team, teamDisplayName, mapName, card, m.match_id);
+            });
+            demosEl.appendChild(chip);
+          });
+          card.appendChild(demosEl);
+        }
 
         el.teamsList.appendChild(card);
       });
@@ -295,7 +315,7 @@
     el.catalogCount.textContent = `${totalPairs} target${totalPairs === 1 ? "" : "s"}`;
   }
 
-  function selectTarget(team, displayName, mapName, cardEl) {
+  function selectTarget(team, displayName, mapName, cardEl, matchId) {
     // Update active highlight
     document.querySelectorAll(".team-card").forEach(function (c) {
       c.classList.remove("selected");
@@ -305,12 +325,21 @@
     state.currentTeamKey = team.team_key;
     state.currentMapName = mapName;
     state.currentTeamData = team;
+    state.currentMatchId = matchId || null;
 
     const mStats = (team.map_stats && team.map_stats[mapName]) || { rounds: team.rounds, demos: team.demos };
 
     // Update Header
     el.targetTitle.textContent = `${displayName} - ${mapName}`;
-    el.targetMeta.innerHTML = `Sample size: <strong class="stat-n">n = ${mStats.rounds} rounds</strong> across ${mStats.demos} demo${mStats.demos === 1 ? "" : "s"} (${escapeHtml(team.team_key)})`;
+    if (matchId) {
+      const m = (mStats.matches || []).find(function (x) { return x.match_id === matchId; });
+      el.targetMeta.innerHTML =
+        `Single match scope: <strong class="stat-n">${escapeHtml(matchId)}</strong>` +
+        (m ? ` (n = ${m.rounds} rounds)` : "") +
+        ` — <em>this game only</em>`;
+    } else {
+      el.targetMeta.innerHTML = `Sample size: <strong class="stat-n">n = ${mStats.rounds} rounds</strong> across ${mStats.demos} demo${mStats.demos === 1 ? "" : "s"} (${escapeHtml(team.team_key)})`;
+    }
 
     // Enable Dossier button
     el.dossierBtn.disabled = false;
@@ -318,25 +347,25 @@
 
     // Hand the selection to the radar viewer (static/radar.js), if present.
     if (window.CounterStratRadar) {
-      window.CounterStratRadar.onTargetSelected(team.team_key, mapName, displayName);
+      window.CounterStratRadar.onTargetSelected(team.team_key, mapName, displayName, matchId || null);
     }
 
     // Create session
-    createChatSession(team.team_key, mapName, displayName);
+    createChatSession(team.team_key, mapName, displayName, matchId || null);
   }
 
   // =========================================================================
   // 3. Chat Sessions & Messaging
   // =========================================================================
 
-  function createChatSession(teamKey, mapName, displayName) {
+  function createChatSession(teamKey, mapName, displayName, matchId) {
     el.chatInput.disabled = true;
     el.sendBtn.disabled = true;
 
     fetch("/api/chat/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ team_key: teamKey, map_name: mapName }),
+      body: JSON.stringify({ team_key: teamKey, map_name: mapName, match_id: matchId || null }),
     })
       .then(function (res) {
         if (!res.ok) {
@@ -356,13 +385,19 @@
 
         // Reset and show initial welcome in message stream
         el.messagesContainer.innerHTML = "";
+        const scopeNote = matchId
+          ? `\n\n**Scope: match \`${matchId}\` only** - every answer describes this one game.`
+          : "";
         appendAssistantMessage({
-          text: `Active session started for **${displayName}** on \`${mapName}\`.\n\nYou can ask about buy-round tendencies, utility setups, opening duels, or cite specific rounds.`,
+          text: `Active session started for **${displayName}** on \`${mapName}\`.${scopeNote}\n\nYou can ask about buy-round tendencies, utility setups, opening duels, or cite specific rounds.`,
           tool_trace: [],
           warnings: [],
         });
-        renderScoutBrief(teamKey, mapName);
-        renderInsights(teamKey, mapName, false);
+        if (!matchId) {
+          // Brief and AI First Read are corpus-wide artifacts: merged mode only.
+          renderScoutBrief(teamKey, mapName);
+          renderInsights(teamKey, mapName, false);
+        }
 
         el.chatInput.disabled = false;
         el.sendBtn.disabled = false;
