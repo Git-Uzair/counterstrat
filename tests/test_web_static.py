@@ -63,6 +63,15 @@ def test_static_app_js(client_app: TestClient) -> None:
     assert resp.status_code == 200
     for endpoint in ["/api/demos", "/api/jobs", "/api/teams", "/api/chat/sessions"]:
         assert endpoint in resp.text
+    # Task 8: the First Look scout brief renderer.
+    assert "/brief" in resp.text
+    assert "first-look" in resp.text
+
+
+def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
+    resp = client_app.get("/static/style.css")
+    assert resp.status_code == 200
+    assert ".first-look-panel" in resp.text
 
 
 def test_static_style_css(client_app: TestClient) -> None:

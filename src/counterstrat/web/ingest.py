@@ -20,7 +20,11 @@ from counterstrat.mapcard.transitions import zone_graph
 from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mapcard.zones import ZoneMapper
+from counterstrat.mining.brief import build_scout_brief
+from counterstrat.mining.econ_policy import build_econ_policy
+from counterstrat.mining.gaps import build_gap_report
 from counterstrat.mining.tendencies import build_teambook
+from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.roundscript.serialize import serialize_match
 
@@ -231,9 +235,25 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
         for tk in team_keys:
             team_scripts = _scripts_for_team(cfg.data_root, rec.map_name, tk, scripts)
             tb = build_teambook(team_scripts, tk)
-            tb_path = cfg.data_root / "teambooks" / tk / rec.map_name / "teambook.json"
-            tb_path.parent.mkdir(parents=True, exist_ok=True)
-            tb_path.write_text(tb.model_dump_json(indent=2), encoding="utf-8")
+            tb_dir = cfg.data_root / "teambooks" / tk / rec.map_name
+            tb_dir.mkdir(parents=True, exist_ok=True)
+            (tb_dir / "teambook.json").write_text(tb.model_dump_json(indent=2), encoding="utf-8")
+
+            # Instant scout brief from the same accumulated scripts (plan Task 8).
+            try:
+                brief = build_scout_brief(
+                    team_scripts,
+                    tk,
+                    teambook=tb,
+                    utility_book=build_utility_book(team_scripts, tk),
+                    gap_report=build_gap_report(team_scripts, tk),
+                    econ_policy=build_econ_policy(team_scripts, tk),
+                )
+                (tb_dir / "scout_brief.json").write_text(
+                    brief.model_dump_json(indent=2), encoding="utf-8"
+                )
+            except Exception as exc:  # noqa: BLE001 - a brief failure must not fail ingest
+                logger.warning("Scout brief generation failed for %s: %s", tk, exc)
 
         # 5. Done
         state.stage = "done"

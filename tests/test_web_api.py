@@ -46,6 +46,37 @@ def test_job_unknown_404(client_app: TestClient):
     assert client_app.get("/api/jobs/nope").status_code == 404
 
 
+def test_scout_brief_endpoint(client_app: TestClient, test_cfg: AppConfig):
+    assert client_app.get("/api/teams/ghost/de_anubis/brief").status_code == 404
+
+    brief_dir = test_cfg.data_root / "teambooks" / "abc" / "de_anubis"
+    brief_dir.mkdir(parents=True)
+    (brief_dir / "scout_brief.json").write_text(
+        json.dumps(
+            {
+                "team_key": "abc",
+                "map_name": "de_anubis",
+                "items": [
+                    {
+                        "kind": "gap",
+                        "text": "CT leave `BombsiteB` unheld at B+15 in 100% of rounds (n=5).",
+                        "n": 5,
+                        "confidence": "medium",
+                        "evidence": ["m1:13"],
+                    }
+                ],
+                "generated_from": ["m1"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    r = client_app.get("/api/teams/abc/de_anubis/brief")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["items"][0]["kind"] == "gap"
+    assert body["generated_from"] == ["m1"]
+
+
 @pytest.mark.demo
 def test_upload_ingest_end_to_end(client_app: TestClient, demo_path: Path):
     with demo_path.open("rb") as f:
@@ -58,6 +89,15 @@ def test_upload_ingest_end_to_end(client_app: TestClient, demo_path: Path):
     assert len(teams) == 2 and all(t["rounds"] > 0 for t in teams)
     assert all("map_stats" in t and "de_anubis" in t["map_stats"] for t in teams)
     assert all(t["map_stats"]["de_anubis"]["rounds"] == t["rounds"] for t in teams)
+    # Task 8: every ingested team gets an instant scout brief.
+    for t in teams:
+        brief = client_app.get(f"/api/teams/{t['team_key']}/de_anubis/brief")
+        assert brief.status_code == 200
+        body = brief.json()
+        assert body["team_key"] == t["team_key"]
+        assert isinstance(body["items"], list)
+        for item in body["items"]:
+            assert item["kind"] and item["text"] and item["n"] >= 1
     assert all(t["map_stats"]["de_anubis"]["demos"] == t["demos"] for t in teams)
     tb = client_app.get(f"/api/teams/{teams[0]['team_key']}/de_anubis/teambook")
     assert tb.status_code == 200

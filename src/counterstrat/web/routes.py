@@ -283,6 +283,20 @@ def get_teambook(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, Any]
         raise HTTPException(status_code=500, detail=f"Failed to read TeamBook: {exc}") from exc
 
 
+@router.get("/teams/{team_key}/{map_name}/brief")
+def get_scout_brief(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, Any]:
+    """The deterministic post-ingest First Look brief (plan Task 8)."""
+    brief_path = cfg.data_root / "teambooks" / team_key / map_name / "scout_brief.json"
+    if not brief_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Scout brief for {team_key} on {map_name} not found"
+        )
+    try:
+        return json.loads(brief_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read scout brief: {exc}") from exc
+
+
 @router.get("/reports/{team_key}/{map_name}")
 def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = None) -> Response:
     dossier_path = cfg.data_root / "teambooks" / team_key / map_name / "dossier.md"
