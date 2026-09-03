@@ -2364,7 +2364,7 @@ what remains gated on their inputs.
 - Modify: `docs/NEEDS-FROM-YOU.md` — mark which N-items remain open at
   completion time.
 
-- [ ] **Step 1: write README; Step 2: execute every command in it verbatim
+- [x] **Step 1: write README; Step 2: execute every command in it verbatim
   on a clean checkout and paste real output snippets; Step 3: commit**
   `"docs: runbook"`.
 
