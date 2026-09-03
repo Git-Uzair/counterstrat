@@ -39,6 +39,17 @@ def vrf_cli() -> Path:
 
 
 @pytest.fixture(scope="session")
+def cs2_install() -> Path:
+    """The configured CS2 install root, or skip when N2 is unsatisfied."""
+    from counterstrat.config import AppConfig
+
+    root = AppConfig.load().cs2_install_path
+    if root is None or not (root / "game" / "csgo" / "pak01_dir.vpk").exists():
+        pytest.skip("CS2 install path not configured (docs/NEEDS-FROM-YOU.md item N2)")
+    return root
+
+
+@pytest.fixture(scope="session")
 def anubis_assets(tmp_path_factory, anubis_vpk, vrf_cli):
     from counterstrat.mapcard.vrf import extract_map_assets
 
