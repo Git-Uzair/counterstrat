@@ -439,8 +439,7 @@
           warnings: [],
         });
         if (!matchId) {
-          // Brief and AI First Read are corpus-wide artifacts: merged mode only.
-          renderScoutBrief(teamKey, mapName);
+          // The AI First Read is a corpus-wide artifact: merged mode only.
           renderInsights(teamKey, mapName, false);
         }
 
@@ -450,66 +449,6 @@
       })
       .catch(function (err) {
         alert("Failed to initialize session: " + err.message);
-      });
-  }
-
-  // First Look: the deterministic scout brief mined at ingest time. Rendered
-  // above the welcome bubble so the analyst gets instant value pre-questions.
-  function renderScoutBrief(teamKey, mapName) {
-    fetch(
-      `/api/teams/${encodeURIComponent(teamKey)}/${encodeURIComponent(mapName)}/brief`
-    )
-      .then(function (res) {
-        if (!res.ok) throw new Error("no brief");
-        return res.json();
-      })
-      .then(function (brief) {
-        if (!brief.items || !brief.items.length) return;
-        const existing = document.getElementById("first-look");
-        if (existing) existing.remove();
-
-        const panel = document.createElement("div");
-        panel.className = "first-look-panel";
-        panel.id = "first-look";
-
-        const demoCount = (brief.generated_from || []).length || 1;
-        const rows = brief.items
-          .map(function (item) {
-            return (
-              '<li class="first-look-item">' +
-              '<span class="fl-kind fl-kind-' + escapeHtml(item.kind) + '">' +
-              escapeHtml(item.kind.replace(/_/g, " ")) +
-              "</span>" +
-              '<span class="fl-text">' + escapeHtml(item.text) + "</span>" +
-              '<button type="button" class="fl-ask btn btn-sm btn-outline" ' +
-              'title="Ask the analyst about this read">Ask</button>' +
-              '<span class="fl-conf fl-conf-' + escapeHtml(item.confidence) + '">' +
-              escapeHtml(item.confidence) + " · n=" + item.n +
-              "</span>" +
-              "</li>"
-            );
-          })
-          .join("");
-        panel.innerHTML =
-          '<div class="first-look-header">First Look — instant reads from ' +
-          demoCount + " demo" + (demoCount === 1 ? "" : "s") +
-          " (deterministic, no AI)</div>" +
-          '<ul class="first-look-list">' + rows + "</ul>";
-
-        panel.querySelectorAll(".fl-ask").forEach(function (btn, i) {
-          btn.addEventListener("click", function () {
-            const item = brief.items[i];
-            el.chatInput.value =
-              "Dig into this read and give me the counter-call: " + item.text;
-            el.chatInput.disabled = false;
-            el.chatInput.focus();
-          });
-        });
-
-        el.messagesContainer.insertBefore(panel, el.messagesContainer.firstChild);
-      })
-      .catch(function () {
-        /* Brief missing (pre-upgrade ingest): stay silent. */
       });
   }
 
@@ -536,12 +475,7 @@
     panel.querySelector(".insights-title").addEventListener("click", function () {
       panel.classList.toggle("collapsed");
     });
-    const brief = document.getElementById("first-look");
-    if (brief && brief.nextSibling) {
-      el.messagesContainer.insertBefore(panel, brief.nextSibling);
-    } else {
-      el.messagesContainer.insertBefore(panel, el.messagesContainer.firstChild);
-    }
+    el.messagesContainer.insertBefore(panel, el.messagesContainer.firstChild);
 
     const genBtn = panel.querySelector("#insights-generate");
     genBtn.disabled = !!generate;

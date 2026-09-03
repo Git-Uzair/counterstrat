@@ -63,10 +63,10 @@ def test_static_app_js(client_app: TestClient) -> None:
     assert resp.status_code == 200
     for endpoint in ["/api/demos", "/api/jobs", "/api/teams", "/api/chat/sessions"]:
         assert endpoint in resp.text
-    # Task 8: the First Look scout brief renderer.
-    assert "/brief" in resp.text
-    assert "first-look" in resp.text
-    # Feedback round: the AI First Read panel.
+    # The deterministic First Look panel is retired: no brief fetch, no renderer.
+    assert "/brief" not in resp.text
+    assert "renderScoutBrief" not in resp.text
+    # Feedback round: the AI First Read panel (keeps the shared panel classes).
     assert "/insights" in resp.text
     assert "ai-first-read" in resp.text
     # Team clustering round: single-match drill-down.
