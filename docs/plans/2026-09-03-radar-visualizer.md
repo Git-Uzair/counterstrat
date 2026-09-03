@@ -707,7 +707,7 @@ def side_expr(col: str) -> pl.Expr: ...                                 # vector
 ROUND_DP: int = 4
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_radar_coords.py`:
 
@@ -807,12 +807,12 @@ def test_side_expr_matches_scalar_form() -> None:
     assert got == ["CT", "T", None, None]
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_radar_coords.py -v`
 Expected: `ModuleNotFoundError: No module named 'counterstrat.radar.coords'`.
 
-- [ ] **Step 3: Write `src/counterstrat/radar/coords.py`**
+- [x] **Step 3: Write `src/counterstrat/radar/coords.py`**
 
 ```python
 """World <-> radar-image projection.
@@ -899,7 +899,7 @@ def side_expr(col: str) -> pl.Expr:
 Extend `src/counterstrat/radar/__init__.py` re-exports with `game_to_norm`,
 `game_to_pixel`, `normalize_side` (keep `__all__` sorted).
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `.venv\Scripts\python.exe -m pytest tests/test_radar_coords.py -v`
 Expected: 9 passed.
@@ -915,7 +915,7 @@ pl.when(pl.col(col).cast(pl.String).str.to_lowercase().is_in(["t", "terrorist"])
   .alias(col)
 ```
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 .venv\Scripts\python.exe -m ruff check .
