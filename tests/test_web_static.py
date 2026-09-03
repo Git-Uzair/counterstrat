@@ -66,6 +66,9 @@ def test_static_app_js(client_app: TestClient) -> None:
     # Task 8: the First Look scout brief renderer.
     assert "/brief" in resp.text
     assert "first-look" in resp.text
+    # Feedback round: the AI First Read panel.
+    assert "/insights" in resp.text
+    assert "ai-first-read" in resp.text
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
@@ -87,6 +90,44 @@ def test_models_endpoint_provider_query(client_app: TestClient) -> None:
     resp_gemini = client_app.get("/api/models?provider=gemini")
     assert resp_gemini.status_code == 200
     assert "gemini-2.5-flash" in resp_gemini.json()
+
+
+def test_insights_endpoint_mock_flow(chat_client: TestClient) -> None:
+    url = f"/api/teams/{SYNTHETIC_TEAM}/de_anubis/insights"
+    # 1. Nothing cached yet and no generate flag -> 404 with guidance.
+    r = chat_client.get(url)
+    assert r.status_code == 404
+    assert "generate=1" in r.json()["detail"]
+
+    # 2. Unknown team -> 404 regardless.
+    assert chat_client.get("/api/teams/ghost/de_anubis/insights").status_code == 404
+
+    # 3. Mock generation (no API key configured) writes the cache.
+    r = chat_client.get(f"{url}?generate=1&mock=1")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["text"].startswith("## 1. Offline mock read")
+    assert body["generated_from"] == ["m1"]
+
+    # 4. The cache now serves without the generate flag.
+    r = chat_client.get(url)
+    assert r.status_code == 200
+    assert r.json()["model"] == "mock"
+
+    # 5. generate=1 always regenerates; with no key and no mock that is a 503.
+    assert chat_client.get(f"{url}?generate=1").status_code == 503
+
+    # 6. A cache built from different demos is stale and must not be served.
+    import json as _json
+    from pathlib import Path as _Path
+
+    cache = _Path(str(chat_client.app.state.cfg.data_root)) / (
+        f"teambooks/{SYNTHETIC_TEAM}/de_anubis/insights.json"
+    )
+    stale = _json.loads(cache.read_text(encoding="utf-8"))
+    stale["generated_from"] = ["old_match"]
+    cache.write_text(_json.dumps(stale), encoding="utf-8")
+    assert chat_client.get(url).status_code == 404
 
 
 def test_mock_chat_and_report_flow(chat_client: TestClient) -> None:

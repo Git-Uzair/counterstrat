@@ -297,6 +297,125 @@ def get_scout_brief(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, A
         raise HTTPException(status_code=500, detail=f"Failed to read scout brief: {exc}") from exc
 
 
+def _load_team_bundle(cfg: AppConfig, team_key: str, map_name: str):
+    """Card, teambook, scripts and lexicon for one (team, map); raises 404s."""
+    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
+    tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
+    if not tb_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"TeamBook for {team_key} on {map_name} not found"
+        )
+    card = MapCard(**yaml.safe_load(card_path.read_text(encoding="utf-8")))
+    teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
+    overlay_path = get_default_overlay_path(map_name)
+    lex = build_lexicon(
+        map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
+    )
+    scripts: list[RoundScript] = []
+    for mid in teambook.generated_from:
+        scripts_dir = cfg.data_root / "scripts" / mid
+        if scripts_dir.exists():
+            for sp in sorted(scripts_dir.glob("round_*.json")):
+                scripts.append(RoundScript.model_validate_json(sp.read_text(encoding="utf-8")))
+    return card, teambook, scripts, lex
+
+
+_MOCK_INSIGHTS = (
+    "## 1. Offline mock read\nThey favor `BombsiteA` executes on full buys - "
+    "stack utility there (mock insight for UI tests).\n"
+)
+
+
+@router.get("/teams/{team_key}/{map_name}/insights")
+def get_insights(
+    team_key: str,
+    map_name: str,
+    cfg: ConfigDep,
+    generate: str | None = None,
+    mock: str | None = None,
+) -> dict[str, Any]:
+    """LLM First Read: cached when fresh, generated over the full corpus on demand.
+
+    Without ``generate=1`` this only serves a fresh cache (404 otherwise), so
+    the UI can poll cheaply and let the analyst trigger the paid call.
+    """
+    tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
+    if not tb_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"TeamBook for {team_key} on {map_name} not found"
+        )
+    teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
+
+    cache_path = tb_path.parent / "insights.json"
+    if cache_path.exists():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if cached.get("generated_from") == list(teambook.generated_from) and generate != "1":
+                return cached
+        except Exception as exc:  # noqa: BLE001 - a torn cache regenerates below
+            logger.warning("Unreadable insights cache %s: %s", cache_path, exc)
+    if generate != "1":
+        raise HTTPException(
+            status_code=404,
+            detail="No AI First Read generated yet for this data; call with generate=1",
+        )
+
+    key = cfg.anthropic_api_key if cfg.provider == "anthropic" else cfg.gemini_api_key
+    if not key and mock == "1":
+        payload: dict[str, Any] = {
+            "team_key": team_key,
+            "map_name": map_name,
+            "text": _MOCK_INSIGHTS,
+            "warnings": [],
+            "generated_from": list(teambook.generated_from),
+            "model": "mock",
+        }
+        cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return payload
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No API key configured for provider '{cfg.provider}'. Set it in Settings.",
+        )
+
+    card, teambook, scripts, lex = _load_team_bundle(cfg, team_key, map_name)
+    try:
+        from counterstrat.llm.base import make_client
+        from counterstrat.llm.insights import generate_insights
+        from counterstrat.mining.econ_policy import build_econ_policy
+        from counterstrat.mining.gaps import build_gap_report
+        from counterstrat.mining.utility_book import build_utility_book
+
+        client = make_client(cfg)
+        insights = generate_insights(
+            client,
+            card,
+            teambook=teambook,
+            utility_book=build_utility_book(scripts, team_key),
+            gap_report=build_gap_report(scripts, team_key),
+            econ_policy=build_econ_policy(scripts, team_key),
+            scripts=scripts,
+            lexicon=lex,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Insights generation failed: {exc}") from exc
+
+    payload = {
+        "team_key": team_key,
+        "map_name": map_name,
+        "text": insights.text,
+        "warnings": insights.warnings,
+        "generated_from": insights.generated_from,
+        "model": insights.usage.model,
+    }
+    cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
 @router.get("/reports/{team_key}/{map_name}")
 def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = None) -> Response:
     dossier_path = cfg.data_root / "teambooks" / team_key / map_name / "dossier.md"

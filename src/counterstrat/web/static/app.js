@@ -362,6 +362,7 @@
           warnings: [],
         });
         renderScoutBrief(teamKey, mapName);
+        renderInsights(teamKey, mapName, false);
 
         el.chatInput.disabled = false;
         el.sendBtn.disabled = false;
@@ -429,6 +430,87 @@
       })
       .catch(function () {
         /* Brief missing (pre-upgrade ingest): stay silent. */
+      });
+  }
+
+  // AI First Read: LLM-generated dynamic insights over the full corpus.
+  // Cached reads render automatically; generation is analyst-triggered.
+  function renderInsights(teamKey, mapName, generate) {
+    const existing = document.getElementById("ai-first-read");
+    if (existing) existing.remove();
+
+    const panel = document.createElement("div");
+    panel.className = "first-look-panel insights-panel";
+    panel.id = "ai-first-read";
+    panel.innerHTML =
+      '<div class="first-look-header">AI First Read' +
+      '<button type="button" id="insights-generate" class="btn btn-sm btn-outline fl-generate">' +
+      (generate ? "Generating..." : "Generate") +
+      "</button></div>" +
+      '<div id="insights-body" class="insights-body">' +
+      (generate
+        ? '<p class="insights-hint">Reading every round of every demo...</p>'
+        : '<p class="insights-hint">No AI read generated for this data yet.</p>') +
+      "</div>";
+    const brief = document.getElementById("first-look");
+    if (brief && brief.nextSibling) {
+      el.messagesContainer.insertBefore(panel, brief.nextSibling);
+    } else {
+      el.messagesContainer.insertBefore(panel, el.messagesContainer.firstChild);
+    }
+
+    const genBtn = panel.querySelector("#insights-generate");
+    genBtn.disabled = !!generate;
+    genBtn.addEventListener("click", function () {
+      renderInsights(teamKey, mapName, true);
+    });
+
+    const isMock = window.location.search.includes("mock=1");
+    const params = generate ? `?generate=1${isMock ? "&mock=1" : ""}` : "";
+    fetch(
+      `/api/teams/${encodeURIComponent(teamKey)}/${encodeURIComponent(mapName)}/insights${params}`
+    )
+      .then(function (res) {
+        if (res.ok) return res.json();
+        return res.json().then(function (body) {
+          throw { status: res.status, detail: (body && body.detail) || "" };
+        });
+      })
+      .then(function (data) {
+        const body = panel.querySelector("#insights-body");
+        const demoCount = (data.generated_from || []).length || 1;
+        let html = formatMessageText(data.text);
+        if (data.warnings && data.warnings.length) {
+          html +=
+            '<div class="insights-warnings">Verification warnings: ' +
+            escapeHtml(data.warnings.join("; ")) +
+            "</div>";
+        }
+        body.innerHTML = html;
+        genBtn.textContent = "Regenerate";
+        genBtn.disabled = false;
+        genBtn.title = `Generated from ${demoCount} demo${demoCount === 1 ? "" : "s"} (${
+          data.model || "?"
+        })`;
+      })
+      .catch(function (err) {
+        const body = panel.querySelector("#insights-body");
+        genBtn.disabled = false;
+        genBtn.textContent = "Generate";
+        if (err && err.status === 404 && !generate) {
+          body.innerHTML =
+            '<p class="insights-hint">No AI read yet - click Generate to have the model ' +
+            "study every round of every demo and write its first read.</p>";
+        } else if (err && err.status === 503) {
+          body.innerHTML =
+            '<p class="insights-hint">No API key configured - set one in Settings to ' +
+            "generate the AI read.</p>";
+        } else {
+          body.innerHTML =
+            '<p class="insights-hint">AI read failed: ' +
+            escapeHtml((err && err.detail) || "unknown error") +
+            "</p>";
+        }
       });
   }
 

@@ -209,3 +209,5 @@ def test_chat_system_prompt_is_igl_grade(chat_cfg: AppConfig):
     assert "| semi_eco | ahead | won |" not in system
     # ...while its side+buy rollup still is.
     assert "| semi_eco | any | any |" in system
+    # The model must know how much data backs the profile (1 demo, 9 rounds).
+    assert "Data coverage: 1 demo(s), 9 rounds" in system

@@ -46,8 +46,14 @@ def build_chat_system(card_yaml: str, teambook: TeamBook) -> str:
     are dropped by ``to_table_text``), and the contract forbids quoting
     unconcentrated distributions as reads (plan Task 7).
     """
+    total_rounds = sum(t.n for t in teambook.tendencies if t.level == 0)
+    demos = ", ".join(teambook.generated_from) or "none"
     return f"""You are a CS2 anti-strat analyst briefing an in-game leader mid-preparation.
 You think in triggers and punishes, not averages. This is an interactive chat, not a report.
+
+Data coverage: {len(teambook.generated_from)} demo(s), {total_rounds} rounds of this team on
+this map (match ids: {demos}). Every tool answer draws on all of them; more demos mean
+stronger reads, so state the coverage when the analyst asks how reliable a read is.
 
 <map_card>
 {card_yaml}
