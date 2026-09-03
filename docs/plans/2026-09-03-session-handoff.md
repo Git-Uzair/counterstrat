@@ -71,6 +71,17 @@ once already.
   `calibration.lower_altitude_max` (nuke: BombsiteB/Decon/Observation/Tunnels/
   Vents on lower - verified on real data).
 
+> **Update (same day, later session):** open issues 1-3 below are DONE
+> (commits 9ec6011 anchors, 323fcdb zone map in prompts, 12b6989 reset
+> buttons; 308 tests green). Anchors now: per-axis median snapped to the
+> closest real tick, on the zone's dominant level (lower only when >=60%
+> of ticks are below). Verified on real data via
+> `scratch/check_anchor_accuracy.py`: 75/75 zones across
+> ancient/anubis/nuke anchor on own-zone ground; nuke lower set unchanged.
+> Every LLM prompt (chat/dossier/First Read) now embeds
+> `format_zone_map(map_zone_anchors(...))` - the editor's exact source -
+> renamed to user callouts at the existing boundary. Item 4 debts remain.
+
 ## OPEN ISSUES - pick up here
 
 1. **Callouts reset buttons (user-requested, not built)**
