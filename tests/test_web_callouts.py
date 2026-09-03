@@ -104,6 +104,43 @@ def test_callouts_for_vpk_only_map(cfg: AppConfig, client: TestClient):
     assert r.status_code == 200 and r.json()["aliases"] == {"AMain": "A Ramp"}
 
 
+def test_tick_centroids_beat_volume_origins(cfg: AppConfig, client: TestClient):
+    """Played maps anchor labels where players stand, not at entity pivots."""
+    _seed_vents(cfg, MAP, {"Middle": (500.0, -500.0, 0.0)})
+    _seed_calibration(cfg, MAP)
+    (cfg.data_root / "corpus.jsonl").write_text(
+        json.dumps(
+            {
+                "match_id": "m1",
+                "path": "demos/m1.dem",
+                "map_name": MAP,
+                "patch_version": "1",
+                "demo_version_guid": "g",
+                "server_name": "s",
+                "registered_at": "2026-09-03T00:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lake = cfg.data_root / "lake" / "m1"
+    lake.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "X": [0.0, 10.0],
+            "Y": [0.0, 10.0],
+            "Z": [0.0, 0.0],
+            "last_place_name": ["Middle", "Middle"],
+            "is_alive": [True, True],
+        }
+    ).write_parquet(lake / "ticks.parquet")
+
+    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
+    # Tick centroid (5, 5), not the volume origin (500, -500).
+    assert abs(zones["Middle"]["u"] - (1029 / 2048)) < 1e-3
+    assert abs(zones["Middle"]["v"] - (1019 / 2048)) < 1e-3
+
+
 def test_callouts_levels_split_upper_and_lower(cfg: AppConfig, client: TestClient):
     """Nuke-style maps: zones classify to the level their volumes sit on."""
     _seed_vents(

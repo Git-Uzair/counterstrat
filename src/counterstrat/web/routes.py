@@ -554,17 +554,24 @@ def _tick_positions(cfg: AppConfig, map_name: str, zones: list[str], cal) -> dic
 
 
 def _zone_anchors(cfg: AppConfig, map_name: str, zones: list[str], places: list) -> dict:
-    """(u, v, level) per zone: VPK volume origins first, lake ticks as fallback."""
+    """(u, v, level) per zone: lake-tick centroids first, VPK volumes as fallback.
+
+    Tick centroids mark where players actually occupy a zone. Volume origins are
+    entity pivots - good enough to label a never-ingested map, but visibly off
+    on played maps, so they only fill the gaps.
+    """
     from counterstrat.radar.coords import game_to_norm, is_lower_level
 
     cal = _radar_calibration(cfg, map_name)
     if cal is None:
         return {}
-    anchors: dict[str, tuple] = {}
+    anchors: dict[str, tuple] = dict(_tick_positions(cfg, map_name, zones, cal))
     by_name: dict[str, list] = {}
     for p in places:
         by_name.setdefault(p.place_name, []).append(p.origin)
     for zone in zones:
+        if zone in anchors:
+            continue
         origins = by_name.get(zone)
         if not origins:
             continue
@@ -575,9 +582,6 @@ def _zone_anchors(cfg: AppConfig, map_name: str, zones: list[str], places: list)
         if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
             level = "lower" if is_lower_level(cal, z) else "default"
             anchors[zone] = (round(u, 4), round(v, 4), level)
-    missing = [z for z in zones if z not in anchors]
-    if missing:
-        anchors.update(_tick_positions(cfg, map_name, missing, cal))
     return anchors
 
 
