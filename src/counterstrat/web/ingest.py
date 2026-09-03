@@ -12,7 +12,7 @@ import yaml
 from pydantic import BaseModel
 
 from counterstrat.config import AppConfig
-from counterstrat.corpus import register_demo
+from counterstrat.corpus import load_manifest, register_demo
 from counterstrat.lake.extract import extract_lake
 from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
@@ -21,6 +21,7 @@ from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mapcard.zones import ZoneMapper
 from counterstrat.mining.tendencies import build_teambook
+from counterstrat.roundscript.models import RoundScript
 from counterstrat.roundscript.serialize import serialize_match
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,31 @@ def _find_vrf_cli() -> Path | None:
         if cand.exists():
             return cand
     return None
+
+
+def _scripts_for_team(
+    data_root: Path, map_name: str, team_key: str, current: list[RoundScript]
+) -> list[RoundScript]:
+    """Current match's scripts plus every stored script for this (team, map).
+
+    Without this union each ingest would rebuild the teambook from one demo and
+    overwrite the accumulated profile (plan Task 0).
+    """
+    current_ids = {s.match_id for s in current}
+    out = list(current)
+    manifest = load_manifest(data_root / "corpus.jsonl")
+    for match_id, rec in sorted(manifest.items()):
+        if rec.map_name != map_name or match_id in current_ids:
+            continue
+        for script_path in sorted((data_root / "scripts" / match_id).glob("round_*.json")):
+            try:
+                s = RoundScript.model_validate_json(script_path.read_text(encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001 - one bad script must not kill mining
+                logger.warning("Skipping unreadable round script %s: %s", script_path, exc)
+                continue
+            if team_key in (s.t_team_key, s.ct_team_key):
+                out.append(s)
+    return out
 
 
 def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
@@ -203,7 +229,8 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             team_keys = {s.t_team_key for s in scripts} | {s.ct_team_key for s in scripts}
 
         for tk in team_keys:
-            tb = build_teambook(scripts, tk)
+            team_scripts = _scripts_for_team(cfg.data_root, rec.map_name, tk, scripts)
+            tb = build_teambook(team_scripts, tk)
             tb_path = cfg.data_root / "teambooks" / tk / rec.map_name / "teambook.json"
             tb_path.parent.mkdir(parents=True, exist_ok=True)
             tb_path.write_text(tb.model_dump_json(indent=2), encoding="utf-8")
