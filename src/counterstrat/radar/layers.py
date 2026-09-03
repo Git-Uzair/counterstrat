@@ -90,8 +90,16 @@ def _in_bounds() -> pl.Expr:
     return (pl.col("u") >= 0) & (pl.col("u") < 1) & (pl.col("v") >= 0) & (pl.col("v") < 1)
 
 
-def _r(value: Any) -> float | None:
-    return None if value is None else round(float(value), ROUND_DP)
+def _r(value: Any, dp: int = ROUND_DP) -> float | None:
+    """Rounds a wire coordinate to ``dp`` decimals. Must stay in Python, not Polars.
+
+    The lake's X/Y are Float32, so ``pl.col("u").round(4)`` snaps to the nearest
+    *Float32* and iter_rows widens it back to a 17-digit Float64
+    (0.4092999994754791). ``float(value)`` widens first, so the round lands on a
+    clean 4-decimal double. ``+ 0.0`` folds -0.0 (from coordinates a hair below
+    the image origin) to 0.0.
+    """
+    return None if value is None else round(float(value), dp) + 0.0
 
 
 def _sid(value: Any) -> str | None:
@@ -201,9 +209,9 @@ def trails_layer(
         .agg(
             pl.col("name").first(),
             pl.col("side").first(),
-            pl.col("u").round(ROUND_DP),
-            pl.col("v").round(ROUND_DP),
-            pl.col("clock_s").round(1),
+            pl.col("u"),
+            pl.col("v"),
+            pl.col("clock_s"),
         )
         .sort("match_id", "round_num", "steamid")
         .collect()
@@ -215,7 +223,11 @@ def trails_layer(
             "steamid": _sid(r["steamid"]),
             "name": r["name"],
             "side": r["side"],
-            "points": [[u, v, c] for u, v, c in zip(r["u"], r["v"], r["clock_s"], strict=True)],
+            # Rounded here, not in the aggregation above: see _r().
+            "points": [
+                [_r(u), _r(v), _r(c, 1)]
+                for u, v, c in zip(r["u"], r["v"], r["clock_s"], strict=True)
+            ],
         }
         for r in df.iter_rows(named=True)
     ]

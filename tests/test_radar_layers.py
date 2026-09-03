@@ -95,6 +95,43 @@ def test_trails_stride_decimates_and_trail_rounds_caps(frames, cal) -> None:
     assert {t["round_num"] for t in capped} == {1}
 
 
+def test_trails_coordinates_are_exact_4_decimal_floats(frames) -> None:
+    """A non-dyadic calibration (every real map) must still ship 4-decimal floats.
+
+    radar_test_cal() hides Float32 rounding error because its coordinates are all
+    dyadic fractions; de_anubis' scale=5.22 is not.
+    """
+    from counterstrat.radar.extract import RadarCalibration
+
+    anubis = RadarCalibration(
+        map_name="de_anubis", pos_x=-2796.0, pos_y=3328.0, scale=5.22, image_px=1024
+    )
+    trails = build_layers(frames, anubis, "teamA", LayerFilters(stride=1, trail_rounds=None))[
+        "layers"
+    ]["trails"]
+    assert trails
+    coords = [c for t in trails for pt in t["points"] for c in pt[:2]]
+    assert len(coords) == 32  # 2 rounds x 2 players x 4 samples x (u, v)
+    assert [c for c in coords if round(c, 4) != c] == []
+    clocks = [pt[2] for t in trails for pt in t["points"]]
+    assert [c for c in clocks if round(c, 1) != c] == []
+
+
+def test_trails_never_ship_negative_zero(frames) -> None:
+    """Coordinates a hair below the image origin round to -0.0; the wire wants 0.0."""
+    from counterstrat.radar.extract import RadarCalibration
+
+    just_off = RadarCalibration(
+        map_name="de_test", pos_x=0.01, pos_y=-0.01, scale=5.22, image_px=1024
+    )
+    trails = build_layers(frames, just_off, "teamA", LayerFilters(stride=1, trail_rounds=None))[
+        "layers"
+    ]["trails"]
+    coords = [c for t in trails for pt in t["points"] for c in pt[:2]]
+    assert 0.0 in coords  # the near-origin samples are present...
+    assert not any(str(c) == "-0.0" for c in coords)  # ...as +0.0, not -0.0
+
+
 def test_utility_keeps_only_team_projectiles(frames, cal) -> None:
     util = build_layers(frames, cal, "teamA", LayerFilters())["layers"]["utility"]
     assert [u["kind"] for u in util] == ["smoke", "molotov"]
