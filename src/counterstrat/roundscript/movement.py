@@ -1,13 +1,21 @@
 """View B movement sentences: per-player zone sequences with dwell compression and event marks."""
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
 import polars as pl
 
-from counterstrat.constants import BEAT_INTERVAL_S
+from counterstrat.constants import BEAT_INTERVAL_S, UNITS_PER_METER
 from counterstrat.roundscript.models import KillEvent, MovementLine, PlantEvent, ZoneStint
+
+# Gaze semantics (space-vision research item 4). Yaw convention verified on
+# real kills: degrees, 0 = +X (east), CCW positive; attacker yaw matches
+# atan2(victim - attacker) with ~2 deg median error.
+HOLD_MIN_S = 8  # stints shorter than this are transit, not holds
+LOCKED_STD_DEG = 15.0  # circular yaw std below this = locked angle (probe: 9 deg)
+GAZE_CONE_DEG = 40.0  # a watched zone's centroid must sit within this of mean yaw
 
 
 @dataclass
@@ -98,27 +106,43 @@ def _dwell_merge(visits: list[_Visit], min_dwell_s: float) -> list[_Visit]:
 
 
 def zone_stints(
-    ticks: pl.DataFrame, round_num: int, min_dwell_s: float = 2.0
+    ticks: pl.DataFrame,
+    round_num: int,
+    min_dwell_s: float = 2.0,
+    sightlines: list[dict] | None = None,
 ) -> tuple[dict[str, list[ZoneStint]], dict[str, str]]:
     """Per-player debounced zone stints for one round (2026-09-04 plan Task 3).
 
     Samples each alive player's effective zone once per whole second past
     freeze end, runs the same dwell merge the movement sentences use, and
     returns ``(tracks, sides)`` keyed by player name. Feeds
-    ``RoundScript.tracks`` and the MOVE lines of ``to_timeline_text``.
+    ``RoundScript.tracks`` and the MOVE/HOLD lines of ``to_timeline_text``.
+
+    When the ticks carry view columns (X, Y, yaw), hold-stints additionally
+    get gaze semantics (watched zone, locked flag, trade-support distance);
+    ``sightlines`` (the card's empirical visibility matrix) restricts watched
+    candidates to zones observed visible from the stint zone.
     """
     req = {"round_num", "clock_s", "name", "team_name", "is_alive", "last_place_name"}
     if ticks.is_empty() or not req.issubset(ticks.columns):
         return {}, {}
+    round_ticks = ticks.filter((pl.col("round_num") == round_num) & (pl.col("clock_s") >= 0.0))
+    has_view = {"X", "Y", "yaw"}.issubset(ticks.columns)
+    aggs = [
+        pl.col("last_place_name").first().alias("_zone"),
+        pl.col("team_name").first().alias("_team"),
+        pl.col("is_alive").first().alias("_alive"),
+    ]
+    if has_view:
+        aggs += [
+            pl.col("X").first().alias("_x"),
+            pl.col("Y").first().alias("_y"),
+            pl.col("yaw").first().alias("_yaw"),
+        ]
     sec = (
-        ticks.filter((pl.col("round_num") == round_num) & (pl.col("clock_s") >= 0.0))
-        .with_columns(pl.col("clock_s").floor().cast(pl.Int32).alias("_s"))
+        round_ticks.with_columns(pl.col("clock_s").floor().cast(pl.Int32).alias("_s"))
         .group_by("name", "_s")
-        .agg(
-            pl.col("last_place_name").first().alias("_zone"),
-            pl.col("team_name").first().alias("_team"),
-            pl.col("is_alive").first().alias("_alive"),
-        )
+        .agg(aggs)
         .sort("name", "_s")
     )
     tracks: dict[str, list[ZoneStint]] = {}
@@ -155,7 +179,116 @@ def zone_stints(
         tracks[player] = [
             ZoneStint(t0=int(v.start_t), t1=int(v.end_t), zone=v.zone) for v in merged
         ]
+    if has_view:
+        _annotate_gaze(tracks, sides, sec, ticks, sightlines)
     return tracks, sides
+
+
+def _circ_mean_std_deg(degs: list[float]) -> tuple[float, float]:
+    """Circular mean and standard deviation of angles in degrees."""
+    cx = sum(math.cos(math.radians(d)) for d in degs) / len(degs)
+    cy = sum(math.sin(math.radians(d)) for d in degs) / len(degs)
+    r = min(1.0, math.hypot(cx, cy))
+    mean = math.degrees(math.atan2(cy, cx))
+    std = math.degrees(math.sqrt(-2.0 * math.log(max(r, 1e-9))))
+    return mean, std
+
+
+def _circ_diff_deg(a: float, b: float) -> float:
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def _annotate_gaze(
+    tracks: dict[str, list[ZoneStint]],
+    sides: dict[str, str],
+    sec: pl.DataFrame,
+    all_ticks: pl.DataFrame,
+    sightlines: list[dict] | None,
+) -> None:
+    """Fill watched/locked/support_m on hold-stints, in place.
+
+    Zone centroids come from the whole match's ticks (stable across rounds);
+    the watched zone is the nearest centroid inside the gaze cone around the
+    stint's circular-mean yaw, restricted to the stint zone's sightline
+    partners when the matrix knows any.
+    """
+    cent = (
+        all_ticks.filter(
+            pl.col("last_place_name").is_not_null() & (pl.col("last_place_name") != "")
+        )
+        .group_by("last_place_name")
+        .agg(pl.col("X").mean().alias("cx"), pl.col("Y").mean().alias("cy"))
+    )
+    centroids = {
+        str(r["last_place_name"]): (float(r["cx"]), float(r["cy"]))
+        for r in cent.iter_rows(named=True)
+        if r["cx"] is not None
+    }
+    if not centroids:
+        return
+
+    partners: dict[str, set[str]] = {}
+    for sl in sightlines or []:
+        a, b = str(sl.get("from") or ""), str(sl.get("to") or "")
+        if a and b:
+            partners.setdefault(a, set()).add(b)
+            partners.setdefault(b, set()).add(a)
+
+    # (player, second) -> (x, y, yaw); second -> side -> [(player, x, y)]
+    pos: dict[tuple[str, int], tuple[float, float, float]] = {}
+    by_sec: dict[int, dict[str, list[tuple[str, float, float]]]] = {}
+    for row in sec.iter_rows(named=True):
+        if not row["_alive"] or row["_x"] is None or row["_yaw"] is None:
+            continue
+        player, s = str(row["name"]), int(row["_s"])
+        x, y = float(row["_x"]), float(row["_y"])
+        pos[(player, s)] = (x, y, float(row["_yaw"]))
+        side = sides.get(player) or _normalize_side(row["_team"])
+        by_sec.setdefault(s, {}).setdefault(side, []).append((player, x, y))
+
+    for player, stints in tracks.items():
+        side = sides.get(player, "")
+        for st in stints:
+            if st.t1 - st.t0 < HOLD_MIN_S:
+                continue
+            samples = [pos[(player, s)] for s in range(st.t0, st.t1) if (player, s) in pos]
+            if len(samples) < HOLD_MIN_S // 2:
+                continue
+            yaws = [s[2] for s in samples]
+            mean_yaw, yaw_std = _circ_mean_std_deg(yaws)
+            mx = sum(s[0] for s in samples) / len(samples)
+            my = sum(s[1] for s in samples) / len(samples)
+
+            allowed = partners.get(st.zone)
+            best: tuple[float, str] | None = None
+            for zone, (cx, cy) in centroids.items():
+                if zone == st.zone or (allowed is not None and zone not in allowed):
+                    continue
+                bearing = math.degrees(math.atan2(cy - my, cx - mx))
+                if _circ_diff_deg(bearing, mean_yaw) > GAZE_CONE_DEG:
+                    continue
+                d = math.hypot(cx - mx, cy - my)
+                if best is None or d < best[0]:
+                    best = (d, zone)
+            if best is not None:
+                st.watched = best[1]
+                st.locked = yaw_std <= LOCKED_STD_DEG
+
+            mate_dists = []
+            for s in range(st.t0, st.t1):
+                me = pos.get((player, s))
+                if me is None:
+                    continue
+                mates = [
+                    math.hypot(x - me[0], y - me[1])
+                    for p, x, y in by_sec.get(s, {}).get(side, [])
+                    if p != player
+                ]
+                if mates:
+                    mate_dists.append(min(mates))
+            if mate_dists:
+                mate_dists.sort()
+                st.support_m = round(mate_dists[len(mate_dists) // 2] / UNITS_PER_METER, 1)
 
 
 def _normalize_side(side_val: Any) -> str:

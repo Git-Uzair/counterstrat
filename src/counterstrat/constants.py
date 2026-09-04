@@ -25,6 +25,7 @@ BUY_BINS = {  # upper bounds, USD equip value
 # text, the range-profile miner, and sightline labels - one source.
 RANGE_CLOSE_M = 15.0  # below: "close"
 RANGE_LONG_M = 35.0  # above: "long"; between: "medium"
+UNITS_PER_METER = 39.3701  # 1 Hammer unit = 1 inch; tick XYZ -> meters
 
 
 def range_band(distance_m: float) -> str:

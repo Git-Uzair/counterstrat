@@ -169,7 +169,18 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
                 card_path.parent.mkdir(parents=True, exist_ok=True)
                 card_path.write_text(card.to_yaml(), encoding="utf-8")
 
-    # 3. Re-serialize scripts per match with a mapper trained on the new
+    # 3. Sightlines from the full lake, before scripts so stint gaze sees the
+    # matrix (re-zoned kills places stay engine names, which remain in the
+    # card vocabulary alongside custom zones).
+    sightlines: list[dict] = []
+    try:
+        from counterstrat.mapcard.visibility import refresh_card_sightlines
+
+        sightlines = refresh_card_sightlines(cfg.data_root, map_name)
+    except Exception as exc:  # noqa: BLE001 - sightlines must never fail a rebuild
+        logger.warning("Sightline refresh failed for %s: %s", map_name, exc)
+
+    # 4. Re-serialize scripts per match with a mapper trained on the new
     # vocabulary.
     for mid in matches:
         lake = _lake_paths(cfg.data_root, mid)
@@ -185,7 +196,9 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
         else:
             places = sorted(_effective_tick_places(ticks_df)) or ["Default"]
         lex = _lexicon_or_fallback(map_name, places)
-        scripts = serialize_match(lake, mapper, lex, card.checksum if card else "none")
+        scripts = serialize_match(
+            lake, mapper, lex, card.checksum if card else "none", sightlines=sightlines or None
+        )
         if scripts:
             scripts_dir = cfg.data_root / "scripts" / mid
             shutil.rmtree(scripts_dir, ignore_errors=True)
@@ -194,15 +207,6 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
                 (scripts_dir / f"round_{s.round_num}.json").write_text(
                     s.to_json(), encoding="utf-8"
                 )
-
-    # 4. Sightlines from the full lake (re-zoned kills places stay engine
-    # names, which remain in the card vocabulary alongside custom zones).
-    try:
-        from counterstrat.mapcard.visibility import refresh_card_sightlines
-
-        refresh_card_sightlines(cfg.data_root, map_name)
-    except Exception as exc:  # noqa: BLE001 - sightlines must never fail a rebuild
-        logger.warning("Sightline refresh failed for %s: %s", map_name, exc)
 
     # 5. Re-mine every teambook (recluster + prune, existing machinery).
     stats = rebuild_artifacts(cfg)

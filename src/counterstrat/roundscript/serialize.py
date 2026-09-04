@@ -28,6 +28,7 @@ def serialize_round(
     utils: list[UtilEvent] | None = None,
     score_t: int = 0,
     score_ct: int = 0,
+    sightlines: list[dict] | None = None,
 ) -> RoundScript:
     """Serialize a single round into a RoundScript model."""
     r_df = rounds_df if rounds_df is not None else pl.read_parquet(lake.rounds)
@@ -156,8 +157,9 @@ def serialize_round(
     # Movements
     movements = movement_sentences(t_df, kills=kill_events, round_num=round_num, plants=plant)
 
-    # Per-player zone stints (timeline MOVE lines, plan Task 3)
-    tracks, sides = zone_stints(t_df, round_num=round_num)
+    # Per-player zone stints (timeline MOVE/HOLD lines, plan Task 3) with gaze
+    # semantics restricted by the card's empirical sightlines when present.
+    tracks, sides = zone_stints(t_df, round_num=round_num, sightlines=sightlines)
 
     match_id = str(r_dict.get("match_id") or Path(lake.root).name)
     winner_str = _normalize_side(r_dict.get("winner"))
@@ -191,6 +193,7 @@ def serialize_match(
     mapper: ZoneMapper,
     lex: Lexicon,
     card_checksum: str,
+    sightlines: list[dict] | None = None,
 ) -> list[RoundScript]:
     """Serialize all rounds of a match demo into RoundScript models."""
     rounds_df = pl.read_parquet(lake.rounds).sort("round_num")
@@ -238,6 +241,7 @@ def serialize_match(
             utils=utils_by_round.get(rn, []),
             score_t=score_t,
             score_ct=score_ct,
+            sightlines=sightlines,
         )
         scripts.append(script)
 

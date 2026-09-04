@@ -133,8 +133,8 @@ def test_refresh_card_sightlines_end_to_end(tmp_path):
     }
     (card_dir / "card.yaml").write_text(yaml.dump(card), encoding="utf-8")
 
-    n = refresh_card_sightlines(data_root, "de_test")
-    assert n == 1  # one pair, n=2 across the two matches
+    written = refresh_card_sightlines(data_root, "de_test")
+    assert len(written) == 1  # one pair, n=2 across the two matches
 
     saved = yaml.safe_load((card_dir / "card.yaml").read_text(encoding="utf-8"))
     assert saved["sightlines"] == [
@@ -143,7 +143,7 @@ def test_refresh_card_sightlines_end_to_end(tmp_path):
     assert saved["checksum"] == "chk"  # compile provenance untouched
 
     # maps without a card are a no-op, not a crash
-    assert refresh_card_sightlines(data_root, "de_missing") == 0
+    assert refresh_card_sightlines(data_root, "de_missing") == []
 
 
 def test_scene_graph_renders_sightlines():

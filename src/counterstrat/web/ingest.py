@@ -253,8 +253,19 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
         state.stage = "serializing"
         save_job_state(cfg.data_root, state)
 
+        # Sightlines aggregate every match on this map INCLUDING the one just
+        # extracted; refresh before serializing so stint gaze annotations see
+        # the freshest matrix, and it grows with the corpus.
+        sightlines: list[dict] = []
+        try:
+            from counterstrat.mapcard.visibility import refresh_card_sightlines
+
+            sightlines = refresh_card_sightlines(cfg.data_root, rec.map_name)
+        except Exception as exc:  # noqa: BLE001 - sightlines must never fail an ingest
+            logger.warning("Sightline refresh failed for %s: %s", rec.map_name, exc)
+
         card_checksum = card.checksum if card is not None else "none"
-        scripts = serialize_match(lake, mapper, lex, card_checksum)
+        scripts = serialize_match(lake, mapper, lex, card_checksum, sightlines=sightlines or None)
 
         for s in scripts:
             s_path = cfg.data_root / "scripts" / rec.match_id / f"round_{s.round_num}.json"
@@ -290,15 +301,6 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             keys = cluster.all_keys() if cluster else {tk}
             team_scripts = _scripts_for_keys(cfg.data_root, rec.map_name, keys, team_id, scripts)
             mine_team_artifacts(cfg, team_id, rec.map_name, team_scripts)
-
-        # Sightlines aggregate every match on the map: refresh after each ingest
-        # so the card's visibility evidence grows with the corpus.
-        try:
-            from counterstrat.mapcard.visibility import refresh_card_sightlines
-
-            refresh_card_sightlines(cfg.data_root, rec.map_name)
-        except Exception as exc:  # noqa: BLE001 - sightlines must never fail an ingest
-            logger.warning("Sightline refresh failed for %s: %s", rec.map_name, exc)
 
         # 5. Done
         state.stage = "done"

@@ -62,11 +62,19 @@ class MovementLine(BaseModel):  # filled by Task 14
 
 
 class ZoneStint(BaseModel):
-    """One contiguous alive stay in a zone, whole seconds since freeze end."""
+    """One contiguous alive stay in a zone, whole seconds since freeze end.
+
+    Gaze fields (space-vision research item 4) are set only on hold-stints
+    (>= 8s) serialized after the upgrade; None means "not annotated", never
+    "confirmed nothing".
+    """
 
     t0: int
     t1: int
     zone: str
+    watched: str | None = None  # zone the stint's view direction centered on
+    locked: bool | None = None  # True: held one line; False: scanning sweep
+    support_m: float | None = None  # median distance to nearest living teammate
 
 
 class RoundScript(BaseModel):
@@ -181,13 +189,35 @@ class RoundScript(BaseModel):
             spawn = ", ".join(f"{p}:`{st[0].zone}`" for p, st in sorted(self.tracks.items()) if st)
             if spawn:
                 lines.append(f"t=0s SPAWNS {spawn}")
+
+            def _gaze(st: ZoneStint) -> str:
+                if not st.watched:
+                    return ""
+                parts = [f"{'locked' if st.locked else 'scanning'}"]
+                if st.support_m is not None:
+                    parts.append(f"nearest mate {st.support_m:.0f}m")
+                return f" watching `{st.watched}` ({', '.join(parts)})"
+
             for player, stints in sorted(self.tracks.items()):
-                for st in stints[1:]:
+                for i, st in enumerate(stints):
+                    gaze = _gaze(st)
+                    if i == 0:
+                        # spawn stint: only noteworthy when a watch resolved
+                        if gaze:
+                            events.append(
+                                (
+                                    float(st.t0),
+                                    0,
+                                    f"HOLD {player} ({self._side_of(player)}) in `{st.zone}`{gaze}",
+                                )
+                            )
+                        continue
                     events.append(
                         (
                             float(st.t0),
                             0,
-                            f"MOVE {player} ({self._side_of(player)}) enters `{st.zone}`",
+                            f"MOVE {player} ({self._side_of(player)}) enters `{st.zone}`"
+                            + (f",{gaze}" if gaze else ""),
                         )
                     )
         for k in self.kills:

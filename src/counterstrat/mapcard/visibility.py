@@ -75,22 +75,23 @@ def build_sightlines(kills: pl.DataFrame, valid_zones: set[str] | None = None) -
     ]
 
 
-def refresh_card_sightlines(data_root: Path, map_name: str) -> int:
+def refresh_card_sightlines(data_root: Path, map_name: str) -> list[dict]:
     """Recompute the map card's sightlines from every lake kill on this map.
 
-    Called after ingest and zone rebuilds so the matrix grows with the corpus.
+    Called on ingest and zone rebuilds (before scripts serialize, so stint
+    gaze annotations see the matrix) - the evidence grows with the corpus.
     Rewrites card.yaml in place; the compile-time checksum is provenance and
-    stays untouched. Returns the number of sightline pairs written (0 when no
-    card or no evidence).
+    stays untouched. Returns the sightlines written ([] when no card or no
+    evidence).
     """
     from counterstrat.corpus import load_manifest
 
     card_path = data_root / "mapcards" / map_name / "card.yaml"
     if not card_path.exists():
-        return 0
+        return []
     card = yaml.safe_load(card_path.read_text(encoding="utf-8"))
     if not isinstance(card, dict):
-        return 0
+        return []
 
     manifest = load_manifest(data_root / "corpus.jsonl")
     frames: list[pl.DataFrame] = []
@@ -117,4 +118,4 @@ def refresh_card_sightlines(data_root: Path, map_name: str) -> int:
     from counterstrat.mapcard.compile import MapCard
 
     card_path.write_text(MapCard(**card).to_yaml(), encoding="utf-8")
-    return len(sightlines)
+    return sightlines
