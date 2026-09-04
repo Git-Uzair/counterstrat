@@ -21,7 +21,7 @@ MAX_PLAYERS = 10
 
 class RangeStats(BaseModel):
     n: int
-    median_dist: float
+    median_dist: float  # meters (awpy kills.distance unit)
     close_share: float
     medium_share: float
     long_share: float
@@ -32,7 +32,7 @@ class RangeStats(BaseModel):
 class PlayerRange(BaseModel):
     player: str
     n: int
-    median_dist: float
+    median_dist: float  # meters
     close_share: float
     long_share: float
 
@@ -53,7 +53,7 @@ class RangeProfile(BaseModel):
         def _fmt(s: RangeStats) -> str:
             base = (
                 f"{s.close_share:.0%} close / {s.medium_share:.0%} medium / "
-                f"{s.long_share:.0%} long (n={s.n}, median {s.median_dist:.0f}u)"
+                f"{s.long_share:.0%} long (n={s.n}, median {s.median_dist:.0f}m)"
             )
             extras = []
             if s.smoke_share > 0:
@@ -69,7 +69,7 @@ class RangeProfile(BaseModel):
             lines.append(f"- low buys (eco/force): {_fmt(self.low_buy)}")
         for p in self.players:
             lines.append(
-                f"- {p.player}: median {p.median_dist:.0f}u, {p.close_share:.0%} close, "
+                f"- {p.player}: median {p.median_dist:.0f}m, {p.close_share:.0%} close, "
                 f"{p.long_share:.0%} long (n={p.n})"
             )
         return lines

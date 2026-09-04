@@ -195,10 +195,19 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
                     s.to_json(), encoding="utf-8"
                 )
 
-    # 4. Re-mine every teambook (recluster + prune, existing machinery).
+    # 4. Sightlines from the full lake (re-zoned kills places stay engine
+    # names, which remain in the card vocabulary alongside custom zones).
+    try:
+        from counterstrat.mapcard.visibility import refresh_card_sightlines
+
+        refresh_card_sightlines(cfg.data_root, map_name)
+    except Exception as exc:  # noqa: BLE001 - sightlines must never fail a rebuild
+        logger.warning("Sightline refresh failed for %s: %s", map_name, exc)
+
+    # 5. Re-mine every teambook (recluster + prune, existing machinery).
     stats = rebuild_artifacts(cfg)
 
-    # 5. Stale LLM caches for THIS map speak the old vocabulary - delete.
+    # 6. Stale LLM caches for THIS map speak the old vocabulary - delete.
     tb_root = cfg.data_root / "teambooks"
     if tb_root.exists():
         for team_dir in tb_root.iterdir():

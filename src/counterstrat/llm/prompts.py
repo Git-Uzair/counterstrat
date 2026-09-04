@@ -3,7 +3,7 @@
 import math
 from typing import TYPE_CHECKING
 
-from counterstrat.constants import RANGE_CLOSE_U, RANGE_LONG_U
+from counterstrat.constants import RANGE_CLOSE_M, RANGE_LONG_M
 from counterstrat.mining.econ_policy import EconPolicy
 from counterstrat.mining.gaps import GapReport
 from counterstrat.mining.range_profile import RangeProfile
@@ -40,7 +40,7 @@ TACTICAL_DOCTRINE = f"""Space and purpose:
 - Counter a duel lurk / angle hold by refusing the duel: clear with utility, peek in
   trade pairs, or ignore him - a held angle expires with the round clock.
 
-Engagement range (close < {RANGE_CLOSE_U:.0f}u, long > {RANGE_LONG_U:.0f}u):
+Engagement range (close < {RANGE_CLOSE_M:.0f}m, long > {RANGE_LONG_M:.0f}m):
 - Fight the range your weapons win and force the enemy to fight the range theirs
   lose. SMG/pistol buys win close: against them hold distance, refuse entries, take
   long first contacts. AWPs and scoped rifles win long: smoke the long sightline off
@@ -153,6 +153,16 @@ def format_map_scene_graph(card: "MapCard", anchors: dict[str, tuple]) -> str:
     if timing_lines:
         lines.append("earliest_reach:  # seconds from spawn each side first reaches the zone")
         lines.extend(timing_lines)
+    if card.sightlines:
+        lines.append(
+            "sightlines:  # zone pairs that SEE each other (observed kills; "
+            "bidirectional; n = evidence count)"
+        )
+        for sl in card.sightlines:
+            lines.append(
+                f"- `{sl['from']}` <-> `{sl['to']}`: {sl['range']} "
+                f"(~{sl['median_dist']:.0f}m, n={sl['n']})"
+            )
     return "\n".join(lines)
 
 
@@ -315,7 +325,7 @@ def build_user(
         "",
     ]
     if range_profile is not None and (range_lines := range_profile.to_prompt_lines()):
-        sections.append("## Engagement Range Profile (kill distances, Hammer units)")
+        sections.append("## Engagement Range Profile (kill distances in meters)")
         sections.extend(range_lines)
         sections.append("")
     if utility_book is not None and utility_book.patterns:

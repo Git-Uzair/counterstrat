@@ -247,6 +247,15 @@ def _build_session(
                     )
                     card_path.parent.mkdir(parents=True, exist_ok=True)
                     card_path.write_text(card.to_yaml(), encoding="utf-8")
+                    try:
+                        from counterstrat.mapcard.visibility import refresh_card_sightlines
+
+                        if refresh_card_sightlines(cfg.data_root, map_name):
+                            card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+                            if isinstance(card_data, dict):
+                                card = MapCard(**card_data)
+                    except Exception as exc:  # noqa: BLE001 - sightlines are optional
+                        logger.warning("Sightline refresh failed for %s: %s", map_name, exc)
                 except Exception as exc:
                     logger.exception("Mapcard compilation failed: %s", exc)  # noqa: TRY401
                     card = None

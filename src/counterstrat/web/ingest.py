@@ -291,6 +291,15 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
             team_scripts = _scripts_for_keys(cfg.data_root, rec.map_name, keys, team_id, scripts)
             mine_team_artifacts(cfg, team_id, rec.map_name, team_scripts)
 
+        # Sightlines aggregate every match on the map: refresh after each ingest
+        # so the card's visibility evidence grows with the corpus.
+        try:
+            from counterstrat.mapcard.visibility import refresh_card_sightlines
+
+            refresh_card_sightlines(cfg.data_root, rec.map_name)
+        except Exception as exc:  # noqa: BLE001 - sightlines must never fail an ingest
+            logger.warning("Sightline refresh failed for %s: %s", rec.map_name, exc)
+
         # 5. Done
         state.stage = "done"
         save_job_state(cfg.data_root, state)

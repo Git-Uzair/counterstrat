@@ -164,7 +164,7 @@ def build_insights_user(
     # corpus scripts, so the profile covers every kill with a distance.
     range_lines = build_range_profile(scripts, teambook.team_key).to_prompt_lines()
     if range_lines:
-        sections += ["", "## Engagement Range Profile (kill distances, Hammer units)"]
+        sections += ["", "## Engagement Range Profile (kill distances in meters)"]
         sections += range_lines
     sections += ["", "## All Round Timelines (ground truth; every kill and grenade timestamped)"]
     for s in sorted(scripts, key=lambda s: (s.match_id, s.round_num)):

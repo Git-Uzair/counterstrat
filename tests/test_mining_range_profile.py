@@ -84,11 +84,11 @@ def test_range_profile_bands_medians_and_flags():
             "T",
             "full_buy",
             [
-                _kill("p1", "T", 200.0),
-                _kill("p1", "T", 500.0, thrusmoke=True),
-                _kill("p2", "T", 1000.0),
-                _kill("p2", "T", 2000.0, penetrated=True),
-                _kill("e1", "CT", 3000.0),  # opponent kill: excluded
+                _kill("p1", "T", 8.0),
+                _kill("p1", "T", 12.0, thrusmoke=True),
+                _kill("p2", "T", 20.0),
+                _kill("p2", "T", 40.0, penetrated=True),
+                _kill("e1", "CT", 30.0),  # opponent kill: excluded
             ],
         ),
     ]
@@ -99,7 +99,7 @@ def test_range_profile_bands_medians_and_flags():
     assert t.close_share == pytest.approx(0.5)
     assert t.medium_share == pytest.approx(0.25)
     assert t.long_share == pytest.approx(0.25)
-    assert t.median_dist == pytest.approx(750.0)
+    assert t.median_dist == pytest.approx(16.0)
     assert t.smoke_share == pytest.approx(0.25)
     assert t.wallbang_share == pytest.approx(0.25)
     assert "CT" not in prof.sides  # team never played CT here
@@ -107,10 +107,10 @@ def test_range_profile_bands_medians_and_flags():
 
 def test_range_profile_buy_split_and_players():
     scripts = [
-        _round(1, "T", "full_buy", [_kill("p1", "T", 1800.0), _kill("p1", "T", 1600.0)]),
-        _round(2, "T", "full_buy", [_kill("p1", "T", 1900.0)]),
-        _round(3, "T", "semi_eco", [_kill("p2", "T", 150.0), _kill("p2", "T", 250.0)]),
-        _round(4, "T", "full_eco", [_kill("p2", "T", 100.0)]),
+        _round(1, "T", "full_buy", [_kill("p1", "T", 45.0), _kill("p1", "T", 40.0)]),
+        _round(2, "T", "full_buy", [_kill("p1", "T", 50.0)]),
+        _round(3, "T", "semi_eco", [_kill("p2", "T", 5.0), _kill("p2", "T", 10.0)]),
+        _round(4, "T", "full_eco", [_kill("p2", "T", 3.0)]),
     ]
     prof = build_range_profile(scripts, TEAM)
     assert prof.full_buy is not None and prof.full_buy.n == 3
@@ -118,12 +118,12 @@ def test_range_profile_buy_split_and_players():
     assert prof.low_buy is not None and prof.low_buy.n == 3
     assert prof.low_buy.close_share == pytest.approx(1.0)
     p1 = next(p for p in prof.players if p.player == "p1")
-    assert p1.n == 3 and p1.median_dist == pytest.approx(1800.0)
+    assert p1.n == 3 and p1.median_dist == pytest.approx(45.0)
     assert p1.long_share == pytest.approx(1.0)
 
 
 def test_range_profile_skips_none_distance_and_unknown_team():
-    scripts = [_round(1, "T", "full_buy", [_kill("p1", "T", None), _kill("p1", "T", 300.0)])]
+    scripts = [_round(1, "T", "full_buy", [_kill("p1", "T", None), _kill("p1", "T", 8.0)])]
     prof = build_range_profile(scripts, TEAM)
     assert prof.sides["T"].n == 1  # None-distance kill (pre-upgrade script) skipped
     assert prof.kills_total == 2 and prof.kills_with_distance == 1
@@ -134,7 +134,7 @@ def test_range_profile_skips_none_distance_and_unknown_team():
 
 def test_range_profile_prompt_lines_render():
     scripts = [
-        _round(1, "T", "full_buy", [_kill("p1", "T", 200.0), _kill("p1", "T", 1800.0)]),
+        _round(1, "T", "full_buy", [_kill("p1", "T", 8.0), _kill("p1", "T", 45.0)]),
     ]
     lines = build_range_profile(scripts, TEAM).to_prompt_lines()
     text = "\n".join(lines)
@@ -153,8 +153,8 @@ def test_range_profile_surfaces_in_prompts():
     from counterstrat.mining.utility_book import build_utility_book
 
     scripts = [
-        _round(1, "T", "full_buy", [_kill("p1", "T", 200.0), _kill("p1", "T", 1800.0)]),
-        _round(2, "T", "full_buy", [_kill("p1", "T", 900.0)]),
+        _round(1, "T", "full_buy", [_kill("p1", "T", 8.0), _kill("p1", "T", 45.0)]),
+        _round(2, "T", "full_buy", [_kill("p1", "T", 20.0)]),
     ]
     prof = build_range_profile(scripts, TEAM)
     tb = build_teambook(scripts, TEAM)

@@ -30,7 +30,7 @@ class KillEvent(BaseModel):
     traded_within_4s: bool
     # Range fields (space-vision research item 2); None/False on scripts
     # serialized before the upgrade - consumers must skip, not crash.
-    distance: float | None = None  # attacker->victim, Hammer units
+    distance: float | None = None  # attacker->victim in METERS (awpy unit)
     thrusmoke: bool = False
     penetrated: bool = False  # wallbang
 

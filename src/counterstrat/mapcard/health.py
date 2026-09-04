@@ -151,7 +151,14 @@ def check_card_health(card: MapCard, anchors: dict[str, tuple]) -> list[dict[str
         )
 
     if not card.sightlines:
-        out.append(_f("info", "no_sightlines", "no sightline data (not computed for any map yet)"))
+        out.append(
+            _f(
+                "info",
+                "no_sightlines",
+                "no sightline data yet: built from clean kills at ingest/rebuild, "
+                "grows with the corpus",
+            )
+        )
     return out
 
 

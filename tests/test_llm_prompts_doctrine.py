@@ -27,10 +27,10 @@ def test_doctrine_separates_info_lurk_from_duel_lurk():
 
 def test_doctrine_carries_engagement_range_bands():
     # bands must quote the shared constants so text and miners cannot drift
-    from counterstrat.constants import RANGE_CLOSE_U, RANGE_LONG_U
+    from counterstrat.constants import RANGE_CLOSE_M, RANGE_LONG_M
 
-    assert f"{RANGE_CLOSE_U:.0f}u" in TACTICAL_DOCTRINE
-    assert f"{RANGE_LONG_U:.0f}u" in TACTICAL_DOCTRINE
+    assert f"{RANGE_CLOSE_M:.0f}m" in TACTICAL_DOCTRINE
+    assert f"{RANGE_LONG_M:.0f}m" in TACTICAL_DOCTRINE
     assert "force" in TACTICAL_DOCTRINE.lower()  # force the other range
 
 
