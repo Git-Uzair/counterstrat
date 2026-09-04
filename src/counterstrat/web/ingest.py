@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Literal
@@ -37,13 +38,31 @@ class JobState(BaseModel):
 
 
 def save_job_state(data_root: Path, state: JobState) -> None:
-    """Atomically save job state to <data_root>/jobs/<job_id>.json."""
+    """Atomically save job state to <data_root>/jobs/<job_id>.json.
+
+    Windows: the UI polls this same file, and Python readers hold it without
+    FILE_SHARE_DELETE, so os.replace raises PermissionError whenever a poll
+    overlaps a save (WinError 5; killed an ingest on 2026-09-04). Readers hold
+    the handle for milliseconds - retry briefly instead of dying, and never
+    leak the temp file.
+    """
     jobs_dir = data_root / "jobs"
     jobs_dir.mkdir(parents=True, exist_ok=True)
     target = jobs_dir / f"{state.job_id}.json"
     temp_target = jobs_dir / f"{state.job_id}.json.tmp_{os.getpid()}_{uuid.uuid4().hex}"
     temp_target.write_text(state.model_dump_json(indent=2), encoding="utf-8")
-    os.replace(temp_target, target)
+    try:
+        for attempt in range(40):  # ~1s worst case at 25ms steps
+            try:
+                os.replace(temp_target, target)
+                return
+            except PermissionError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.025)
+    finally:
+        if temp_target.exists():
+            temp_target.unlink(missing_ok=True)
 
 
 def load_job_state(data_root: Path, job_id: str) -> JobState | None:
@@ -280,4 +299,7 @@ def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
         logger.exception("Ingest job %s failed", job_id)
         state.stage = "error"
         state.detail = str(exc)
-        save_job_state(cfg.data_root, state)
+        try:
+            save_job_state(cfg.data_root, state)
+        except Exception:
+            logger.exception("Could not persist error state for job %s", job_id)

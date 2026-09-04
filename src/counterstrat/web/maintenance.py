@@ -245,7 +245,10 @@ def run_zone_rebuild(job_id: str, map_name: str, cfg: AppConfig) -> None:
         logger.exception("Zone rebuild job %s failed", job_id)
         state.stage = "error"
         state.detail = str(exc)
-        save_job_state(cfg.data_root, state)
+        try:
+            save_job_state(cfg.data_root, state)
+        except Exception:
+            logger.exception("Could not persist error state for job %s", job_id)
 
 
 def mine_team_artifacts(
