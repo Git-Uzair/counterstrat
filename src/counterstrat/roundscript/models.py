@@ -28,6 +28,11 @@ class KillEvent(BaseModel):
     weapon: str
     headshot: bool
     traded_within_4s: bool
+    # Range fields (space-vision research item 2); None/False on scripts
+    # serialized before the upgrade - consumers must skip, not crash.
+    distance: float | None = None  # attacker->victim, Hammer units
+    thrusmoke: bool = False
+    penetrated: bool = False  # wallbang
 
 
 class UtilEvent(BaseModel):  # filled by Task 15

@@ -25,6 +25,7 @@ from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mining.econ_policy import build_econ_policy
 from counterstrat.mining.gaps import build_gap_report
+from counterstrat.mining.range_profile import RangeProfile, build_range_profile
 from counterstrat.mining.tendencies import TeamBook, build_teambook
 from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
@@ -122,9 +123,16 @@ def _lake_connection(cfg: AppConfig) -> Any:
         return None
 
 
-def _system_prompt(card: MapCard, teambook: TeamBook, anchors: dict | None = None) -> str:
+def _system_prompt(
+    card: MapCard,
+    teambook: TeamBook,
+    anchors: dict | None = None,
+    range_profile: RangeProfile | None = None,
+) -> str:
     """Doctrine + spatial scene graph + signal-filtered teambook, cacheable."""
-    return build_chat_system(format_map_scene_graph(card, anchors or {}), teambook)
+    return build_chat_system(
+        format_map_scene_graph(card, anchors or {}), teambook, range_profile=range_profile
+    )
 
 
 def _build_session(
@@ -336,7 +344,14 @@ def _build_session(
         session_id=session_id,
         team_key=team_key,
         map_name=map_name,
-        system=renamer.rename_text(_system_prompt(card, teambook, map_zone_anchors(cfg, map_name))),
+        system=renamer.rename_text(
+            _system_prompt(
+                card,
+                teambook,
+                map_zone_anchors(cfg, map_name),
+                range_profile=build_range_profile(script_list, team_key),
+            )
+        ),
         ctx=ctx,
     )
 

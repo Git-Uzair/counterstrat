@@ -80,6 +80,7 @@ def serialize_round(
         else:
             kzone = "Unknown"
 
+        dist = krow.get("distance")
         kill_events.append(
             KillEvent(
                 t=kt,
@@ -90,6 +91,9 @@ def serialize_round(
                 weapon=str(krow.get("weapon") or ""),
                 headshot=bool(krow.get("headshot", False)),
                 traded_within_4s=False,
+                distance=float(dist) if dist is not None else None,
+                thrusmoke=bool(krow.get("thrusmoke") or False),
+                penetrated=bool(krow.get("penetrated") or 0),
             )
         )
 

@@ -16,6 +16,7 @@ from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
 from counterstrat.mining.econ_policy import build_econ_policy
 from counterstrat.mining.gaps import build_gap_report
+from counterstrat.mining.range_profile import build_range_profile
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.mining.utility_book import build_utility_book
 from counterstrat.roundscript.models import RoundScript
@@ -182,6 +183,7 @@ def generate(
         utility_book=build_utility_book(scripts, teambook.team_key),
         gap_report=build_gap_report(scripts, teambook.team_key),
         econ_policy=build_econ_policy(scripts, teambook.team_key),
+        range_profile=build_range_profile(scripts, teambook.team_key),
     )
     if renamer:
         system = renamer.rename_text(system)

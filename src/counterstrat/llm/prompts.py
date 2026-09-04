@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from counterstrat.constants import RANGE_CLOSE_U, RANGE_LONG_U
 from counterstrat.mining.econ_policy import EconPolicy
 from counterstrat.mining.gaps import GapReport
+from counterstrat.mining.range_profile import RangeProfile
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.mining.utility_book import UtilityBook
 from counterstrat.roundscript.models import RoundScript
@@ -190,7 +191,12 @@ Mandatory Rules:
 """
 
 
-def build_chat_system(map_block: str, teambook: TeamBook, zone_map: str = "") -> str:
+def build_chat_system(
+    map_block: str,
+    teambook: TeamBook,
+    zone_map: str = "",
+    range_profile: RangeProfile | None = None,
+) -> str:
     """The interactive analyst chat system prompt: doctrine + signals + contract.
 
     Unlike the dossier prompt, this brief is exploit-first and length-capped:
@@ -200,6 +206,9 @@ def build_chat_system(map_block: str, teambook: TeamBook, zone_map: str = "") ->
     """
     total_rounds = sum(t.n for t in teambook.tendencies if t.level == 0)
     demos = ", ".join(teambook.generated_from) or "none"
+    range_block = ""
+    if range_profile is not None and (range_lines := range_profile.to_prompt_lines()):
+        range_block = "\n<engagement_range>\n" + "\n".join(range_lines) + "\n</engagement_range>\n"
     return f"""You are a CS2 anti-strat analyst briefing an in-game leader mid-preparation.
 You think in triggers and punishes, not averages. This is an interactive chat, not a report.
 
@@ -214,7 +223,7 @@ stronger reads, so state the coverage when the analyst asks how reliable a read 
 <team_signals>
 {teambook.to_table_text()}
 </team_signals>
-
+{range_block}
 Doctrine:
 - The unit of advice is trigger -> response -> punish: "when X happens they do Y, so
   pre-position Z". Prefer conditioned reads (get_gap_report triggers, get_playbook
@@ -290,8 +299,13 @@ def build_user(
     utility_book: UtilityBook | None = None,
     gap_report: GapReport | None = None,
     econ_policy: EconPolicy | None = None,
+    range_profile: RangeProfile | None = None,
 ) -> str:
-    """Build the user turn: TeamBook tables, mined artifacts, and exemplar scripts."""
+    """Build the user turn: TeamBook tables, mined artifacts, and exemplar scripts.
+
+    ``range_profile`` must be mined from ALL the team's scripts, not the
+    exemplar subset - callers with full scripts pass it in.
+    """
     sections = [
         "## Team Profile & Tendencies",
         teambook.to_table_text(),
@@ -300,6 +314,10 @@ def build_user(
         "\n".join(f"- {s}" for s in teambook.to_sentences()),
         "",
     ]
+    if range_profile is not None and (range_lines := range_profile.to_prompt_lines()):
+        sections.append("## Engagement Range Profile (kill distances, Hammer units)")
+        sections.extend(range_lines)
+        sections.append("")
     if utility_book is not None and utility_book.patterns:
         sections.append("## Utility Book (top patterns)")
         for p in utility_book.top_patterns(limit=10):
