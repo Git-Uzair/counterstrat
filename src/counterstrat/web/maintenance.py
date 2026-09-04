@@ -226,6 +226,20 @@ def run_zone_rebuild(job_id: str, map_name: str, cfg: AppConfig) -> None:
         save_job_state(cfg.data_root, state)
         state.stage = "done"
         state.detail = f"rebuilt {result['matches']} match(es), {result['zones']} custom zone(s)"
+        try:
+            from counterstrat.mapcard.health import check_map_health
+
+            report = check_map_health(cfg, map_name)
+            warns = int(report.get("warnings", 0))
+            if warns:
+                state.detail += (
+                    f"; map health: {warns} warning(s) - see /api/maps/{map_name}/health"
+                )
+                for f in report["findings"]:
+                    if f["level"] == "warn":
+                        logger.warning("Map health %s: %s - %s", map_name, f["code"], f["msg"])
+        except Exception as exc:  # noqa: BLE001 - health must never fail a rebuild
+            logger.warning("Map health check failed for %s: %s", map_name, exc)
         save_job_state(cfg.data_root, state)
     except Exception as exc:
         logger.exception("Zone rebuild job %s failed", job_id)

@@ -728,6 +728,16 @@ class ZoneUpdateRequest(BaseModel):
     zones: list[ZonePlacement]
 
 
+@router.get("/maps/{map_name}/health")
+def map_health(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
+    """Deterministic data-gap report: empty sites/rotates/timings, isolated
+    zones, teleport-class edges, missing anchors, pre-v2 scripts. The inferno
+    gaps (2026-09-04 plan) sat silent for weeks; this makes them loud."""
+    from counterstrat.mapcard.health import check_map_health
+
+    return check_map_health(cfg, map_name)
+
+
 @router.put("/maps/{map_name}/zones")
 def put_zones(
     map_name: str, req: ZoneUpdateRequest, cfg: ConfigDep, background_tasks: BackgroundTasks
