@@ -329,3 +329,42 @@ on the corpus before touching 5-8.
   game-state retrieval; the win-probability lineage.
 
 RESEARCH COMPLETE - no code changed; implementation awaits your go.
+
+## 10. Implementation status (addendum, 2026-09-04)
+
+Items 1-4 are implemented, tested, and committed on master; 5-8 are not
+started. Suite at completion: 379 passed / ruff clean.
+
+| # | Item | Status | Commit |
+|---|---|---|---|
+| 1 | Doctrine blocks (chat + insights system prompts) | DONE | a21adb6 |
+| 2 | Engagement-range profiles (KillEvent fields, miner, prompt surfaces) | DONE | c35e01c |
+| 3 | Empirical visibility matrix -> card `sightlines` + scene graph | DONE | a9d464c |
+| 4 | Gaze/stint semantics (watched/locked/support_m, HOLD timeline lines) | DONE | a094752 |
+| 5 | Stint-purpose classifier in role cards + First Read | NOT STARTED | - |
+| 6 | `get_vision` agent tool + vision-aware lint | NOT STARTED | - |
+| 7 | Route B geometric raycasts + validation harness | NOT STARTED | - |
+| 8 | Voronoi-style control metric per beat | NOT STARTED | - |
+
+Gate before 5-8 (per §8): re-measure First Read quality with/without the
+new blocks (§7.3 repr_bench pattern). NOT RUN yet.
+
+Corrections discovered during implementation:
+- awpy `kills.distance` is in METERS, not Hammer units (verified:
+  euclid(attacker,victim)/distance ~= 39.37 in/m). Range bands live in
+  `constants.py` as RANGE_CLOSE_M=15 / RANGE_LONG_M=35; §3.2's "300u"
+  phrasing and the "1400u Arch->Middle" exemplar should be read in meters
+  equivalents (~7.6m / ~35.5m).
+- Yaw convention verified on real kills (median 1.6 deg vs
+  bearing-to-victim): degrees, 0 = +X, CCW positive.
+
+Known gaps inside the implemented slice:
+- First Read corpus timelines use `to_timeline_text(lite=True)`, which
+  skips MOVE/HOLD lines - per-stint gaze reaches the dossier exemplars and
+  the chat `get_round_script` tool, but NOT the First Read prompt. Item 5
+  ("surfaced in First Read") is the intended fix.
+- Cards populate `sightlines` (and scripts gain gaze fields) only on the
+  next ingest or zone rebuild per map; maps not re-processed since the
+  change still carry `sightlines: []` and unannotated stints.
+- The dossier system prompt has no doctrine block (item 1 was scoped to
+  chat/insights); it gains sightlines via the shared scene graph only.
