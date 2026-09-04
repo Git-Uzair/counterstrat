@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import LLMClient, LLMResult
 from counterstrat.llm.dossier import lint_dossier
-from counterstrat.llm.prompts import format_map_scene_graph
+from counterstrat.llm.prompts import TACTICAL_DOCTRINE, format_map_scene_graph
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
 from counterstrat.mining.econ_policy import EconPolicy
@@ -87,6 +87,9 @@ Language rules - the reader is a player, not a database:
 - Say "first contact", "after the plant", "30s into the round" - never internal
   codes like FC, PL, B+30.
 - Wrap every zone name in backticks and use only zones from the Map Card.
+
+Tactical doctrine - apply when reading positions, lone players, and fight ranges:
+{TACTICAL_DOCTRINE}
 
 Hard rules:
 - Never present a consequence of normal play as an insight. Banned tautologies:

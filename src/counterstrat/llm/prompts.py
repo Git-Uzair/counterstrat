@@ -3,6 +3,7 @@
 import math
 from typing import TYPE_CHECKING
 
+from counterstrat.constants import RANGE_CLOSE_U, RANGE_LONG_U
 from counterstrat.mining.econ_policy import EconPolicy
 from counterstrat.mining.gaps import GapReport
 from counterstrat.mining.tendencies import TeamBook
@@ -15,6 +16,37 @@ if TYPE_CHECKING:
 SECTORS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
 
 COORD_NOTE = "u: 0=west edge -> 1=east edge, v: 0=NORTH edge -> 1=SOUTH edge (v grows southward)"
+
+# Space, lurker, and engagement-range doctrine (space-vision research §2-§3).
+# Injected verbatim into the chat and insights system prompts so the model
+# separates information-gathering positioning from duel-seeking positioning
+# and reasons about which range a fight favors instead of treating every
+# lone player as a peek threat.
+TACTICAL_DOCTRINE = f"""Space and purpose:
+- Map control is space plus information. A team holds an area when someone can punish
+  entry (a body watching it, utility denying it, a trade setup covering it); an area
+  nobody sees or punishes is conceded. Control only pays when converted - into an
+  execute behind it, a confirmed-info call, or a pick. "They take `X` then never use
+  it" and "they concede `Y` every round" are reads, not noise.
+- Read a lone player's PURPOSE before prescribing the counter. Info lurk: watching a
+  corridor the enemy must cross, repositions without contact, no teammate in trade
+  range, holds fire. Duel lurk / angle hold: locked on one combat angle, still or
+  re-peeking the same line, fires on first sight, often trade-supported.
+- Counter an info lurk by denying and punishing information: do not cross his watched
+  sightline, smoke it off when executing, and pre-aim his lurk-up corridor 2-3s after
+  your first contact elsewhere - that is when info lurkers move. Rotate through paths
+  he cannot see.
+- Counter a duel lurk / angle hold by refusing the duel: clear with utility, peek in
+  trade pairs, or ignore him - a held angle expires with the round clock.
+
+Engagement range (close < {RANGE_CLOSE_U:.0f}u, long > {RANGE_LONG_U:.0f}u):
+- Fight the range your weapons win and force the enemy to fight the range theirs
+  lose. SMG/pistol buys win close: against them hold distance, refuse entries, take
+  long first contacts. AWPs and scoped rifles win long: smoke the long sightline off
+  and force the close fight instead of crossing it.
+- A team's kill-distance profile is a read: kills clustered close mean tight
+  positions that must close space - fight them long; kills clustered long mean
+  static long-line holds - deny the line and flood the short route."""
 
 
 def format_zone_map(anchors: dict[str, tuple]) -> str:
@@ -197,6 +229,8 @@ Doctrine:
   (dump_windows), the zones it covered go naked - that is a timing window.
 - Pistols rarely produce reads. When pistol data is thin, say so and recommend a solid
   default instead of inventing a tendency.
+
+{TACTICAL_DOCTRINE}
 
 Answer contract:
 - Default answer <= 180 words, structured exactly as:
