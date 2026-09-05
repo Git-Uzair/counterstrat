@@ -6,6 +6,7 @@ Spec §6.6 View C (`U+12 donk smoke TSpawn>Window [lineup Window-S1]`) and §6.7
 
 import argparse
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,8 @@ from counterstrat.lake.extract import LakePaths
 from counterstrat.mapcard.zones import ZoneMapper
 from counterstrat.roundscript.models import UtilEvent
 from counterstrat.roundscript.movement import _normalize_side
+
+logger = logging.getLogger(__name__)
 
 # nade vocabulary (spec §6.6 View C) -> cluster-name initial
 NADE_INITIALS = {"smoke": "S", "flash": "F", "molly": "M", "he": "H"}
@@ -112,6 +115,20 @@ def _bloom_rows(
     freeze_end: int | None,
 ) -> list[dict[str, Any]]:
     """Rows from the awpy `smokes`/`infernos` tables (thrower_* origin, X/Y/Z landing)."""
+    # Rare rows have no thrower attribution at all (thrower_* all null - e.g. the
+    # thrower disconnected before the bloom): useless to mining (no side, no
+    # thrower) and NaN coords crash the KNN. Drop them, loudly.
+    coord_cols = ["X", "Y", "Z", "thrower_X", "thrower_Y", "thrower_Z"]
+    complete = df.filter(pl.all_horizontal(pl.col(c).is_not_null() for c in coord_cols))
+    if complete.height < df.height:
+        logger.warning(
+            "Dropped %d %s bloom row(s) with null coordinates (unattributable thrower)",
+            df.height - complete.height,
+            nade,
+        )
+        df = complete
+    if df.is_empty():
+        return []
     to_zones = mapper.zones(df, "X", "Y", "Z").to_list()
     from_mapped = mapper.zones(df, "thrower_X", "thrower_Y", "thrower_Z").to_list()
     rows: list[dict[str, Any]] = []

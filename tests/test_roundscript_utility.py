@@ -222,6 +222,39 @@ def test_subdivision_report_single_cluster_place_not_flagged():
     assert subdivision_report(evs, mapper) == {}
 
 
+def test_bloom_rows_drop_orphan_thrower(tmp_path):
+    """A smoke/molly with an unattributable thrower (all thrower_* null - seen
+    on a real FACEIT dust2 demo, round 20) must be dropped, not crash ingest
+    with a KNN "Input X contains NaN"."""
+    lake = _mini_lake(tmp_path)
+    bloom_schema = {
+        "entity_id": [11, 12],
+        "start_tick": [1100, 1200],
+        "end_tick": [2100, 2200],
+        "thrower_X": [105.0, None],
+        "thrower_Y": [105.0, None],
+        "thrower_Z": [64.0, None],
+        "thrower_health": [100, None],
+        "thrower_place": ["TSpawn", None],
+        "thrower_name": ["donk", None],
+        "thrower_steamid": ["111", None],
+        "thrower_side": ["TERRORIST", None],
+        "X": [1120.0, 1130.0],
+        "Y": [1120.0, 1130.0],
+        "Z": [64.0, 64.0],
+        "round_num": [5, 5],
+    }
+    pl.DataFrame(bloom_schema).write_parquet(tmp_path / "infernos.parquet")
+
+    evs, xyz = utility_events_with_xyz(lake, _mini_mapper(), 5)
+
+    mollies = [e for e in evs if e.nade == "molly"]
+    assert len(mollies) == 1  # the orphan row is gone, the attributed one kept
+    assert mollies[0].thrower == "donk"
+    assert mollies[0].to_zone in {"TSpawn", "Window"}  # mapped, not NaN-poisoned
+    assert xyz.height == len(evs)  # frames stay aligned for clustering
+
+
 @pytest.fixture(scope="module")
 def anubis_utility(anubis_lake, anubis_assets):
     ticks = pl.read_parquet(anubis_lake.ticks)
