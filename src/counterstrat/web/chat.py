@@ -54,7 +54,8 @@ class ChatSession(BaseModel):
 class CreateSessionRequest(BaseModel):
     team_key: str
     map_name: str
-    match_id: str | None = None  # scope the session to one match ("what happened THAT game")
+    match_id: str | None = None  # legacy single-match scope (kept for old clients)
+    match_ids: list[str] | None = None  # scope to any subset of the team's matches
 
 
 class CreateSessionResponse(BaseModel):
@@ -140,7 +141,7 @@ def _build_session(
     session_id: str,
     team_key: str,
     map_name: str,
-    match_id: str | None = None,
+    match_ids: list[str] | None = None,
 ) -> ChatSession:
     # Any lineup key resolves to its team cluster; scripts below are re-keyed to
     # the canonical id so stand-in lineups analyze as one team.
@@ -162,13 +163,17 @@ def _build_session(
         ) from exc
 
     source_matches = list(teambook.generated_from)
-    if match_id is not None:
-        if match_id not in source_matches:
+    if match_ids:
+        missing = [m for m in match_ids if m not in source_matches]
+        if missing:
             raise HTTPException(
                 status_code=404,
-                detail=f"Match {match_id} has no rounds for {team_key} on {map_name}",
+                detail=(
+                    f"Match(es) {', '.join(missing)} have no rounds for {team_key} on {map_name}"
+                ),
             )
-        source_matches = [match_id]
+        wanted = set(match_ids)
+        source_matches = [m for m in source_matches if m in wanted]
 
     scripts: dict[str, RoundScript] = {}
     for mid in source_matches:
@@ -181,9 +186,9 @@ def _build_session(
             script = _rekey(script, cluster_keys, team_key)
             scripts[f"{script.match_id}:{script.round_num}"] = script
 
-    if match_id is not None:
-        # Single-match scope: every artifact is re-mined from just that match so
-        # tendencies, gaps and economy reads describe THIS game only.
+    if match_ids:
+        # Subset scope: every artifact is re-mined from just those matches so
+        # tendencies, gaps and economy reads describe THESE games only.
         teambook = build_teambook(list(scripts.values()), team_key)
 
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
@@ -374,13 +379,15 @@ def _get_session(request: Request, cfg: AppConfig, sid: str) -> ChatSession:
     meta, turns = _read_transcript(cfg, sid)
     if meta is None:
         raise HTTPException(status_code=404, detail=f"Chat session '{sid}' not found")
-    restored_match = meta.get("match_id")
+    restored = meta.get("match_ids")
+    if not restored and meta.get("match_id"):  # transcripts from before subset scope
+        restored = [str(meta["match_id"])]
     session = _build_session(
         cfg,
         sid,
         str(meta.get("team_key")),
         str(meta.get("map_name")),
-        str(restored_match) if restored_match else None,
+        [str(m) for m in restored] if restored else None,
     )
     session.history = turns
     store[sid] = session
@@ -392,7 +399,8 @@ def create_session(
     req: CreateSessionRequest, request: Request, cfg: ConfigDep
 ) -> CreateSessionResponse:
     session_id = uuid.uuid4().hex[:12]
-    session = _build_session(cfg, session_id, req.team_key, req.map_name, req.match_id)
+    match_ids = req.match_ids or ([req.match_id] if req.match_id else None)
+    session = _build_session(cfg, session_id, req.team_key, req.map_name, match_ids)
     _sessions(request)[session_id] = session
     _append_record(
         _transcript_path(cfg, session_id),
@@ -401,7 +409,7 @@ def create_session(
             "session_id": session_id,
             "team_key": session.ctx.team_key,
             "map_name": req.map_name,
-            "match_id": req.match_id,
+            "match_ids": match_ids,
         },
     )
     return CreateSessionResponse(session_id=session_id)

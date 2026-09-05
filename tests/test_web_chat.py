@@ -199,6 +199,51 @@ def test_chat_session_match_scope(chat_cfg: AppConfig):
     assert missing.status_code == 404
 
 
+def test_chat_session_subset_scope(chat_cfg: AppConfig):
+    """match_ids scopes the session to any subset of the team's matches."""
+    scripts_m1 = build_synthetic_scripts()
+    for extra in ("m2", "m3"):
+        for s in scripts_m1:
+            s2 = s.model_copy(update={"match_id": extra})
+            p = chat_cfg.data_root / "scripts" / extra / f"round_{s2.round_num}.json"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(s2.to_json(), encoding="utf-8")
+    all_scripts = scripts_m1 + [
+        s.model_copy(update={"match_id": m}) for m in ("m2", "m3") for s in scripts_m1
+    ]
+    tb_path = chat_cfg.data_root / "teambooks" / SYNTHETIC_TEAM / MAP / "teambook.json"
+    tb_path.write_text(
+        build_teambook(all_scripts, SYNTHETIC_TEAM).model_dump_json(), encoding="utf-8"
+    )
+
+    scripted = _scripted()
+    client = _client(chat_cfg, scripted)
+
+    subset = client.post(
+        "/api/chat/sessions",
+        json={"team_key": SYNTHETIC_TEAM, "map_name": MAP, "match_ids": ["m1", "m3"]},
+    )
+    assert subset.status_code == 200
+    sid = subset.json()["session_id"]
+    client.post(f"/api/chat/sessions/{sid}/messages", json={"text": "q"})
+    assert "Data coverage: 2 demo(s), 18 rounds" in scripted.calls[-1]["system"]
+
+    # The transcript meta records the subset; a fresh app restores the same scope.
+    fresh_scripted = _scripted()
+    fresh = _client(chat_cfg, fresh_scripted)
+    resumed = fresh.post(f"/api/chat/sessions/{sid}/messages", json={"text": "again"})
+    assert resumed.status_code == 200
+    assert "Data coverage: 2 demo(s), 18 rounds" in fresh_scripted.calls[-1]["system"]
+
+    # Any unknown id in the subset is a 404, naming the offender.
+    missing = client.post(
+        "/api/chat/sessions",
+        json={"team_key": SYNTHETIC_TEAM, "map_name": MAP, "match_ids": ["m1", "ghost"]},
+    )
+    assert missing.status_code == 404
+    assert "ghost" in missing.json()["detail"]
+
+
 def test_chat_message_503_without_api_key(chat_cfg: AppConfig):
     client = _client(chat_cfg)  # no client_factory -> real make_client, no keys configured
     sid = client.post(
