@@ -65,6 +65,18 @@ def test_fresh_clone_serves_callout_editor(clone: TestClient):
     assert img.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_fresh_clone_has_vision_data(clone: TestClient, tmp_path: Path):
+    """The calibration kill evidence travels with the package: sightlines
+    derive on a clone with an empty data root, for every calibrated map."""
+    from counterstrat.mapcard.anchors import shipped_sightlines
+
+    for map_name in CALIBRATED:
+        sightlines = shipped_sightlines(tmp_path / "data", map_name)
+        assert len(sightlines) >= 10, f"{map_name}: vision evidence missing from the package"
+        sample = sightlines[0]
+        assert {"from", "to", "n", "median_dist", "range"} <= set(sample)
+
+
 def test_fresh_clone_accepts_personal_callouts(clone: TestClient):
     """Place a custom rect with zero local data: grounding comes from the
     shipped anchors' ground Z."""
