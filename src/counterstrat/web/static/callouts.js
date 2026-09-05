@@ -9,9 +9,11 @@
 
   const state = {
     mapName: null,
-    zones: [], // [{name, alias, u, v, level, custom, radius}]
+    zones: [], // [{name, alias, u, v, level, custom, shape, radius, half_u, half_v}]
     levels: ["default"],
     level: "default", // which radar level is on screen (nuke upper/lower)
+    view: { k: 1, tx: 0, ty: 0 }, // zoom/pan transform of the map frame
+    pan: null,
     dirty: false,
     placing: false, // add-callout mode: next map click names a new zone
   };
@@ -35,6 +37,60 @@
     el.tableBody = document.querySelector("#callouts-table tbody");
     el.messages = document.getElementById("messages-container");
     el.inputBar = document.getElementById("chat-input-bar");
+    el.zoomBox = document.getElementById("callouts-zoom");
+  }
+
+  // ------------------------------------------------------------ zoom & pan
+
+  function applyView() {
+    const view = state.view;
+    el.zoomBox.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.k})`;
+  }
+
+  function resetView() {
+    state.view = { k: 1, tx: 0, ty: 0 };
+    applyView();
+  }
+
+  function onWheel(ev) {
+    ev.preventDefault();
+    const rect = el.frame.getBoundingClientRect();
+    const px = ev.clientX - rect.left;
+    const py = ev.clientY - rect.top;
+    const view = state.view;
+    const k2 = Math.min(8, Math.max(1, view.k * Math.exp(-ev.deltaY * 0.0015)));
+    // Keep the point under the cursor fixed while scaling.
+    view.tx = px - ((px - view.tx) * k2) / view.k;
+    view.ty = py - ((py - view.ty) * k2) / view.k;
+    view.k = k2;
+    if (view.k === 1) { view.tx = 0; view.ty = 0; }
+    applyView();
+  }
+
+  function panStart(ev) {
+    if (state.placing || state.view.k === 1) return;
+    state.pan = { x: ev.clientX, y: ev.clientY, moved: false };
+    el.frame.setPointerCapture(ev.pointerId);
+  }
+
+  function panMove(ev) {
+    if (!state.pan) return;
+    const dx = ev.clientX - state.pan.x;
+    const dy = ev.clientY - state.pan.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) state.pan.moved = true;
+    state.view.tx += dx;
+    state.view.ty += dy;
+    state.pan.x = ev.clientX;
+    state.pan.y = ev.clientY;
+    applyView();
+  }
+
+  function panEnd(ev) {
+    if (!state.pan) return;
+    const moved = state.pan.moved;
+    state.pan = null;
+    try { el.frame.releasePointerCapture(ev.pointerId); } catch { /* released */ }
+    if (moved) state.suppressClick = true; // a pan is not a label click
   }
 
   function escapeHtml(str) {
@@ -525,6 +581,7 @@
     el.mapSelect.addEventListener("change", function () {
       state.mapName = el.mapSelect.value;
       state.level = "default";
+      resetView();
       loadCallouts();
     });
     el.levelDefault.addEventListener("click", function () { setLevel("default"); });
@@ -535,6 +592,23 @@
     el.labels.addEventListener("pointerdown", dragStart, true);
     el.labels.addEventListener("pointermove", dragMove, true);
     el.labels.addEventListener("pointerup", dragEnd, true);
+    // Zoom for precision placement; pan only when zoomed and not placing.
+    el.frame.addEventListener("wheel", onWheel, { passive: false });
+    el.frame.addEventListener("pointerdown", panStart);
+    el.frame.addEventListener("pointermove", panMove);
+    el.frame.addEventListener("pointerup", panEnd);
+    el.frame.addEventListener("dblclick", resetView);
+    el.frame.addEventListener(
+      "click",
+      function (ev) {
+        if (state.suppressClick) {
+          state.suppressClick = false;
+          ev.stopPropagation();
+          ev.preventDefault();
+        }
+      },
+      true
+    );
     document.addEventListener("keydown", function (ev) {
       if (ev.key === "Escape" && state.placing) setPlacing(false);
     });

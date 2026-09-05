@@ -22,10 +22,11 @@ logger = logging.getLogger(__name__)
 SHIPPED_ANCHORS_DIR = Path(__file__).resolve().parent / "anchors"
 
 Anchor = tuple[float, float, str]  # (u, v, level)
+AnchorPoint = tuple[float, float, str, float]  # (u, v, level, world z)
 
 
-def compute_tick_anchors(df: pl.DataFrame, cal) -> dict[str, Anchor]:
-    """(u, v, level) per place name from pooled occupancy ticks.
+def compute_tick_anchors(df: pl.DataFrame, cal) -> dict[str, AnchorPoint]:
+    """(u, v, level, ground z) per place name from pooled occupancy ticks.
 
     A zone straddling a two-level map labels the lower radar only when clearly
     below (>= 60% of its ticks), and its anchor comes from that level's ticks
@@ -66,12 +67,17 @@ def compute_tick_anchors(df: pl.DataFrame, cal) -> dict[str, Anchor]:
         .agg(pl.col("X", "Y", "Z").sort_by(["_d2", "X", "Y", "Z"]).first())
     )
 
-    out: dict[str, Anchor] = {}
+    out: dict[str, AnchorPoint] = {}
     for row in centroids.iter_rows(named=True):
         u, v = game_to_norm(cal, row["X"], row["Y"])
         if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
             level = "lower" if is_lower_level(cal, row["Z"]) else "default"
-            out[str(row["last_place_name"])] = (round(u, 4), round(v, 4), level)
+            out[str(row["last_place_name"])] = (
+                round(u, 4),
+                round(v, 4),
+                level,
+                round(float(row["Z"]), 1),
+            )
     return out
 
 
@@ -79,39 +85,66 @@ def shipped_anchor_path(map_name: str, root: Path | None = None) -> Path:
     return (root or SHIPPED_ANCHORS_DIR) / f"{map_name}.json"
 
 
-def load_shipped_anchors(map_name: str, root: Path | None = None) -> dict[str, Anchor]:
-    """The calibrated anchors shipped for a map; {} when none were calibrated."""
+def _read_anchor_file(map_name: str, root: Path | None) -> dict:
     path = shipped_anchor_path(map_name, root)
     if not path.exists():
         return {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-        return {
-            str(name): (float(a["u"]), float(a["v"]), str(a.get("level") or "default"))
-            for name, a in (raw.get("anchors") or {}).items()
-        }
+        return raw.get("anchors") or {}
     except Exception as exc:  # noqa: BLE001 - a torn file must not kill the editor
         logger.warning("Unreadable shipped anchors for %s: %s", map_name, exc)
         return {}
 
 
+def load_shipped_anchors(map_name: str, root: Path | None = None) -> dict[str, Anchor]:
+    """The calibrated (u, v, level) anchors shipped for a map; {} when absent."""
+    return {
+        str(name): (float(a["u"]), float(a["v"]), str(a.get("level") or "default"))
+        for name, a in _read_anchor_file(map_name, root).items()
+    }
+
+
+def load_shipped_anchor_points(map_name: str, root: Path | None = None) -> dict[str, AnchorPoint]:
+    """Anchors including ground Z (NaN-free; entries without z are skipped).
+
+    Used to ground new custom-zone placements when no lake data exists.
+    """
+    out: dict[str, AnchorPoint] = {}
+    for name, a in _read_anchor_file(map_name, root).items():
+        if a.get("z") is None:
+            continue
+        out[str(name)] = (
+            float(a["u"]),
+            float(a["v"]),
+            str(a.get("level") or "default"),
+            float(a["z"]),
+        )
+    return out
+
+
 def save_shipped_anchors(
     map_name: str,
-    anchors: dict[str, Anchor],
+    anchors: dict[str, AnchorPoint] | dict[str, Anchor],
     *,
     generated_from: list[str],
     root: Path | None = None,
 ) -> Path:
     path = shipped_anchor_path(map_name, root)
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _entry(a) -> dict:
+        entry = {"u": a[0], "v": a[1], "level": a[2]}
+        if len(a) > 3:
+            entry["z"] = a[3]
+        return entry
+
     payload = {
         "map_name": map_name,
         "computed_at": datetime.now(UTC).isoformat(),
         "demos": len(generated_from),
         "generated_from": sorted(generated_from),
-        "anchors": {
-            name: {"u": a[0], "v": a[1], "level": a[2]} for name, a in sorted(anchors.items())
-        },
+        "anchors": {name: _entry(a) for name, a in sorted(anchors.items())},
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path

@@ -752,13 +752,30 @@ def put_aliases(map_name: str, req: AliasUpdateRequest, cfg: ConfigDep) -> dict[
     return {"map_name": map_name, "aliases": saved}
 
 
+def _nearby_z(df: pl.DataFrame, x: float, y: float, level: str, cal) -> float | None:
+    """Median Z of the 50 nearest same-level ticks within 300 units, else None."""
+    from counterstrat.radar.coords import level_expr
+
+    if df.is_empty():
+        return None
+    df = df.with_columns(level_expr(cal, "Z").alias("_lvl")).filter(pl.col("_lvl") == level)
+    near = (
+        df.with_columns(((pl.col("X") - x) ** 2 + (pl.col("Y") - y) ** 2).alias("_d2"))
+        .sort("_d2")
+        .head(50)
+    )
+    if near.is_empty() or float(near["_d2"].min()) ** 0.5 > 300.0:
+        return None
+    return float(near["Z"].median())
+
+
 def _infer_world_z(
     cfg: AppConfig, map_name: str, x: float, y: float, level: str, cal
 ) -> float | None:
-    """Median Z of the nearest same-level ticks; None when nobody ever played
-    near the point (a zone the data cannot ground is rejected)."""
-    from counterstrat.radar.coords import level_expr
-
+    """Ground Z for a custom-zone placement, from the best available source:
+    the user's lake ticks, then the operator's calibration tick caches, then
+    the shipped anchors' ground Z (nearest same-level anchor within 600u)."""
+    # 1. The user's own lake (most current geometry).
     manifest = load_manifest(cfg.data_root / "corpus.jsonl")
     for match_id, rec in sorted(manifest.items()):
         if rec.map_name != map_name:
@@ -772,20 +789,43 @@ def _infer_world_z(
                 .filter(pl.col("is_alive"))
                 .drop_nulls(["X", "Y", "Z"])
             )
-            if df.is_empty():
-                continue
-            df = df.with_columns(level_expr(cal, "Z").alias("_lvl")).filter(pl.col("_lvl") == level)
-            near = (
-                df.with_columns(((pl.col("X") - x) ** 2 + (pl.col("Y") - y) ** 2).alias("_d2"))
-                .sort("_d2")
-                .head(50)
-            )
-            if near.is_empty() or float(near["_d2"].min()) ** 0.5 > 300.0:
-                return None
-            return float(near["Z"].median())
+            z = _nearby_z(df, x, y, level, cal)
+            if z is not None:
+                return z
         except Exception as exc:  # noqa: BLE001
             logger.warning("Z inference unavailable from %s: %s", ticks_path, exc)
-    return None
+
+    # 2. Calibration tick caches (operator machines): dense pooled occupancy.
+    cache_dir = cfg.data_root / "calibration" / ".cache"
+    index_path = cache_dir / "index.json"
+    if index_path.exists():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            frames = [
+                pl.read_parquet(cache_dir / f"{sha}.parquet")
+                for sha, meta in index.items()
+                if meta.get("map") == map_name and (cache_dir / f"{sha}.parquet").exists()
+            ]
+            if frames:
+                z = _nearby_z(pl.concat(frames), x, y, level, cal)
+                if z is not None:
+                    return z
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Calibration cache unusable for %s: %s", map_name, exc)
+
+    # 3. Shipped anchor ground Z: nearest same-level anchor within 600 units.
+    from counterstrat.mapcard.anchors import load_shipped_anchor_points
+    from counterstrat.radar.coords import pixel_to_game
+
+    best: tuple[float, float] | None = None  # (distance^2, z)
+    for au, av, alevel, az in load_shipped_anchor_points(map_name).values():
+        if alevel != level:
+            continue
+        ax, ay = pixel_to_game(cal, au * cal.image_px, av * cal.image_px)
+        d2 = (ax - x) ** 2 + (ay - y) ** 2
+        if d2 <= 600.0**2 and (best is None or d2 < best[0]):
+            best = (d2, az)
+    return best[1] if best else None
 
 
 class ZonePlacement(BaseModel):
@@ -851,7 +891,11 @@ def put_zones(
         if z is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"No player data near {p.name!r} - place it where players have been",
+                detail=(
+                    f"No position data near {p.name!r} - nothing grounds this spot: "
+                    "no ingested demo, calibration data, or calibrated zone anchor is "
+                    "within reach. Place it closer to playable ground."
+                ),
             )
         zones.append(
             CustomZone(

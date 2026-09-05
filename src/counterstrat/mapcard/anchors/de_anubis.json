@@ -1,6 +1,6 @@
 {
   "map_name": "de_anubis",
-  "computed_at": "2026-09-05T02:42:48.171373+00:00",
+  "computed_at": "2026-09-05T03:20:50.534686+00:00",
   "demos": 6,
   "generated_from": [
     "1-05c78726-748c-4687-af80-f2bab8256831-1-1.dem.zst",
@@ -14,142 +14,170 @@
     "Alley": {
       "u": 0.3016,
       "v": 0.3971,
-      "level": "default"
+      "level": "default",
+      "z": -17.0
     },
     "BackofB": {
       "u": 0.3948,
       "v": 0.5009,
-      "level": "default"
+      "level": "default",
+      "z": 38.0
     },
     "BombsiteA": {
       "u": 0.7551,
       "v": 0.2973,
-      "level": "default"
+      "level": "default",
+      "z": -155.4
     },
     "BombsiteB": {
       "u": 0.3191,
       "v": 0.5104,
-      "level": "default"
+      "level": "default",
+      "z": -2.0
     },
     "Bricks": {
       "u": 0.3542,
       "v": 0.4186,
-      "level": "default"
+      "level": "default",
+      "z": 35.0
     },
     "Bridge": {
       "u": 0.4932,
       "v": 0.6628,
-      "level": "default"
+      "level": "default",
+      "z": 0.2
     },
     "CTSideUpper": {
       "u": 0.434,
       "v": 0.2123,
-      "level": "default"
+      "level": "default",
+      "z": 25.0
     },
     "CTSpawn": {
       "u": 0.5038,
       "v": 0.15,
-      "level": "default"
+      "level": "default",
+      "z": -95.0
     },
     "Canal": {
       "u": 0.6666,
       "v": 0.5711,
-      "level": "default"
+      "level": "default",
+      "z": -146.0
     },
     "Connector": {
       "u": 0.3806,
       "v": 0.5807,
-      "level": "default"
+      "level": "default",
+      "z": -72.0
     },
     "Fountain": {
       "u": 0.8405,
       "v": 0.2758,
-      "level": "default"
+      "level": "default",
+      "z": -83.9
     },
     "Heaven": {
       "u": 0.6826,
       "v": 0.232,
-      "level": "default"
+      "level": "default",
+      "z": -40.0
     },
     "LowerTunnel": {
       "u": 0.3551,
       "v": 0.3301,
-      "level": "default"
+      "level": "default",
+      "z": -31.0
     },
     "Main": {
       "u": 0.8256,
       "v": 0.4051,
-      "level": "default"
+      "level": "default",
+      "z": -147.8
     },
     "MidDoors": {
       "u": 0.5642,
       "v": 0.5276,
-      "level": "default"
+      "level": "default",
+      "z": -31.6
     },
     "Middle": {
       "u": 0.562,
       "v": 0.4001,
-      "level": "default"
+      "level": "default",
+      "z": -30.5
     },
     "OutsideLong": {
       "u": 0.2272,
       "v": 0.628,
-      "level": "default"
+      "level": "default",
+      "z": 3.8
     },
     "PalaceInterior": {
       "u": 0.4799,
       "v": 0.3525,
-      "level": "default"
+      "level": "default",
+      "z": 29.8
     },
     "Ruins": {
       "u": 0.3427,
       "v": 0.7457,
-      "level": "default"
+      "level": "default",
+      "z": 119.1
     },
     "SnipersNest": {
       "u": 0.3106,
       "v": 0.2712,
-      "level": "default"
+      "level": "default",
+      "z": 48.0
     },
     "Street": {
       "u": 0.6576,
       "v": 0.7261,
-      "level": "default"
+      "level": "default",
+      "z": -11.6
     },
     "TSideUpper": {
       "u": 0.778,
       "v": 0.5602,
-      "level": "default"
+      "level": "default",
+      "z": 0.0
     },
     "TSpawn": {
       "u": 0.4766,
       "v": 0.9157,
-      "level": "default"
+      "level": "default",
+      "z": -12.0
     },
     "TStairs": {
       "u": 0.6749,
       "v": 0.6432,
-      "level": "default"
+      "level": "default",
+      "z": -96.0
     },
     "Tunnel": {
       "u": 0.5879,
       "v": 0.201,
-      "level": "default"
+      "level": "default",
+      "z": -150.0
     },
     "TunnelStairs": {
       "u": 0.6355,
       "v": 0.2572,
-      "level": "default"
+      "level": "default",
+      "z": -39.0
     },
     "Walkway": {
       "u": 0.673,
       "v": 0.3616,
-      "level": "default"
+      "level": "default",
+      "z": -88.0
     },
     "Water": {
       "u": 0.5126,
       "v": 0.0561,
-      "level": "default"
+      "level": "default",
+      "z": -173.5
     }
   }
 }

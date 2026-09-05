@@ -1,6 +1,6 @@
 {
   "map_name": "de_inferno",
-  "computed_at": "2026-09-05T02:42:48.512442+00:00",
+  "computed_at": "2026-09-05T03:20:50.860331+00:00",
   "demos": 6,
   "generated_from": [
     "1-37bebab3-6173-4230-8a01-ac18e60fa7ec-1-1.dem.zst",
@@ -14,117 +14,140 @@
     "Apartments": {
       "u": 0.663,
       "v": 0.8204,
-      "level": "default"
+      "level": "default",
+      "z": 260.0
     },
     "Arch": {
       "u": 0.7619,
       "v": 0.5328,
-      "level": "default"
+      "level": "default",
+      "z": 177.0
     },
     "BackAlley": {
       "u": 0.5891,
       "v": 0.8981,
-      "level": "default"
+      "level": "default",
+      "z": 89.0
     },
     "Balcony": {
       "u": 0.8236,
       "v": 0.8114,
-      "level": "default"
+      "level": "default",
+      "z": 256.0
     },
     "Banana": {
       "u": 0.4891,
       "v": 0.4078,
-      "level": "default"
+      "level": "default",
+      "z": 133.6
     },
     "BombsiteA": {
       "u": 0.8321,
       "v": 0.7205,
-      "level": "default"
+      "level": "default",
+      "z": 275.5
     },
     "BombsiteB": {
       "u": 0.5316,
       "v": 0.229,
-      "level": "default"
+      "level": "default",
+      "z": 161.5
     },
     "Bridge": {
       "u": 0.3474,
       "v": 0.7937,
-      "level": "default"
+      "level": "default",
+      "z": 192.0
     },
     "CTSpawn": {
       "u": 0.8937,
       "v": 0.3569,
-      "level": "default"
+      "level": "default",
+      "z": 132.8
     },
     "Deck": {
       "u": 0.4331,
       "v": 0.7575,
-      "level": "default"
+      "level": "default",
+      "z": 208.0
     },
     "Kitchen": {
       "u": 0.3795,
       "v": 0.7156,
-      "level": "default"
+      "level": "default",
+      "z": 192.0
     },
     "Library": {
       "u": 0.9164,
       "v": 0.5203,
-      "level": "default"
+      "level": "default",
+      "z": 160.0
     },
     "LowerMid": {
       "u": 0.2892,
       "v": 0.6473,
-      "level": "default"
+      "level": "default",
+      "z": -30.1
     },
     "Middle": {
       "u": 0.5228,
       "v": 0.6504,
-      "level": "default"
+      "level": "default",
+      "z": 88.8
     },
     "Pit": {
       "u": 0.8932,
       "v": 0.8153,
-      "level": "default"
+      "level": "default",
+      "z": 177.6
     },
     "Quad": {
       "u": 0.6963,
       "v": 0.7847,
-      "level": "default"
+      "level": "default",
+      "z": 285.4
     },
     "Ruins": {
       "u": 0.6522,
       "v": 0.2126,
-      "level": "default"
+      "level": "default",
+      "z": 128.7
     },
     "SecondMid": {
       "u": 0.5631,
       "v": 0.7776,
-      "level": "default"
+      "level": "default",
+      "z": 79.3
     },
     "TRamp": {
       "u": 0.3847,
       "v": 0.602,
-      "level": "default"
+      "level": "default",
+      "z": 44.9
     },
     "TSpawn": {
       "u": 0.0956,
       "v": 0.6882,
-      "level": "default"
+      "level": "default",
+      "z": -64.0
     },
     "TopofMid": {
       "u": 0.703,
       "v": 0.6324,
-      "level": "default"
+      "level": "default",
+      "z": 127.2
     },
     "Underpass": {
       "u": 0.4743,
       "v": 0.642,
-      "level": "default"
+      "level": "default",
+      "z": 16.6
     },
     "Upstairs": {
       "u": 0.3091,
       "v": 0.7346,
-      "level": "default"
+      "level": "default",
+      "z": 189.5
     }
   }
 }

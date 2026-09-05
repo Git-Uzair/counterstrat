@@ -1,6 +1,6 @@
 {
   "map_name": "de_dust2",
-  "computed_at": "2026-09-05T02:42:48.345029+00:00",
+  "computed_at": "2026-09-05T03:20:50.730943+00:00",
   "demos": 7,
   "generated_from": [
     "1-0067b3ae-3fc3-4fe6-9ee7-5e00aedf48ad-1-1.dem.zst",
@@ -15,122 +15,146 @@
     "ARamp": {
       "u": 0.8542,
       "v": 0.158,
-      "level": "default"
+      "level": "default",
+      "z": 62.6
     },
     "BDoors": {
       "u": 0.3039,
       "v": 0.1896,
-      "level": "default"
+      "level": "default",
+      "z": 14.0
     },
     "BombsiteA": {
       "u": 0.7964,
       "v": 0.1421,
-      "level": "default"
+      "level": "default",
+      "z": 96.5
     },
     "BombsiteB": {
       "u": 0.1674,
       "v": 0.171,
-      "level": "default"
+      "level": "default",
+      "z": 68.0
     },
     "CTSpawn": {
       "u": 0.6065,
       "v": 0.1819,
-      "level": "default"
+      "level": "default",
+      "z": -121.1
     },
     "Catwalk": {
       "u": 0.5319,
       "v": 0.4108,
-      "level": "default"
+      "level": "default",
+      "z": -0.1
     },
     "ExtendedA": {
       "u": 0.6521,
       "v": 0.1991,
-      "level": "default"
+      "level": "default",
+      "z": 128.6
     },
     "Hole": {
       "u": 0.2568,
       "v": 0.1249,
-      "level": "default"
+      "level": "default",
+      "z": 130.0
     },
     "LongA": {
       "u": 0.8543,
       "v": 0.3739,
-      "level": "default"
+      "level": "default",
+      "z": -6.5
     },
     "LongDoors": {
       "u": 0.7087,
       "v": 0.5406,
-      "level": "default"
+      "level": "default",
+      "z": 0.2
     },
     "LowerTunnel": {
       "u": 0.3705,
       "v": 0.4066,
-      "level": "default"
+      "level": "default",
+      "z": -112.0
     },
     "MidDoors": {
       "u": 0.4439,
       "v": 0.2403,
-      "level": "default"
+      "level": "default",
+      "z": -106.4
     },
     "Middle": {
       "u": 0.4697,
       "v": 0.4287,
-      "level": "default"
+      "level": "default",
+      "z": -123.5
     },
     "OutsideLong": {
       "u": 0.6069,
       "v": 0.7215,
-      "level": "default"
+      "level": "default",
+      "z": 0.9
     },
     "OutsideTunnel": {
       "u": 0.1985,
       "v": 0.651,
-      "level": "default"
+      "level": "default",
+      "z": 1.8
     },
     "Pit": {
       "u": 0.8535,
       "v": 0.5845,
-      "level": "default"
+      "level": "default",
+      "z": -63.0
     },
     "ShortStairs": {
       "u": 0.6262,
       "v": 0.3485,
-      "level": "default"
+      "level": "default",
+      "z": 37.3
     },
     "Side": {
       "u": 0.9251,
       "v": 0.5092,
-      "level": "default"
+      "level": "default",
+      "z": -2.9
     },
     "TRamp": {
       "u": 0.1408,
       "v": 0.8206,
-      "level": "default"
+      "level": "default",
+      "z": 97.3
     },
     "TSpawn": {
       "u": 0.3811,
       "v": 0.8955,
-      "level": "default"
+      "level": "default",
+      "z": 116.8
     },
     "TopofMid": {
       "u": 0.4672,
       "v": 0.6444,
-      "level": "default"
+      "level": "default",
+      "z": -1.0
     },
     "TunnelStairs": {
       "u": 0.2988,
       "v": 0.4643,
-      "level": "default"
+      "level": "default",
+      "z": -34.3
     },
     "UnderA": {
       "u": 0.7203,
       "v": 0.2238,
-      "level": "default"
+      "level": "default",
+      "z": -48.4
     },
     "UpperTunnel": {
       "u": 0.1584,
       "v": 0.4609,
-      "level": "default"
+      "level": "default",
+      "z": 31.7
     }
   }
 }

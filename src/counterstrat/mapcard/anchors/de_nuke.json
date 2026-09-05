@@ -1,6 +1,6 @@
 {
   "map_name": "de_nuke",
-  "computed_at": "2026-09-05T02:42:48.704160+00:00",
+  "computed_at": "2026-09-05T03:20:51.033790+00:00",
   "demos": 6,
   "generated_from": [
     "1-0b04e5e0-e2e8-4430-a1bb-9839a917df4a-1-1.dem.zst",
@@ -14,147 +14,176 @@
     "Admin": {
       "u": 0.6371,
       "v": 0.41,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "BombsiteA": {
       "u": 0.5714,
       "v": 0.5595,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "BombsiteB": {
       "u": 0.5796,
       "v": 0.5253,
-      "level": "lower"
+      "level": "lower",
+      "z": -772.0
     },
     "CTSpawn": {
       "u": 0.8378,
       "v": 0.4619,
-      "level": "default"
+      "level": "default",
+      "z": -352.0
     },
     "Catwalk": {
       "u": 0.6666,
       "v": 0.4594,
-      "level": "default"
+      "level": "default",
+      "z": -128.0
     },
     "Control": {
       "u": 0.5061,
       "v": 0.4065,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Crane": {
       "u": 0.6169,
       "v": 0.5186,
-      "level": "default"
+      "level": "default",
+      "z": -128.0
     },
     "Decon": {
       "u": 0.5132,
       "v": 0.5923,
-      "level": "lower"
+      "level": "lower",
+      "z": -776.0
     },
     "Garage": {
       "u": 0.7254,
       "v": 0.67,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Heaven": {
       "u": 0.638,
       "v": 0.4568,
-      "level": "default"
+      "level": "default",
+      "z": -128.0
     },
     "Hell": {
       "u": 0.6484,
       "v": 0.4642,
-      "level": "default"
+      "level": "default",
+      "z": -395.6
     },
     "Hut": {
       "u": 0.5351,
       "v": 0.5357,
-      "level": "default"
+      "level": "default",
+      "z": -392.0
     },
     "HutRoof": {
       "u": 0.5356,
       "v": 0.5584,
-      "level": "default"
+      "level": "default",
+      "z": -256.0
     },
     "Lobby": {
       "u": 0.4641,
       "v": 0.537,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "LockerRoom": {
       "u": 0.6438,
       "v": 0.4977,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Mini": {
       "u": 0.5845,
       "v": 0.6314,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Observation": {
       "u": 0.6438,
       "v": 0.4857,
-      "level": "lower"
+      "level": "lower",
+      "z": -640.0
     },
     "Outside": {
       "u": 0.5971,
       "v": 0.626,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Rafters": {
       "u": 0.6027,
       "v": 0.455,
-      "level": "default"
+      "level": "default",
+      "z": -74.4
     },
     "Ramp": {
       "u": 0.562,
       "v": 0.3631,
-      "level": "default"
+      "level": "default",
+      "z": -320.0
     },
     "Roof": {
       "u": 0.4776,
       "v": 0.5698,
-      "level": "default"
+      "level": "default",
+      "z": -100.4
     },
     "Secret": {
       "u": 0.67,
       "v": 0.739,
-      "level": "default"
+      "level": "default",
+      "z": -438.4
     },
     "Silo": {
       "u": 0.5118,
       "v": 0.6284,
-      "level": "default"
+      "level": "default",
+      "z": -26.1
     },
     "Squeaky": {
       "u": 0.4952,
       "v": 0.5788,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "TSpawn": {
       "u": 0.2203,
       "v": 0.5529,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Trophy": {
       "u": 0.4969,
       "v": 0.4625,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Tunnels": {
       "u": 0.6381,
       "v": 0.6211,
-      "level": "lower"
+      "level": "lower",
+      "z": -640.0
     },
     "Vending": {
       "u": 0.4666,
       "v": 0.4764,
-      "level": "default"
+      "level": "default",
+      "z": -416.0
     },
     "Vents": {
       "u": 0.5701,
       "v": 0.6045,
-      "level": "lower"
+      "level": "lower",
+      "z": -608.0
     }
   }
 }

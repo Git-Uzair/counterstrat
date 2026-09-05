@@ -40,11 +40,12 @@ def test_anchor_is_median_of_occupancy_mass():
         }
     )
     anchors = compute_tick_anchors(df, _cal())
-    u, v, level = anchors["Middle"]
+    u, v, level, z = anchors["Middle"]
     # Median (10, 10) world -> u=(10+1024)/2048, v=(1024-10)/2048.
     assert abs(u - 1034 / 2048) < 1e-3
     assert abs(v - 1014 / 2048) < 1e-3
     assert level == "default"
+    assert z == 0.0  # the snapped tick's ground Z ships with the anchor
 
 
 def test_anchor_snaps_to_occupied_ground_not_ring_center():
@@ -59,7 +60,7 @@ def test_anchor_snaps_to_occupied_ground_not_ring_center():
         }
     )
     anchors = compute_tick_anchors(df, _cal())
-    u, v, _ = anchors["Middle"]
+    u, v = anchors["Middle"][0], anchors["Middle"][1]
     # Per-axis median (10, 10) is the unoccupied ring center; the closest real
     # tick is (100, 0) and that is where the label must sit.
     assert abs(u - 1124 / 2048) < 1e-3
@@ -78,11 +79,12 @@ def test_anchor_follows_zones_dominant_level():
         }
     )
     anchors = compute_tick_anchors(df, _cal(lower_max=-450.0))
-    u, v, level = anchors["Middle"]
+    u, v, level, z = anchors["Middle"]
     assert level == "lower"
     # Median of the lower ticks' x is 90.5 -> snaps to the tick at (90, 0).
     assert abs(u - 1114 / 2048) < 1e-3
     assert abs(v - 1024 / 2048) < 1e-3
+    assert z == -600.0  # ground Z of the dominant (lower) level's snap tick
 
 
 def test_compute_ignores_dead_unnamed_and_offmap_ticks():
@@ -193,3 +195,20 @@ def test_shipped_anchor_roundtrip(tmp_path: Path):
     assert load_shipped_anchors("de_ghost", root=tmp_path) == {}
     path.write_text("{torn", encoding="utf-8")
     assert load_shipped_anchors("de_test", root=tmp_path) == {}
+
+
+def test_shipped_anchor_points_carry_ground_z(tmp_path: Path):
+    with_z = {"Mid": (0.5, 0.5, "default", 64.0), "Ramp": (0.2, 0.2, "lower", -600.0)}
+    save_shipped_anchors("de_test", with_z, generated_from=["a.dem"], root=tmp_path)
+    from counterstrat.mapcard.anchors import load_shipped_anchor_points
+
+    points = load_shipped_anchor_points("de_test", root=tmp_path)
+    assert points == with_z
+    # The plain loader keeps serving 3-tuples for the editor/prompts.
+    assert load_shipped_anchors("de_test", root=tmp_path)["Mid"] == (0.5, 0.5, "default")
+    # Legacy files without z: points loader skips, plain loader still works.
+    save_shipped_anchors(
+        "de_old", {"A": (0.1, 0.1, "default")}, generated_from=["b.dem"], root=tmp_path
+    )
+    assert load_shipped_anchor_points("de_old", root=tmp_path) == {}
+    assert load_shipped_anchors("de_old", root=tmp_path)["A"] == (0.1, 0.1, "default")

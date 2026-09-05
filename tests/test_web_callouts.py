@@ -389,6 +389,65 @@ def test_put_zones_rect_drag_bakes_and_reports_extents(cfg: AppConfig, client: T
     assert r.status_code == 400 and "corners" in r.json()["detail"]
 
 
+def test_put_zones_grounds_from_shipped_anchor_z(
+    cfg: AppConfig, client: TestClient, isolated_shipped_anchors: Path
+):
+    """With no demos anywhere, placement grounds from the calibrated anchors'
+    shipped ground Z (nearest same-level anchor within 600 units)."""
+    from counterstrat.mapcard.anchors import save_shipped_anchors
+
+    _seed_calibration(cfg, MAP)
+    save_shipped_anchors(
+        MAP,
+        {"Middle": (0.6, 0.65, "default", 42.0)},
+        generated_from=["cal.dem"],
+        root=isolated_shipped_anchors,
+    )
+    # Rect centered exactly on the anchor's world position (204.8, -307.2).
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={
+            "zones": [
+                {"name": "Bagsy", "shape": "rect", "u": 0.55, "v": 0.60, "u2": 0.65, "v2": 0.70}
+            ]
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["zones"][0]["z"] == 42.0
+    # Far from every anchor -> rejected, message names the real problem.
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Far", "u": 0.05, "v": 0.05, "radius": 100.0}]},
+    )
+    assert r.status_code == 400 and "position data" in r.json()["detail"]
+
+
+def test_put_zones_grounds_from_calibration_cache(cfg: AppConfig, client: TestClient):
+    """Operator machines: the calibration tick caches ground placements when
+    the corpus is empty."""
+    _seed_calibration(cfg, MAP)
+    cache = cfg.data_root / "calibration" / ".cache"
+    cache.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "X": [200.0, 210.0],
+            "Y": [-300.0, -310.0],
+            "Z": [64.0, 64.0],
+            "last_place_name": ["Mid", "Mid"],
+        }
+    ).write_parquet(cache / "abc.parquet")
+    (cache / "index.json").write_text(
+        json.dumps({"abc": {"file": "a.dem", "map": MAP, "rows": 2}}), encoding="utf-8"
+    )
+
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Bagsy", "u": 0.6, "v": 0.65, "radius": 100.0}]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["zones"][0]["z"] == 64.0
+
+
 def test_put_zones_validation(cfg: AppConfig, client: TestClient):
     # No radar calibration -> cannot place.
     r = client.put(
@@ -422,7 +481,7 @@ def test_put_zones_validation(cfg: AppConfig, client: TestClient):
         f"/api/maps/{MAP}/zones",
         json={"zones": [{"name": "A", "u": 0.01, "v": 0.01, "radius": 100.0}]},
     )
-    assert r.status_code == 400 and "player data" in r.json()["detail"]
+    assert r.status_code == 400 and "position data" in r.json()["detail"]
     # Name collision with a game zone.
     r = client.put(
         f"/api/maps/{MAP}/zones",

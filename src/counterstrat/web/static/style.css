@@ -1582,6 +1582,12 @@ textarea#chat-input:disabled {
   flex: 0 0 auto;
 }
 
+.callouts-zoom {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
 .callouts-image {
   position: absolute;
   inset: 0;

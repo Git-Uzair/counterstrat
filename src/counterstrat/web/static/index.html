@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="/static/style.css?v=10">
 </head>
 <body>
   <div class="app-shell">
@@ -103,9 +103,11 @@
             </span>
           </div>
           <div class="callouts-stage">
-            <div class="callouts-frame">
-              <img id="callouts-image" class="callouts-image" alt="Radar with callout labels">
-              <div id="callouts-labels" class="callouts-labels"></div>
+            <div class="callouts-frame" title="Scroll to zoom, drag to pan, double-click to reset">
+              <div id="callouts-zoom" class="callouts-zoom">
+                <img id="callouts-image" class="callouts-image" alt="Radar with callout labels">
+                <div id="callouts-labels" class="callouts-labels"></div>
+              </div>
             </div>
             <div class="callouts-table-wrap">
               <table class="callouts-table" id="callouts-table">
@@ -188,6 +190,6 @@
   </div>
 
   <script src="/static/app.js?v=6"></script>
-  <script src="/static/callouts.js?v=7"></script>
+  <script src="/static/callouts.js?v=8"></script>
 </body>
 </html>

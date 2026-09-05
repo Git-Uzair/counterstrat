@@ -1,6 +1,6 @@
 {
   "map_name": "de_ancient",
-  "computed_at": "2026-09-05T02:42:48.030820+00:00",
+  "computed_at": "2026-09-05T03:20:50.418873+00:00",
   "demos": 6,
   "generated_from": [
     "1-136e916c-8529-4d77-aa02-1da90834b0e0-1-1.dem.zst",
@@ -14,92 +14,110 @@
     "Alley": {
       "u": 0.7007,
       "v": 0.2669,
-      "level": "default"
+      "level": "default",
+      "z": 115.4
     },
     "BombsiteA": {
       "u": 0.2719,
       "v": 0.2525,
-      "level": "default"
+      "level": "default",
+      "z": 56.0
     },
     "BombsiteB": {
       "u": 0.7546,
       "v": 0.3894,
-      "level": "default"
+      "level": "default",
+      "z": 130.0
     },
     "CTSpawn": {
       "u": 0.5083,
       "v": 0.0913,
-      "level": "default"
+      "level": "default",
+      "z": 26.8
     },
     "House": {
       "u": 0.4882,
       "v": 0.2795,
-      "level": "default"
+      "level": "default",
+      "z": 117.4
     },
     "MainHall": {
       "u": 0.2121,
       "v": 0.4428,
-      "level": "default"
+      "level": "default",
+      "z": 77.3
     },
     "Middle": {
       "u": 0.4597,
       "v": 0.5187,
-      "level": "default"
+      "level": "default",
+      "z": 38.0
     },
     "Outside": {
       "u": 0.3436,
       "v": 0.6358,
-      "level": "default"
+      "level": "default",
+      "z": 7.6
     },
     "Ramp": {
       "u": 0.8237,
       "v": 0.5281,
-      "level": "default"
+      "level": "default",
+      "z": 31.5
     },
     "Ruins": {
       "u": 0.775,
       "v": 0.6667,
-      "level": "default"
+      "level": "default",
+      "z": 1.8
     },
     "SideEntrance": {
       "u": 0.6585,
       "v": 0.4696,
-      "level": "default"
+      "level": "default",
+      "z": 161.0
     },
     "SideHall": {
       "u": 0.3153,
       "v": 0.419,
-      "level": "default"
+      "level": "default",
+      "z": 103.1
     },
     "TSideLower": {
       "u": 0.7731,
       "v": 0.5692,
-      "level": "default"
+      "level": "default",
+      "z": 10.1
     },
     "TSideUpper": {
       "u": 0.6075,
       "v": 0.5777,
-      "level": "default"
+      "level": "default",
+      "z": 153.0
     },
     "TSpawn": {
       "u": 0.4877,
       "v": 0.8695,
-      "level": "default"
+      "level": "default",
+      "z": -163.3
     },
     "TopofMid": {
       "u": 0.4729,
       "v": 0.397,
-      "level": "default"
+      "level": "default",
+      "z": 156.3
     },
     "Tunnel": {
       "u": 0.6052,
       "v": 0.7811,
-      "level": "default"
+      "level": "default",
+      "z": -160.0
     },
     "Water": {
       "u": 0.6885,
       "v": 0.759,
-      "level": "default"
+      "level": "default",
+      "z": -129.8
     }
   }
 }

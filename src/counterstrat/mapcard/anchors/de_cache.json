@@ -1,6 +1,6 @@
 {
   "map_name": "de_cache",
-  "computed_at": "2026-09-05T02:48:15.609310+00:00",
+  "computed_at": "2026-09-05T03:20:50.612516+00:00",
   "demos": 4,
   "generated_from": [
     "1-5220c82a-f62e-46f8-8f2e-60ce41c95d4f-1-1.dem.zst",
@@ -12,237 +12,284 @@
     "ABoost": {
       "u": 0.4354,
       "v": 0.2172,
-      "level": "default"
+      "level": "default",
+      "z": 1876.0
     },
     "AHalls": {
       "u": 0.5041,
       "v": 0.2024,
-      "level": "default"
+      "level": "default",
+      "z": 1702.0
     },
     "AMain": {
       "u": 0.4718,
       "v": 0.3214,
-      "level": "default"
+      "level": "default",
+      "z": 1700.0
     },
     "AStairs": {
       "u": 0.4933,
       "v": 0.4521,
-      "level": "default"
+      "level": "default",
+      "z": 1698.2
     },
     "BHalls": {
       "u": 0.5284,
       "v": 0.734,
-      "level": "default"
+      "level": "default",
+      "z": 1609.0
     },
     "BMain": {
       "u": 0.4319,
       "v": 0.7046,
-      "level": "default"
+      "level": "default",
+      "z": 1609.0
     },
     "BackHall": {
       "u": 0.285,
       "v": 0.6491,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Bear": {
       "u": 0.2399,
       "v": 0.6336,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "BombsiteA": {
       "u": 0.3346,
       "v": 0.2701,
-      "level": "default"
+      "level": "default",
+      "z": 1814.0
     },
     "BombsiteB": {
       "u": 0.331,
       "v": 0.7347,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Boost": {
       "u": 0.4992,
       "v": 0.46,
-      "level": "default"
+      "level": "default",
+      "z": 1840.7
     },
     "BusStop": {
       "u": 0.1252,
       "v": 0.5274,
-      "level": "default"
+      "level": "default",
+      "z": 1616.0
     },
     "CTLane": {
       "u": 0.1956,
       "v": 0.5478,
-      "level": "default"
+      "level": "default",
+      "z": 1614.0
     },
     "CTSpawn": {
       "u": 0.0909,
       "v": 0.4492,
-      "level": "default"
+      "level": "default",
+      "z": 1614.0
     },
     "Catwalk": {
       "u": 0.3623,
       "v": 0.3476,
-      "level": "default"
+      "level": "default",
+      "z": 1878.0
     },
     "Checkers": {
       "u": 0.3856,
       "v": 0.6414,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Connector": {
       "u": 0.2635,
       "v": 0.5674,
-      "level": "default"
+      "level": "default",
+      "z": 1664.0
     },
     "Corner": {
       "u": 0.3558,
       "v": 0.1863,
-      "level": "default"
+      "level": "default",
+      "z": 1688.0
     },
     "Cubby": {
       "u": 0.4474,
       "v": 0.472,
-      "level": "default"
+      "level": "default",
+      "z": 1711.5
     },
     "ElectricalBox": {
       "u": 0.2944,
       "v": 0.3722,
-      "level": "default"
+      "level": "default",
+      "z": 1688.0
     },
     "ForkLift": {
       "u": 0.4075,
       "v": 0.3353,
-      "level": "default"
+      "level": "default",
+      "z": 1688.0
     },
     "Garage": {
       "u": 0.5692,
       "v": 0.5613,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Headshot": {
       "u": 0.2907,
       "v": 0.7828,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Heaven": {
       "u": 0.2603,
       "v": 0.6907,
-      "level": "default"
+      "level": "default",
+      "z": 1796.0
     },
     "Highway": {
       "u": 0.3169,
       "v": 0.447,
-      "level": "default"
+      "level": "default",
+      "z": 1651.2
     },
     "Ladder": {
       "u": 0.3363,
       "v": 0.3883,
-      "level": "default"
+      "level": "default",
+      "z": 1856.4
     },
     "Lockers": {
       "u": 0.5214,
       "v": 0.3137,
-      "level": "default"
+      "level": "default",
+      "z": 1700.0
     },
     "LongA": {
       "u": 0.5741,
       "v": 0.3486,
-      "level": "default"
+      "level": "default",
+      "z": 1695.1
     },
     "Mid": {
       "u": 0.3651,
       "v": 0.5277,
-      "level": "default"
+      "level": "default",
+      "z": 1608.0
     },
     "MidRoof": {
       "u": 0.4096,
       "v": 0.5968,
-      "level": "default"
+      "level": "default",
+      "z": 1782.2
     },
     "Middle": {
       "u": 0.4614,
       "v": 0.4625,
-      "level": "default"
+      "level": "default",
+      "z": 1835.9
     },
     "OutsideA": {
       "u": 0.5598,
       "v": 0.4749,
-      "level": "default"
+      "level": "default",
+      "z": 1608.0
     },
     "OutsideB": {
       "u": 0.6846,
       "v": 0.6949,
-      "level": "default"
+      "level": "default",
+      "z": 1608.0
     },
     "Quad": {
       "u": 0.3026,
       "v": 0.1888,
-      "level": "default"
+      "level": "default",
+      "z": 1688.0
     },
     "Rafters": {
       "u": 0.299,
       "v": 0.6996,
-      "level": "default"
+      "level": "default",
+      "z": 1796.0
     },
     "Red": {
       "u": 0.5573,
       "v": 0.4937,
-      "level": "default"
+      "level": "default",
+      "z": 1740.2
     },
     "Sandbags": {
       "u": 0.3531,
       "v": 0.5899,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Squeaky": {
       "u": 0.3971,
       "v": 0.2034,
-      "level": "default"
+      "level": "default",
+      "z": 1688.0
     },
     "SunRoom": {
       "u": 0.5043,
       "v": 0.8049,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "TSpawn": {
       "u": 0.8947,
       "v": 0.5652,
-      "level": "default"
+      "level": "default",
+      "z": 1608.0
     },
     "TTruck": {
       "u": 0.6733,
       "v": 0.4626,
-      "level": "default"
+      "level": "default",
+      "z": 1608.0
     },
     "TYard": {
       "u": 0.7114,
       "v": 0.5366,
-      "level": "default"
+      "level": "default",
+      "z": 1608.7
     },
     "Toxic": {
       "u": 0.3316,
       "v": 0.3573,
-      "level": "default"
+      "level": "default",
+      "z": 1685.9
     },
     "TreeRoom": {
       "u": 0.2167,
       "v": 0.7153,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Truck": {
       "u": 0.1929,
       "v": 0.3776,
-      "level": "default"
+      "level": "default",
+      "z": 1688.8
     },
     "Useless": {
       "u": 0.549,
       "v": 0.6256,
-      "level": "default"
+      "level": "default",
+      "z": 1612.0
     },
     "Vents": {
       "u": 0.4476,
       "v": 0.6224,
-      "level": "default"
+      "level": "default",
+      "z": 1748.0
     }
   }
 }
