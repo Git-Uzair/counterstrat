@@ -574,9 +574,11 @@ def _vpk_map_names() -> set[str]:
 @router.get("/maps")
 def list_maps(cfg: ConfigDep) -> list[str]:
     """Every editable map: compiled cards plus VPKs that can supply zone names."""
+    from counterstrat.constants import RETIRED_MAPS
+
     root = cfg.data_root / "mapcards"
     card_maps = {p.parent.name for p in root.glob("*/card.yaml")} if root.exists() else set()
-    return sorted(card_maps | _vpk_map_names())
+    return sorted((card_maps | _vpk_map_names()) - RETIRED_MAPS)
 
 
 def _map_places(cfg: AppConfig, map_name: str) -> list:

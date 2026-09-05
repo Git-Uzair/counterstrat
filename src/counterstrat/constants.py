@@ -1,5 +1,10 @@
 """Game + pipeline constants. Sources: CS2 defaults; spec §6.5 objectives."""
 
+# Maps removed from the app (out of the current competitive rotation): they
+# never appear in the map list, cannot be ingested, and the calibration
+# coverage report ignores them - even when their VPK dirs are still on disk.
+RETIRED_MAPS = frozenset({"de_overpass", "de_train", "de_vertigo"})
+
 TICK_RATE = 64
 ROUND_SECONDS = 115  # 1:55
 BOMB_SECONDS = 40

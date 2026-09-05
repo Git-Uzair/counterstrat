@@ -178,6 +178,18 @@ def _run_ingest_locked(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
         state.stage = "extracting"
         save_job_state(cfg.data_root, state)
 
+        # Retired maps never enter the corpus - checked from the header BEFORE
+        # registration so a rejected demo leaves no manifest entry behind.
+        from demoparser2 import DemoParser
+
+        from counterstrat.constants import RETIRED_MAPS
+
+        header_map = str(DemoParser(str(demo_path)).parse_header().get("map_name", ""))
+        if header_map in RETIRED_MAPS:
+            raise ValueError(
+                f"{header_map} is retired (not in the active map pool); demo not ingested"
+            )
+
         rec = register_demo(demo_path, cfg.data_root / "corpus.jsonl")
         state.match_id = rec.match_id
         state.map_name = rec.map_name

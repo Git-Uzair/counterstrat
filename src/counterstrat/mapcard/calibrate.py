@@ -139,12 +139,15 @@ def _radar_calibration(data_root: Path, map_name: str):
 
 
 def _supported_maps() -> set[str]:
+    from counterstrat.constants import RETIRED_MAPS
     from counterstrat.web.ingest import REPO_ROOT
 
     maps_dir = REPO_ROOT / "maps"
     if not maps_dir.exists():
         return set()
-    return {d.name for d in maps_dir.iterdir() if d.is_dir() and (d / f"{d.name}.vpk").exists()}
+    return {
+        d.name for d in maps_dir.iterdir() if d.is_dir() and (d / f"{d.name}.vpk").exists()
+    } - RETIRED_MAPS
 
 
 def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None) -> dict:

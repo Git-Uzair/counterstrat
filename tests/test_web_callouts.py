@@ -98,6 +98,10 @@ def test_list_maps_unions_cards_and_vpks(client: TestClient, isolated_repo_root:
     (vpk_dir / "de_mirage.vpk").write_bytes(b"vpk")
     # A directory without a vpk must not appear.
     (isolated_repo_root / "maps" / "junk").mkdir()
+    # A retired map never appears, even with its VPK still on disk.
+    retired = isolated_repo_root / "maps" / "de_overpass"
+    retired.mkdir()
+    (retired / "de_overpass.vpk").write_bytes(b"vpk")
     assert client.get("/api/maps").json() == [MAP, "de_mirage"]
 
 

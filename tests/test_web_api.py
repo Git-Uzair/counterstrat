@@ -341,6 +341,37 @@ def test_upload_same_filename_never_overwrites(
     assert {p.read_bytes() for p in uploaded} == {a, b}
 
 
+def test_ingest_rejects_retired_maps(test_cfg: AppConfig, tmp_path, monkeypatch):
+    """A retired-map demo fails the job with a clear message and never touches
+    the corpus manifest."""
+    from counterstrat.web.ingest import load_job_state, run_ingest
+
+    class FakeParser:
+        def __init__(self, _path: str): ...
+
+        def parse_header(self):
+            return {"map_name": "de_overpass"}
+
+    monkeypatch.setattr("demoparser2.DemoParser", FakeParser)
+    demo = tmp_path / "retired.dem"
+    demo.write_bytes(b"PBDEMS2\0" + b"x" * 32)
+
+    run_ingest("job_retired", demo, test_cfg)
+
+    job = load_job_state(test_cfg.data_root, "job_retired")
+    assert job is not None and job.stage == "error"
+    assert "retired" in job.detail and "de_overpass" in job.detail
+    manifest = test_cfg.data_root / "corpus.jsonl"
+    assert not manifest.exists() or "de_overpass" not in manifest.read_text(encoding="utf-8")
+
+
+def test_calibrate_supported_maps_exclude_retired():
+    from counterstrat.mapcard.calibrate import _supported_maps
+
+    supported = _supported_maps()
+    assert {"de_overpass", "de_train", "de_vertigo"}.isdisjoint(supported)
+
+
 def test_list_demos_empty_and_populated(client_app: TestClient, test_cfg: AppConfig):
     # Initially empty
     r = client_app.get("/api/demos")
