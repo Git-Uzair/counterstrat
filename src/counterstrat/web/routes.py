@@ -627,12 +627,18 @@ def _radar_calibration(cfg: AppConfig, map_name: str):
 
 def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str] | None:
     """Card zones when compiled (the mined vocabulary), else VPK place names;
-    the user's custom zones always join the list."""
+    the user's custom zones always join the list. An empty or torn card file
+    counts as no card."""
     custom = {z.name for z in load_custom_zones(cfg.data_root, map_name)}
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
     if card_path.exists():
-        card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
-        return sorted(set((card_data.get("zones") or {}).keys()) | custom)
+        try:
+            card_data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            card_data = None
+        card_zones = (card_data or {}).get("zones") or {}
+        if card_zones:
+            return sorted(set(card_zones.keys()) | custom)
     if places or custom:
         return sorted({p.place_name for p in places} | custom)
     return None

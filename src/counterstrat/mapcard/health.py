@@ -198,12 +198,19 @@ def check_map_health(cfg: AppConfig, map_name: str) -> dict[str, Any]:
     from counterstrat.web.routes import map_zone_anchors
 
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
-    if not card_path.exists():
+    card = None
+    if card_path.exists():
+        try:
+            data = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                card = MapCard(**data)
+        except Exception:  # noqa: BLE001 - empty/torn card counts as no card
+            card = None
+    if card is None:
         return {
             "map": map_name,
             "findings": [_f("warn", "no_card", "no compiled card: ingest a demo first")],
         }
-    card = MapCard(**yaml.safe_load(card_path.read_text(encoding="utf-8")))
     anchors = map_zone_anchors(cfg, map_name)
     findings = check_card_health(card, anchors) + check_scripts_health(cfg, map_name)
     return {

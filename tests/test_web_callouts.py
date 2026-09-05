@@ -195,6 +195,22 @@ def test_callouts_levels_split_upper_and_lower(cfg: AppConfig, client: TestClien
     assert zones["BombsiteB"]["level"] == "lower"
 
 
+def test_empty_card_falls_back_to_vpk_vocabulary(cfg: AppConfig, client: TestClient):
+    """An empty/torn card file counts as no card: the editor serves the VPK
+    place names instead of crashing or leaking a stale mined vocabulary."""
+    _seed_vents(cfg, "de_mirage", {"AMain": (100.0, 100.0, 0.0), "BSite": (-200.0, 50.0, 0.0)})
+    _seed_calibration(cfg, "de_mirage")
+    card_path = cfg.data_root / "mapcards" / "de_mirage" / "card.yaml"
+    card_path.parent.mkdir(parents=True, exist_ok=True)
+    card_path.write_text("", encoding="utf-8")
+
+    body = client.get("/api/maps/de_mirage/callouts").json()
+    assert {z["name"] for z in body["zones"]} == {"AMain", "BSite"}
+    # Health treats it as no card, not a crash.
+    health = client.get("/api/maps/de_mirage/health").json()
+    assert any(f["code"] == "no_card" for f in health["findings"])
+
+
 def test_get_callouts_without_radar_or_lake(client: TestClient):
     r = client.get(f"/api/maps/{MAP}/callouts")
     assert r.status_code == 200
