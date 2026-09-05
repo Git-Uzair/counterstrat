@@ -1,0 +1,155 @@
+{
+  "map_name": "de_anubis",
+  "computed_at": "2026-09-05T02:42:48.171373+00:00",
+  "demos": 6,
+  "generated_from": [
+    "1-05c78726-748c-4687-af80-f2bab8256831-1-1.dem.zst",
+    "1-28496943-2238-412d-bac3-93156bdbd512-1-1.dem.zst",
+    "1-56ce4b3b-43b3-4b90-a91c-ff5a423763e1-1-1.dem.zst",
+    "1-7065ab7c-bc8f-4995-adf1-ac774327c5db-1-1.dem.zst",
+    "1-b0ec69d6-4d27-4ca6-89d4-cd71bdc10b86-1-1.dem.zst",
+    "1-bd33f3ae-8f77-4467-b9db-5932ec22f466-1-1.dem.zst"
+  ],
+  "anchors": {
+    "Alley": {
+      "u": 0.3016,
+      "v": 0.3971,
+      "level": "default"
+    },
+    "BackofB": {
+      "u": 0.3948,
+      "v": 0.5009,
+      "level": "default"
+    },
+    "BombsiteA": {
+      "u": 0.7551,
+      "v": 0.2973,
+      "level": "default"
+    },
+    "BombsiteB": {
+      "u": 0.3191,
+      "v": 0.5104,
+      "level": "default"
+    },
+    "Bricks": {
+      "u": 0.3542,
+      "v": 0.4186,
+      "level": "default"
+    },
+    "Bridge": {
+      "u": 0.4932,
+      "v": 0.6628,
+      "level": "default"
+    },
+    "CTSideUpper": {
+      "u": 0.434,
+      "v": 0.2123,
+      "level": "default"
+    },
+    "CTSpawn": {
+      "u": 0.5038,
+      "v": 0.15,
+      "level": "default"
+    },
+    "Canal": {
+      "u": 0.6666,
+      "v": 0.5711,
+      "level": "default"
+    },
+    "Connector": {
+      "u": 0.3806,
+      "v": 0.5807,
+      "level": "default"
+    },
+    "Fountain": {
+      "u": 0.8405,
+      "v": 0.2758,
+      "level": "default"
+    },
+    "Heaven": {
+      "u": 0.6826,
+      "v": 0.232,
+      "level": "default"
+    },
+    "LowerTunnel": {
+      "u": 0.3551,
+      "v": 0.3301,
+      "level": "default"
+    },
+    "Main": {
+      "u": 0.8256,
+      "v": 0.4051,
+      "level": "default"
+    },
+    "MidDoors": {
+      "u": 0.5642,
+      "v": 0.5276,
+      "level": "default"
+    },
+    "Middle": {
+      "u": 0.562,
+      "v": 0.4001,
+      "level": "default"
+    },
+    "OutsideLong": {
+      "u": 0.2272,
+      "v": 0.628,
+      "level": "default"
+    },
+    "PalaceInterior": {
+      "u": 0.4799,
+      "v": 0.3525,
+      "level": "default"
+    },
+    "Ruins": {
+      "u": 0.3427,
+      "v": 0.7457,
+      "level": "default"
+    },
+    "SnipersNest": {
+      "u": 0.3106,
+      "v": 0.2712,
+      "level": "default"
+    },
+    "Street": {
+      "u": 0.6576,
+      "v": 0.7261,
+      "level": "default"
+    },
+    "TSideUpper": {
+      "u": 0.778,
+      "v": 0.5602,
+      "level": "default"
+    },
+    "TSpawn": {
+      "u": 0.4766,
+      "v": 0.9157,
+      "level": "default"
+    },
+    "TStairs": {
+      "u": 0.6749,
+      "v": 0.6432,
+      "level": "default"
+    },
+    "Tunnel": {
+      "u": 0.5879,
+      "v": 0.201,
+      "level": "default"
+    },
+    "TunnelStairs": {
+      "u": 0.6355,
+      "v": 0.2572,
+      "level": "default"
+    },
+    "Walkway": {
+      "u": 0.673,
+      "v": 0.3616,
+      "level": "default"
+    },
+    "Water": {
+      "u": 0.5126,
+      "v": 0.0561,
+      "level": "default"
+    }
+  }
+}

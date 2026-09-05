@@ -1,0 +1,127 @@
+{
+  "map_name": "de_mirage",
+  "computed_at": "2026-09-05T02:42:48.571792+00:00",
+  "demos": 3,
+  "generated_from": [
+    "1-41850537-f26b-48b0-9855-1f1e82caf35b-1-1.dem.zst",
+    "1-b4d870ae-84d2-4161-8d62-6c05ce4bc97e-1-1.dem.zst",
+    "1-f3583760-4746-476d-93f7-6060e8348418-1-1.dem.zst"
+  ],
+  "anchors": {
+    "Apartments": {
+      "u": 0.3435,
+      "v": 0.1914,
+      "level": "default"
+    },
+    "BackAlley": {
+      "u": 0.5396,
+      "v": 0.2185,
+      "level": "default"
+    },
+    "BombsiteA": {
+      "u": 0.528,
+      "v": 0.715,
+      "level": "default"
+    },
+    "BombsiteB": {
+      "u": 0.2522,
+      "v": 0.2873,
+      "level": "default"
+    },
+    "CTSpawn": {
+      "u": 0.3079,
+      "v": 0.7047,
+      "level": "default"
+    },
+    "Catwalk": {
+      "u": 0.4676,
+      "v": 0.3591,
+      "level": "default"
+    },
+    "Connector": {
+      "u": 0.5039,
+      "v": 0.5493,
+      "level": "default"
+    },
+    "House": {
+      "u": 0.7065,
+      "v": 0.1786,
+      "level": "default"
+    },
+    "Jungle": {
+      "u": 0.4409,
+      "v": 0.6062,
+      "level": "default"
+    },
+    "Ladder": {
+      "u": 0.4078,
+      "v": 0.3805,
+      "level": "default"
+    },
+    "Middle": {
+      "u": 0.5167,
+      "v": 0.4828,
+      "level": "default"
+    },
+    "PalaceAlley": {
+      "u": 0.7762,
+      "v": 0.5917,
+      "level": "default"
+    },
+    "PalaceInterior": {
+      "u": 0.6864,
+      "v": 0.7392,
+      "level": "default"
+    },
+    "Scaffolding": {
+      "u": 0.63,
+      "v": 0.7425,
+      "level": "default"
+    },
+    "Shop": {
+      "u": 0.2652,
+      "v": 0.4455,
+      "level": "default"
+    },
+    "SideAlley": {
+      "u": 0.7394,
+      "v": 0.2477,
+      "level": "default"
+    },
+    "SnipersNest": {
+      "u": 0.4002,
+      "v": 0.4777,
+      "level": "default"
+    },
+    "Stairs": {
+      "u": 0.5327,
+      "v": 0.6169,
+      "level": "default"
+    },
+    "TRamp": {
+      "u": 0.7032,
+      "v": 0.6497,
+      "level": "default"
+    },
+    "TSpawn": {
+      "u": 0.8682,
+      "v": 0.366,
+      "level": "default"
+    },
+    "TopofMid": {
+      "u": 0.6914,
+      "v": 0.3988,
+      "level": "default"
+    },
+    "Truck": {
+      "u": 0.2161,
+      "v": 0.1771,
+      "level": "default"
+    },
+    "Underpass": {
+      "u": 0.4463,
+      "v": 0.3017,
+      "level": "default"
+    }
+  }
+}

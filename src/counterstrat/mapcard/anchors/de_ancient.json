@@ -1,0 +1,105 @@
+{
+  "map_name": "de_ancient",
+  "computed_at": "2026-09-05T02:42:48.030820+00:00",
+  "demos": 6,
+  "generated_from": [
+    "1-136e916c-8529-4d77-aa02-1da90834b0e0-1-1.dem.zst",
+    "1-44b5ce84-f646-4dfb-b686-faaedc332ddd-1-1.dem.zst",
+    "1-627a40f3-d631-48c8-a064-5e83d0ad8591-1-1.dem.zst",
+    "1-8f013e0f-7e97-4695-a4dd-417648edddd2-1-1.dem.zst",
+    "1-c40af48e-439a-44e5-bb60-afdaf241e64c-1-1.dem.zst",
+    "1-e80ec903-d08d-45c3-9a1a-2a66e5e49d7a-1-1.dem.zst"
+  ],
+  "anchors": {
+    "Alley": {
+      "u": 0.7007,
+      "v": 0.2669,
+      "level": "default"
+    },
+    "BombsiteA": {
+      "u": 0.2719,
+      "v": 0.2525,
+      "level": "default"
+    },
+    "BombsiteB": {
+      "u": 0.7546,
+      "v": 0.3894,
+      "level": "default"
+    },
+    "CTSpawn": {
+      "u": 0.5083,
+      "v": 0.0913,
+      "level": "default"
+    },
+    "House": {
+      "u": 0.4882,
+      "v": 0.2795,
+      "level": "default"
+    },
+    "MainHall": {
+      "u": 0.2121,
+      "v": 0.4428,
+      "level": "default"
+    },
+    "Middle": {
+      "u": 0.4597,
+      "v": 0.5187,
+      "level": "default"
+    },
+    "Outside": {
+      "u": 0.3436,
+      "v": 0.6358,
+      "level": "default"
+    },
+    "Ramp": {
+      "u": 0.8237,
+      "v": 0.5281,
+      "level": "default"
+    },
+    "Ruins": {
+      "u": 0.775,
+      "v": 0.6667,
+      "level": "default"
+    },
+    "SideEntrance": {
+      "u": 0.6585,
+      "v": 0.4696,
+      "level": "default"
+    },
+    "SideHall": {
+      "u": 0.3153,
+      "v": 0.419,
+      "level": "default"
+    },
+    "TSideLower": {
+      "u": 0.7731,
+      "v": 0.5692,
+      "level": "default"
+    },
+    "TSideUpper": {
+      "u": 0.6075,
+      "v": 0.5777,
+      "level": "default"
+    },
+    "TSpawn": {
+      "u": 0.4877,
+      "v": 0.8695,
+      "level": "default"
+    },
+    "TopofMid": {
+      "u": 0.4729,
+      "v": 0.397,
+      "level": "default"
+    },
+    "Tunnel": {
+      "u": 0.6052,
+      "v": 0.7811,
+      "level": "default"
+    },
+    "Water": {
+      "u": 0.6885,
+      "v": 0.759,
+      "level": "default"
+    }
+  }
+}

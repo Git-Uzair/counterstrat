@@ -1,0 +1,130 @@
+{
+  "map_name": "de_inferno",
+  "computed_at": "2026-09-05T02:42:48.512442+00:00",
+  "demos": 6,
+  "generated_from": [
+    "1-37bebab3-6173-4230-8a01-ac18e60fa7ec-1-1.dem.zst",
+    "1-540b2d95-8d5c-46b4-ba4d-d2ad65d000c9-1-1.dem.zst",
+    "1-84f023b7-e46b-4a5b-a675-b70c866915d1-1-1.dem.zst",
+    "1-a7d507f5-df1d-48e6-bd82-9b7cc798c119-1-1.dem.zst",
+    "1-b43db896-ac1e-4d60-87ee-7fef8ac2939c-1-1.dem.zst",
+    "1-e1f54eef-fa43-4368-a837-7ec5dcb3f93e-1-1.dem.zst"
+  ],
+  "anchors": {
+    "Apartments": {
+      "u": 0.663,
+      "v": 0.8204,
+      "level": "default"
+    },
+    "Arch": {
+      "u": 0.7619,
+      "v": 0.5328,
+      "level": "default"
+    },
+    "BackAlley": {
+      "u": 0.5891,
+      "v": 0.8981,
+      "level": "default"
+    },
+    "Balcony": {
+      "u": 0.8236,
+      "v": 0.8114,
+      "level": "default"
+    },
+    "Banana": {
+      "u": 0.4891,
+      "v": 0.4078,
+      "level": "default"
+    },
+    "BombsiteA": {
+      "u": 0.8321,
+      "v": 0.7205,
+      "level": "default"
+    },
+    "BombsiteB": {
+      "u": 0.5316,
+      "v": 0.229,
+      "level": "default"
+    },
+    "Bridge": {
+      "u": 0.3474,
+      "v": 0.7937,
+      "level": "default"
+    },
+    "CTSpawn": {
+      "u": 0.8937,
+      "v": 0.3569,
+      "level": "default"
+    },
+    "Deck": {
+      "u": 0.4331,
+      "v": 0.7575,
+      "level": "default"
+    },
+    "Kitchen": {
+      "u": 0.3795,
+      "v": 0.7156,
+      "level": "default"
+    },
+    "Library": {
+      "u": 0.9164,
+      "v": 0.5203,
+      "level": "default"
+    },
+    "LowerMid": {
+      "u": 0.2892,
+      "v": 0.6473,
+      "level": "default"
+    },
+    "Middle": {
+      "u": 0.5228,
+      "v": 0.6504,
+      "level": "default"
+    },
+    "Pit": {
+      "u": 0.8932,
+      "v": 0.8153,
+      "level": "default"
+    },
+    "Quad": {
+      "u": 0.6963,
+      "v": 0.7847,
+      "level": "default"
+    },
+    "Ruins": {
+      "u": 0.6522,
+      "v": 0.2126,
+      "level": "default"
+    },
+    "SecondMid": {
+      "u": 0.5631,
+      "v": 0.7776,
+      "level": "default"
+    },
+    "TRamp": {
+      "u": 0.3847,
+      "v": 0.602,
+      "level": "default"
+    },
+    "TSpawn": {
+      "u": 0.0956,
+      "v": 0.6882,
+      "level": "default"
+    },
+    "TopofMid": {
+      "u": 0.703,
+      "v": 0.6324,
+      "level": "default"
+    },
+    "Underpass": {
+      "u": 0.4743,
+      "v": 0.642,
+      "level": "default"
+    },
+    "Upstairs": {
+      "u": 0.3091,
+      "v": 0.7346,
+      "level": "default"
+    }
+  }
+}

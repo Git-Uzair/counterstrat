@@ -1,0 +1,136 @@
+{
+  "map_name": "de_dust2",
+  "computed_at": "2026-09-05T02:42:48.345029+00:00",
+  "demos": 7,
+  "generated_from": [
+    "1-0067b3ae-3fc3-4fe6-9ee7-5e00aedf48ad-1-1.dem.zst",
+    "1-095a7dd5-471c-411e-bd24-30e8c6f190b8-1-1.dem.zst",
+    "1-3532be48-b211-4042-b700-cc2cc53dd2a5-1-1.dem.zst",
+    "1-5a433f6f-8301-4404-8fba-bccd0319543a-1-1.dem.zst",
+    "1-5d91b431-1f2b-4c04-810f-1f9bb73115d9-1-1.dem.zst",
+    "1-a90d0896-e0c7-493d-8fb2-94a037814d8a-1-1.dem.zst",
+    "1-ca62c210-c807-4d3a-ba25-1b6b71b74535-1-1.dem.zst"
+  ],
+  "anchors": {
+    "ARamp": {
+      "u": 0.8542,
+      "v": 0.158,
+      "level": "default"
+    },
+    "BDoors": {
+      "u": 0.3039,
+      "v": 0.1896,
+      "level": "default"
+    },
+    "BombsiteA": {
+      "u": 0.7964,
+      "v": 0.1421,
+      "level": "default"
+    },
+    "BombsiteB": {
+      "u": 0.1674,
+      "v": 0.171,
+      "level": "default"
+    },
+    "CTSpawn": {
+      "u": 0.6065,
+      "v": 0.1819,
+      "level": "default"
+    },
+    "Catwalk": {
+      "u": 0.5319,
+      "v": 0.4108,
+      "level": "default"
+    },
+    "ExtendedA": {
+      "u": 0.6521,
+      "v": 0.1991,
+      "level": "default"
+    },
+    "Hole": {
+      "u": 0.2568,
+      "v": 0.1249,
+      "level": "default"
+    },
+    "LongA": {
+      "u": 0.8543,
+      "v": 0.3739,
+      "level": "default"
+    },
+    "LongDoors": {
+      "u": 0.7087,
+      "v": 0.5406,
+      "level": "default"
+    },
+    "LowerTunnel": {
+      "u": 0.3705,
+      "v": 0.4066,
+      "level": "default"
+    },
+    "MidDoors": {
+      "u": 0.4439,
+      "v": 0.2403,
+      "level": "default"
+    },
+    "Middle": {
+      "u": 0.4697,
+      "v": 0.4287,
+      "level": "default"
+    },
+    "OutsideLong": {
+      "u": 0.6069,
+      "v": 0.7215,
+      "level": "default"
+    },
+    "OutsideTunnel": {
+      "u": 0.1985,
+      "v": 0.651,
+      "level": "default"
+    },
+    "Pit": {
+      "u": 0.8535,
+      "v": 0.5845,
+      "level": "default"
+    },
+    "ShortStairs": {
+      "u": 0.6262,
+      "v": 0.3485,
+      "level": "default"
+    },
+    "Side": {
+      "u": 0.9251,
+      "v": 0.5092,
+      "level": "default"
+    },
+    "TRamp": {
+      "u": 0.1408,
+      "v": 0.8206,
+      "level": "default"
+    },
+    "TSpawn": {
+      "u": 0.3811,
+      "v": 0.8955,
+      "level": "default"
+    },
+    "TopofMid": {
+      "u": 0.4672,
+      "v": 0.6444,
+      "level": "default"
+    },
+    "TunnelStairs": {
+      "u": 0.2988,
+      "v": 0.4643,
+      "level": "default"
+    },
+    "UnderA": {
+      "u": 0.7203,
+      "v": 0.2238,
+      "level": "default"
+    },
+    "UpperTunnel": {
+      "u": 0.1584,
+      "v": 0.4609,
+      "level": "default"
+    }
+  }
+}

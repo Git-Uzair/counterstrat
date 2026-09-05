@@ -1,0 +1,160 @@
+{
+  "map_name": "de_nuke",
+  "computed_at": "2026-09-05T02:42:48.704160+00:00",
+  "demos": 6,
+  "generated_from": [
+    "1-0b04e5e0-e2e8-4430-a1bb-9839a917df4a-1-1.dem.zst",
+    "1-4efcf51a-163a-474a-b23a-d9d8f815e12c-1-1 (1).dem.zst",
+    "1-58a9e1e3-f70e-4fc7-aa89-f53ae36c68af-1-1 (1).dem.zst",
+    "1-740ba395-978a-4dc7-8256-2429c0c369ab-1-1.dem.zst",
+    "1-9d917176-c781-4644-9c98-dadd97551feb-1-1.dem.zst",
+    "1-e8c2e6de-47cb-47ea-ad20-8f8c00850c1b-1-1.dem.zst"
+  ],
+  "anchors": {
+    "Admin": {
+      "u": 0.6371,
+      "v": 0.41,
+      "level": "default"
+    },
+    "BombsiteA": {
+      "u": 0.5714,
+      "v": 0.5595,
+      "level": "default"
+    },
+    "BombsiteB": {
+      "u": 0.5796,
+      "v": 0.5253,
+      "level": "lower"
+    },
+    "CTSpawn": {
+      "u": 0.8378,
+      "v": 0.4619,
+      "level": "default"
+    },
+    "Catwalk": {
+      "u": 0.6666,
+      "v": 0.4594,
+      "level": "default"
+    },
+    "Control": {
+      "u": 0.5061,
+      "v": 0.4065,
+      "level": "default"
+    },
+    "Crane": {
+      "u": 0.6169,
+      "v": 0.5186,
+      "level": "default"
+    },
+    "Decon": {
+      "u": 0.5132,
+      "v": 0.5923,
+      "level": "lower"
+    },
+    "Garage": {
+      "u": 0.7254,
+      "v": 0.67,
+      "level": "default"
+    },
+    "Heaven": {
+      "u": 0.638,
+      "v": 0.4568,
+      "level": "default"
+    },
+    "Hell": {
+      "u": 0.6484,
+      "v": 0.4642,
+      "level": "default"
+    },
+    "Hut": {
+      "u": 0.5351,
+      "v": 0.5357,
+      "level": "default"
+    },
+    "HutRoof": {
+      "u": 0.5356,
+      "v": 0.5584,
+      "level": "default"
+    },
+    "Lobby": {
+      "u": 0.4641,
+      "v": 0.537,
+      "level": "default"
+    },
+    "LockerRoom": {
+      "u": 0.6438,
+      "v": 0.4977,
+      "level": "default"
+    },
+    "Mini": {
+      "u": 0.5845,
+      "v": 0.6314,
+      "level": "default"
+    },
+    "Observation": {
+      "u": 0.6438,
+      "v": 0.4857,
+      "level": "lower"
+    },
+    "Outside": {
+      "u": 0.5971,
+      "v": 0.626,
+      "level": "default"
+    },
+    "Rafters": {
+      "u": 0.6027,
+      "v": 0.455,
+      "level": "default"
+    },
+    "Ramp": {
+      "u": 0.562,
+      "v": 0.3631,
+      "level": "default"
+    },
+    "Roof": {
+      "u": 0.4776,
+      "v": 0.5698,
+      "level": "default"
+    },
+    "Secret": {
+      "u": 0.67,
+      "v": 0.739,
+      "level": "default"
+    },
+    "Silo": {
+      "u": 0.5118,
+      "v": 0.6284,
+      "level": "default"
+    },
+    "Squeaky": {
+      "u": 0.4952,
+      "v": 0.5788,
+      "level": "default"
+    },
+    "TSpawn": {
+      "u": 0.2203,
+      "v": 0.5529,
+      "level": "default"
+    },
+    "Trophy": {
+      "u": 0.4969,
+      "v": 0.4625,
+      "level": "default"
+    },
+    "Tunnels": {
+      "u": 0.6381,
+      "v": 0.6211,
+      "level": "lower"
+    },
+    "Vending": {
+      "u": 0.4666,
+      "v": 0.4764,
+      "level": "default"
+    },
+    "Vents": {
+      "u": 0.5701,
+      "v": 0.6045,
+      "level": "lower"
+    }
+  }
+}
