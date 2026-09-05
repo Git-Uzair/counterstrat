@@ -33,6 +33,11 @@ class KillEvent(BaseModel):
     distance: float | None = None  # attacker->victim in METERS (awpy unit)
     thrusmoke: bool = False
     penetrated: bool = False  # wallbang
+    # Death-context fields (2026-09-05 advanced-analytics plan Task 1); None
+    # on scripts serialized before the upgrade - consumers must skip.
+    victim_moving: bool | None = None  # 16 Hz speed > walk threshold at death
+    victim_preaim_off_deg: float | None = None  # victim yaw vs bearing to killer
+    victim_weapon: str | None = None  # active weapon display name at death
 
 
 class UtilEvent(BaseModel):  # filled by Task 15
@@ -44,6 +49,15 @@ class UtilEvent(BaseModel):  # filled by Task 15
     to_zone: str
     lineup_id: str | None = None
     blinded: list[tuple[str, float]] = []
+    # Effect fields (2026-09-05 advanced-analytics plan Task 1). None means
+    # "not measured" (old lake / table absent / wrong nade type), never "zero
+    # effect". Blind seconds are SUMS across victims - MAX would hide
+    # multi-blinds. Only flashes carry blind fields, HE/molly carry damage,
+    # smokes carry kills_through.
+    enemy_blind_s: float | None = None
+    team_blind_s: float | None = None
+    damage: int | None = None  # dmg_health dealt inside the bloom window
+    kills_through: int | None = None  # thrusmoke kills crossing this smoke while active
 
 
 class PlantEvent(BaseModel):
@@ -52,6 +66,28 @@ class PlantEvent(BaseModel):
     planter: str
     alive_t: int
     alive_ct: int
+
+
+class RotationEvent(BaseModel):
+    """One hold-break responding to a trigger (2026-09-05 advanced-analytics plan).
+
+    Heuristic correlation, never causation: the player had held ``from_zone``
+    for >= 4s when the trigger fired and left within 8s; the nearest earlier
+    trigger claims the response. Trigger vocabulary: ``first_blood``,
+    ``utility_near`` (an enemy grenade detonated - anywhere; nearness is
+    temporal), ``plant``, ``shots`` (first shots of the round),
+    ``visible_contact`` (an enemy entered a zone the sightline matrix says is
+    visible from the hold). CS2 demos carry no footstep/audio events - sound
+    is never a trigger.
+    """
+
+    t_trigger: float
+    trigger: str
+    player: str
+    side: str
+    from_zone: str
+    to_zone: str
+    latency_s: float  # trigger -> first sustained displacement, 0.1s resolution
 
 
 class MovementLine(BaseModel):  # filled by Task 14
@@ -100,6 +136,10 @@ class RoundScript(BaseModel):
     # scripts serialized before the upgrade (renderers must degrade gracefully).
     tracks: dict[str, list[ZoneStint]] = {}
     sides: dict[str, str] = {}
+    # v3 (2026-09-05 advanced-analytics plan Task 1): trigger-conditioned
+    # hold-breaks; empty on pre-v3 scripts. Not rendered in timelines - the
+    # rotation miner and chat tools consume it.
+    rotations: list[RotationEvent] = []
 
     def to_text(self, include_movements: bool = False, max_utility: int = 16) -> str:
         lines = [self._header_line()]

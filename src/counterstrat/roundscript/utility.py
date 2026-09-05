@@ -32,6 +32,12 @@ NADE_INITIALS = {"smoke": "S", "flash": "F", "molly": "M", "he": "H"}
 PROJECTILE_NADES = {"CFlashbangProjectile": "flash", "CHEGrenadeProjectile": "he"}
 
 BLIND_JOIN_TICKS = 64  # player_blind rows within +-1s of detonation
+# Effect joins (2026-09-05 advanced-analytics plan Task 1). None = table
+# unavailable, never "zero effect".
+HE_DAMAGE_WINDOW_TICKS = 64  # HE damage lands within a second of the pop
+BLOOM_DAMAGE_PAD_TICKS = 64  # burn ticks on the bloom edges still belong to it
+SMOKE_BLOCK_RADIUS_U = 200.0  # smoke bloom radius (~144u) plus tolerance
+MOLLY_DAMAGE_WEAPONS = ("inferno", "molotov")
 Z_SCALE = 2.0  # verticality weight, mirrors ZoneMapper.z_scale
 XYZ_COLS = ("origin_x", "origin_y", "origin_z", "landing_x", "landing_y", "landing_z")
 XYZ_SCHEMA = {c: pl.Float64 for c in XYZ_COLS}
@@ -79,21 +85,26 @@ def _sides_by_steamid(lake: LakePaths, round_num: int) -> dict[str, str]:
     return out
 
 
-def _blind_rows(lake: LakePaths) -> pl.DataFrame:
-    """The whole player_blind table (207 rows on the fixture demo); tick-joined later."""
+def _blind_rows(lake: LakePaths) -> pl.DataFrame | None:
+    """The whole player_blind table (207 rows on the fixture demo); tick-joined later.
+
+    None means the table is unavailable (missing file or pre-upgrade schema) -
+    distinct from an available-but-empty table, so effect fields can stay None
+    instead of claiming a measured zero.
+    """
     if not lake.player_blind or not Path(lake.player_blind).exists():
-        return pl.DataFrame()
+        return None
     df = pl.read_parquet(lake.player_blind)
     needed = {"attacker_steamid", "user_name", "blind_duration", "tick"}
-    if df.is_empty() or not needed <= set(df.columns):
-        return pl.DataFrame()
+    if not needed <= set(df.columns):
+        return None
     return df
 
 
 def _blinded_for(
-    blinds: pl.DataFrame, thrower_steamid: str, det_tick: int
+    blinds: pl.DataFrame | None, thrower_steamid: str, det_tick: int
 ) -> list[tuple[str, float]]:
-    if blinds.is_empty():
+    if blinds is None or blinds.is_empty():
         return []
     hits = blinds.filter(
         (pl.col("attacker_steamid").cast(pl.String) == thrower_steamid)
@@ -108,11 +119,115 @@ def _blinded_for(
     return victims
 
 
+def _blind_split(
+    blinds: pl.DataFrame | None,
+    thrower_steamid: str,
+    det_tick: int,
+    sides: dict[str, str],
+) -> tuple[float | None, float | None]:
+    """(enemy_blind_s, team_blind_s) SUMS for one flash; (None, None) unmeasurable.
+
+    The split follows the game's attribution: a teammate blinded through a
+    wall by an enemy-effective flash still counts where player_blind puts it.
+    Victims whose side is unknown (disconnected mid-round) are skipped.
+    """
+    if blinds is None or "user_steamid" not in blinds.columns:
+        return None, None
+    thrower_side = sides.get(thrower_steamid)
+    if thrower_side is None:
+        return None, None
+    hits = blinds.filter(
+        (pl.col("attacker_steamid").cast(pl.String) == thrower_steamid)
+        & ((pl.col("tick").cast(pl.Int64) - det_tick).abs() <= BLIND_JOIN_TICKS)
+    )
+    enemy = team = 0.0
+    for r in hits.iter_rows(named=True):
+        victim_side = sides.get(str(r["user_steamid"]))
+        dur = r["blind_duration"]
+        if victim_side is None or dur is None:
+            continue
+        if victim_side == thrower_side:
+            team += float(dur)
+        else:
+            enemy += float(dur)
+    return round(enemy, 2), round(team, 2)
+
+
+def _damage_rows(lake: LakePaths, round_num: int) -> pl.DataFrame | None:
+    """This round's damages table, or None when it cannot answer."""
+    df = _scan_round(lake.damages, round_num)
+    needed = {"weapon", "attacker_steamid", "dmg_health", "tick"}
+    if df.is_empty() or not needed <= set(df.columns):
+        return None
+    return df
+
+
+def _grenade_damage(
+    damages: pl.DataFrame | None,
+    thrower_steamid: str | None,
+    weapons: tuple[str, ...],
+    t0: int,
+    t1: int,
+) -> int | None:
+    if damages is None or not thrower_steamid:
+        return None
+    hits = damages.filter(
+        pl.col("weapon").is_in(list(weapons))
+        & (pl.col("attacker_steamid").cast(pl.String) == str(thrower_steamid))
+        & (pl.col("tick").cast(pl.Int64) >= t0)
+        & (pl.col("tick").cast(pl.Int64) <= t1)
+    )
+    return int(hits["dmg_health"].sum() or 0)
+
+
+def _kill_rows(lake: LakePaths, round_num: int) -> pl.DataFrame | None:
+    """This round's kills with the columns the smoke join needs, else None."""
+    df = _scan_round(lake.kills, round_num)
+    needed = {"thrusmoke", "tick", "attacker_X", "attacker_Y", "victim_X", "victim_Y"}
+    if df.is_empty() or not needed <= set(df.columns):
+        return None
+    return df
+
+
+def _point_seg_dist(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float:
+    """2D distance from point p to segment a-b."""
+    dx, dy = bx - ax, by - ay
+    seg_len_sq = dx * dx + dy * dy
+    if seg_len_sq <= 0.0:
+        return float(np.hypot(px - ax, py - ay))
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / seg_len_sq))
+    return float(np.hypot(px - (ax + t * dx), py - (ay + t * dy)))
+
+
+def _kills_through(
+    kills: pl.DataFrame | None, start_tick: int, end_tick: int, lx: float, ly: float
+) -> int | None:
+    """Thrusmoke kills whose attacker->victim line crosses this smoke while active."""
+    if kills is None:
+        return None
+    active = kills.filter(
+        pl.col("thrusmoke")
+        & (pl.col("tick").cast(pl.Int64) >= start_tick)
+        & (pl.col("tick").cast(pl.Int64) <= end_tick)
+    )
+    count = 0
+    for r in active.iter_rows(named=True):
+        coords = (r["attacker_X"], r["attacker_Y"], r["victim_X"], r["victim_Y"])
+        if any(c is None for c in coords):
+            continue
+        ax, ay, vx, vy = (float(c) for c in coords)
+        if _point_seg_dist(lx, ly, ax, ay, vx, vy) <= SMOKE_BLOCK_RADIUS_U:
+            count += 1
+    return count
+
+
 def _bloom_rows(
     df: pl.DataFrame,
     nade: str,
     mapper: ZoneMapper,
     freeze_end: int | None,
+    damages: pl.DataFrame | None = None,
+    kills: pl.DataFrame | None = None,
 ) -> list[dict[str, Any]]:
     """Rows from the awpy `smokes`/`infernos` tables (thrower_* origin, X/Y/Z landing)."""
     # Rare rows have no thrower attribution at all (thrower_* all null - e.g. the
@@ -134,15 +249,33 @@ def _bloom_rows(
     rows: list[dict[str, Any]] = []
     for i, row in enumerate(df.iter_rows(named=True)):
         place = str(row.get("thrower_place") or "").strip()
+        start_tick = row.get("start_tick")
+        end_tick = row.get("end_tick")
+        damage: int | None = None
+        kt: int | None = None
+        if start_tick is not None and end_tick is not None:
+            t0, t1 = int(start_tick), int(end_tick)
+            if nade == "molly":
+                damage = _grenade_damage(
+                    damages,
+                    row.get("thrower_steamid"),
+                    MOLLY_DAMAGE_WEAPONS,
+                    t0 - BLOOM_DAMAGE_PAD_TICKS,
+                    t1 + BLOOM_DAMAGE_PAD_TICKS,
+                )
+            elif nade == "smoke":
+                kt = _kills_through(kills, t0, t1, float(row["X"]), float(row["Y"]))
         rows.append(
             {
-                "t": _clock_s(row.get("start_tick"), freeze_end),
+                "t": _clock_s(start_tick, freeze_end),
                 "thrower": str(row.get("thrower_name") or ""),
                 "side": _normalize_side(row.get("thrower_side")),
                 "nade": nade,
                 "from_zone": place or from_mapped[i],
                 "to_zone": to_zones[i],
                 "blinded": [],
+                "damage": damage,
+                "kills_through": kt,
                 "origin_x": float(row["thrower_X"]),
                 "origin_y": float(row["thrower_Y"]),
                 "origin_z": float(row["thrower_Z"]),
@@ -160,6 +293,7 @@ def _projectile_rows(
     mapper: ZoneMapper,
     freeze_end: int | None,
     sides: dict[str, str],
+    damages: pl.DataFrame | None = None,
 ) -> list[dict[str, Any]]:
     """Flashes/HEs from grenade trajectories: first tick = throw origin, last = detonation."""
     traj = _scan_round(
@@ -206,6 +340,19 @@ def _projectile_rows(
         nade = PROJECTILE_NADES[str(row["grenade_type"])]
         steamid = str(row["thrower_steamid"])
         det_tick = int(row["det_tick"])
+        enemy_blind_s: float | None = None
+        team_blind_s: float | None = None
+        damage: int | None = None
+        if nade == "flash":
+            enemy_blind_s, team_blind_s = _blind_split(blinds, steamid, det_tick, sides)
+        elif nade == "he":
+            damage = _grenade_damage(
+                damages,
+                steamid,
+                ("hegrenade",),
+                det_tick - HE_DAMAGE_WINDOW_TICKS,
+                det_tick + HE_DAMAGE_WINDOW_TICKS,
+            )
         rows.append(
             {
                 "t": _clock_s(det_tick, freeze_end),
@@ -215,6 +362,9 @@ def _projectile_rows(
                 "from_zone": from_zones[i],
                 "to_zone": to_zones[i],
                 "blinded": _blinded_for(blinds, steamid, det_tick) if nade == "flash" else [],
+                "enemy_blind_s": enemy_blind_s,
+                "team_blind_s": team_blind_s,
+                "damage": damage,
                 "origin_x": float(row["origin_x"]),
                 "origin_y": float(row["origin_y"]),
                 "origin_z": float(row["origin_z"]),
@@ -238,13 +388,15 @@ def utility_events_with_xyz(
     """
     freeze_end = _freeze_end(lake, round_num)
     sides = _sides_by_steamid(lake, round_num)
+    damages = _damage_rows(lake, round_num)
+    kills = _kill_rows(lake, round_num)
 
     rows: list[dict[str, Any]] = []
     for path, nade in ((lake.smokes, "smoke"), (lake.infernos, "molly")):
         df = _scan_round(path, round_num)
         if not df.is_empty():
-            rows.extend(_bloom_rows(df, nade, mapper, freeze_end))
-    rows.extend(_projectile_rows(lake, round_num, mapper, freeze_end, sides))
+            rows.extend(_bloom_rows(df, nade, mapper, freeze_end, damages=damages, kills=kills))
+    rows.extend(_projectile_rows(lake, round_num, mapper, freeze_end, sides, damages=damages))
 
     rows.sort(key=lambda r: (r["t"], r["nade"], r["thrower"], r["to_zone"]))
     events = [
@@ -256,6 +408,10 @@ def utility_events_with_xyz(
             from_zone=r["from_zone"],
             to_zone=r["to_zone"],
             blinded=r["blinded"],
+            enemy_blind_s=r.get("enemy_blind_s"),
+            team_blind_s=r.get("team_blind_s"),
+            damage=r.get("damage"),
+            kills_through=r.get("kills_through"),
         )
         for r in rows
     ]

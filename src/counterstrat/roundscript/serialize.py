@@ -1,5 +1,6 @@
 """RoundScript serialization: match and round orchestrator."""
 
+import math
 from pathlib import Path
 
 import polars as pl
@@ -11,8 +12,60 @@ from counterstrat.mapcard.zones import ZoneMapper
 from counterstrat.roundscript.beats import build_beats
 from counterstrat.roundscript.econ import round_economy
 from counterstrat.roundscript.models import KillEvent, PlantEvent, RoundScript, UtilEvent
-from counterstrat.roundscript.movement import _normalize_side, movement_sentences, zone_stints
+from counterstrat.roundscript.movement import (
+    VICTIM_MOVING_SPEED,
+    _circ_diff_deg,
+    _normalize_side,
+    detect_rotations,
+    movement_sentences,
+    zone_stints,
+)
 from counterstrat.roundscript.utility import cluster_lineups, utility_events_with_xyz
+
+
+def _death_context(
+    ticks_r: pl.DataFrame, krow: dict
+) -> tuple[bool | None, float | None, str | None]:
+    """(victim_moving, victim_preaim_off_deg, victim_weapon) for one kill row.
+
+    Read from the victim's last 16 Hz tick samples before the death tick; every
+    field degrades to None when its inputs are missing (old lakes, bot rows) -
+    None means "not measured", never "confirmed false".
+    """
+    vname = str(krow.get("victim_name") or "")
+    ktick = krow.get("tick")
+    if not vname or ktick is None or ticks_r.is_empty():
+        return None, None, None
+    if not {"name", "tick"} <= set(ticks_r.columns):
+        return None, None, None
+    vt = ticks_r.filter((pl.col("name") == vname) & (pl.col("tick") <= int(ktick))).sort("tick")
+    if vt.is_empty():
+        return None, None, None
+    last = vt.row(-1, named=True)
+
+    weapon = None
+    if "active_weapon_name" in vt.columns:
+        weapon = str(last.get("active_weapon_name") or "").strip() or None
+
+    moving: bool | None = None
+    if vt.height >= 2 and {"X", "Y"} <= set(vt.columns):
+        prev = vt.row(-2, named=True)
+        coords = (last.get("X"), last.get("Y"), prev.get("X"), prev.get("Y"))
+        dt_ticks = int(last["tick"]) - int(prev["tick"])
+        if all(c is not None for c in coords) and dt_ticks > 0:
+            lx, ly, px, py = (float(c) for c in coords)
+            speed = math.hypot(lx - px, ly - py) / (dt_ticks / 64.0)
+            moving = speed > VICTIM_MOVING_SPEED
+
+    preaim: float | None = None
+    kx, ky = krow.get("attacker_X"), krow.get("attacker_Y")
+    vx = krow.get("victim_X") if krow.get("victim_X") is not None else last.get("X")
+    vy = krow.get("victim_Y") if krow.get("victim_Y") is not None else last.get("Y")
+    yaw = last.get("yaw") if "yaw" in vt.columns else None
+    if kx is not None and ky is not None and vx is not None and vy is not None and yaw is not None:
+        bearing = math.degrees(math.atan2(float(ky) - float(vy), float(kx) - float(vx)))
+        preaim = round(_circ_diff_deg(float(yaw), bearing), 1)
+    return moving, preaim, weapon
 
 
 def serialize_round(
@@ -29,6 +82,7 @@ def serialize_round(
     score_t: int = 0,
     score_ct: int = 0,
     sightlines: list[dict] | None = None,
+    shots_df: pl.DataFrame | None = None,
 ) -> RoundScript:
     """Serialize a single round into a RoundScript model."""
     r_df = rounds_df if rounds_df is not None else pl.read_parquet(lake.rounds)
@@ -39,6 +93,15 @@ def serialize_round(
         if bomb_df is not None
         else (
             pl.read_parquet(lake.bomb) if lake.bomb and Path(lake.bomb).exists() else pl.DataFrame()
+        )
+    )
+    s_df = (
+        shots_df
+        if shots_df is not None
+        else (
+            pl.read_parquet(lake.shots)
+            if lake.shots and Path(lake.shots).exists()
+            else pl.DataFrame()
         )
     )
 
@@ -60,7 +123,8 @@ def serialize_round(
             else 0.0
         )
 
-    # Kills
+    # Kills (death contexts read the victim's last tick samples, plan v3)
+    ticks_round = t_df.filter(pl.col("round_num") == round_num) if not t_df.is_empty() else t_df
     r_kills = k_df.filter(pl.col("round_num") == round_num) if not k_df.is_empty() else k_df
     kill_events: list[KillEvent] = []
     for krow in r_kills.iter_rows(named=True):
@@ -82,6 +146,7 @@ def serialize_round(
             kzone = "Unknown"
 
         dist = krow.get("distance")
+        victim_moving, victim_preaim, victim_weapon = _death_context(ticks_round, krow)
         kill_events.append(
             KillEvent(
                 t=kt,
@@ -95,6 +160,9 @@ def serialize_round(
                 distance=float(dist) if dist is not None else None,
                 thrusmoke=bool(krow.get("thrusmoke") or False),
                 penetrated=bool(krow.get("penetrated") or 0),
+                victim_moving=victim_moving,
+                victim_preaim_off_deg=victim_preaim,
+                victim_weapon=victim_weapon,
             )
         )
 
@@ -161,6 +229,24 @@ def serialize_round(
     # semantics restricted by the card's empirical sightlines when present.
     tracks, sides = zone_stints(t_df, round_num=round_num, sightlines=sightlines)
 
+    # Rotations (2026-09-05 plan Task 1): trigger-conditioned hold-breaks.
+    first_shot_t: float | None = None
+    if not s_df.is_empty() and {"round_num", "tick"} <= set(s_df.columns) and freeze_end:
+        r_shots = s_df.filter(pl.col("round_num") == round_num)
+        if not r_shots.is_empty():
+            first_shot_t = (float(r_shots["tick"].min()) - float(freeze_end)) / 64.0
+    rotations = detect_rotations(
+        tracks,
+        sides,
+        t_df,
+        round_num,
+        kills=kill_events,
+        plant=plant,
+        utility=utils or [],
+        first_shot_t=first_shot_t,
+        sightlines=sightlines,
+    )
+
     match_id = str(r_dict.get("match_id") or Path(lake.root).name)
     winner_str = _normalize_side(r_dict.get("winner"))
 
@@ -185,6 +271,7 @@ def serialize_round(
         movements=movements,
         tracks=tracks,
         sides=sides,
+        rotations=rotations,
     )
 
 
@@ -201,6 +288,9 @@ def serialize_match(
     kills_df = pl.read_parquet(lake.kills)
     bomb_df = (
         pl.read_parquet(lake.bomb) if lake.bomb and Path(lake.bomb).exists() else pl.DataFrame()
+    )
+    shots_df = (
+        pl.read_parquet(lake.shots) if lake.shots and Path(lake.shots).exists() else pl.DataFrame()
     )
 
     round_nums = [int(rn) for rn in rounds_df["round_num"].to_list()]
@@ -242,6 +332,7 @@ def serialize_match(
             score_t=score_t,
             score_ct=score_ct,
             sightlines=sightlines,
+            shots_df=shots_df,
         )
         scripts.append(script)
 

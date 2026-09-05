@@ -171,6 +171,54 @@ def test_timeline_text_complete():
     assert "END: T wins (bomb_exploded) at 97s" in text
 
 
+def test_enrichment_fields_never_change_the_timeline():
+    """2026-09-05 plan budget rule: timelines dominate the First Read prompt,
+    so the v3 enrichment (rotations / effect fields / death contexts) must add
+    ZERO timeline lines - it renders via miners and tools only."""
+    from counterstrat.roundscript.models import RotationEvent
+
+    plain = _script()
+    enriched = _script(
+        kills=[
+            k.model_copy(
+                update={
+                    "victim_moving": True,
+                    "victim_preaim_off_deg": 38.5,
+                    "victim_weapon": "AK-47",
+                }
+            )
+            for k in plain.kills
+        ],
+        utility=[
+            u.model_copy(
+                update={
+                    "enemy_blind_s": 3.1,
+                    "team_blind_s": 0.2,
+                    "damage": 34,
+                    "kills_through": 1,
+                }
+            )
+            for u in plain.utility
+        ],
+        rotations=[
+            RotationEvent(
+                t_trigger=12.0,
+                trigger="utility_near",
+                player="p1",
+                side="T",
+                from_zone="TSpawn",
+                to_zone="Banana",
+                latency_s=1.5,
+            )
+        ],
+    )
+    assert enriched.to_timeline_text() == plain.to_timeline_text()
+    assert enriched.to_timeline_text(lite=True, include_holds=True) == plain.to_timeline_text(
+        lite=True, include_holds=True
+    )
+    assert enriched.to_text() == plain.to_text()
+
+
 def test_timeline_lite_drops_moves_keeps_kills():
     text = _script().to_timeline_text(lite=True)
     assert "MOVE" not in text and "SPAWNS" not in text

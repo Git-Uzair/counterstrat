@@ -81,19 +81,22 @@ def _mini_lake(tmp_path: Path):
     rounds = pl.DataFrame({"round_num": [5], "freeze_end": [1000], "start": [0], "end": [9000]})
     rosters = pl.DataFrame(
         {
-            "round_num": [5],
-            "side": ["TERRORIST"],
-            "team_key": ["abc"],
-            "steamids": [[111]],
-            "clan_name": ["x"],
+            "round_num": [5, 5],
+            "side": ["TERRORIST", "CT"],
+            "team_key": ["abc", "xyz"],
+            "steamids": [[111, 444], [222, 333]],
+            "clan_name": ["x", "y"],
         }
     )
+    # Two enemies (2.5s + 1.8s) and one teammate (0.4s) blinded at the pop:
+    # the split convention is SUM per side (MAX would hide multi-blinds).
     blinds = pl.DataFrame(
         {
-            "attacker_steamid": [111],
-            "user_name": ["victim1"],
-            "blind_duration": [2.5],
-            "tick": [1744],  # the real pop moment
+            "attacker_steamid": [111, 111, 111],
+            "user_steamid": [222, 333, 444],
+            "user_name": ["victim1", "victim2", "mate1"],
+            "blind_duration": [2.5, 1.8, 0.4],
+            "tick": [1744, 1744, 1745],  # the real pop moment
         }
     )
     grenades.write_parquet(tmp_path / "grenades.parquet")
@@ -253,6 +256,175 @@ def test_bloom_rows_drop_orphan_thrower(tmp_path):
     assert mollies[0].thrower == "donk"
     assert mollies[0].to_zone in {"TSpawn", "Window"}  # mapped, not NaN-poisoned
     assert xyz.height == len(evs)  # frames stay aligned for clustering
+
+
+# --- Effect fields (2026-09-05 advanced-analytics plan Task 1) ---
+
+
+def _add_he(tmp_path: Path) -> None:
+    """Append an HE trajectory (entity 8, det tick 1660) to the mini lake."""
+    he = pl.DataFrame(
+        [
+            {
+                "entity_id": 8,
+                "grenade_type": "CHEGrenadeProjectile",
+                "thrower": "donk",
+                "thrower_steamid": 111,
+                "tick": 1650 + i,
+                "X": 200.0 + 90.0 * i,
+                "Y": 200.0 + 90.0 * i,
+                "Z": 64.0,
+                "round_num": 5,
+            }
+            for i in range(11)  # last moving tick = 1660 -> the pop
+        ]
+    )
+    old = pl.read_parquet(tmp_path / "grenades.parquet")
+    pl.concat([old, he]).write_parquet(tmp_path / "grenades.parquet")
+
+
+def test_flash_blind_split_sums_per_side(tmp_path):
+    lake = _mini_lake(tmp_path)
+    evs = utility_events(lake, _mini_mapper(), 5)
+    flash = next(e for e in evs if e.nade == "flash")
+    assert flash.enemy_blind_s == pytest.approx(4.3)  # 2.5 + 1.8, SUM not MAX
+    assert flash.team_blind_s == pytest.approx(0.4)
+    assert flash.damage is None and flash.kills_through is None  # wrong nade type
+
+
+def test_blind_fields_none_without_blind_table(tmp_path):
+    lake = _mini_lake(tmp_path)
+    (tmp_path / "player_blind.parquet").unlink()
+    evs = utility_events(lake, _mini_mapper(), 5)
+    flash = next(e for e in evs if e.nade == "flash")
+    assert flash.blinded == []
+    assert flash.enemy_blind_s is None and flash.team_blind_s is None
+
+
+def test_he_damage_attributed_within_pop_window(tmp_path):
+    lake = _mini_lake(tmp_path)
+    _add_he(tmp_path)
+    pl.DataFrame(
+        {
+            "round_num": [5, 5, 5],
+            "tick": [1700, 1700, 3000],  # in-window HE, rifle noise, late HE
+            "weapon": ["hegrenade", "ak47", "hegrenade"],
+            "attacker_steamid": [111, 111, 111],
+            "dmg_health": [34, 27, 50],
+        }
+    ).write_parquet(tmp_path / "damages.parquet")
+    evs = utility_events(lake, _mini_mapper(), 5)
+    he = next(e for e in evs if e.nade == "he")
+    assert he.damage == 34
+    assert he.kills_through is None
+
+
+def test_effect_fields_none_when_tables_missing(tmp_path):
+    lake = _mini_lake(tmp_path)
+    _add_he(tmp_path)  # no damages.parquet, no kills.parquet
+    evs = utility_events(lake, _mini_mapper(), 5)
+    he = next(e for e in evs if e.nade == "he")
+    assert he.damage is None
+
+
+def test_molly_damage_over_bloom_window(tmp_path):
+    lake = _mini_lake(tmp_path)
+    pl.DataFrame(
+        {
+            "entity_id": [12],
+            "start_tick": [1200],
+            "end_tick": [2200],
+            "thrower_X": [105.0],
+            "thrower_Y": [105.0],
+            "thrower_Z": [64.0],
+            "thrower_place": ["TSpawn"],
+            "thrower_name": ["donk"],
+            "thrower_steamid": ["111"],
+            "thrower_side": ["TERRORIST"],
+            "X": [1120.0],
+            "Y": [1120.0],
+            "Z": [64.0],
+            "round_num": [5],
+        }
+    ).write_parquet(tmp_path / "infernos.parquet")
+    pl.DataFrame(
+        {
+            "round_num": [5, 5, 5],
+            "tick": [1300, 1400, 5000],  # two burn ticks in-window, one after
+            "weapon": ["inferno", "molotov", "inferno"],
+            "attacker_steamid": [111, 111, 111],
+            "dmg_health": [12, 8, 40],
+        }
+    ).write_parquet(tmp_path / "damages.parquet")
+    evs = utility_events(lake, _mini_mapper(), 5)
+    molly = next(e for e in evs if e.nade == "molly")
+    assert molly.damage == 20
+
+
+def test_smoke_kills_through_crossing_segment(tmp_path):
+    lake = _mini_lake(tmp_path)
+    pl.DataFrame(
+        {
+            "entity_id": [21],
+            "start_tick": [1100],
+            "end_tick": [2100],
+            "thrower_X": [105.0],
+            "thrower_Y": [105.0],
+            "thrower_Z": [64.0],
+            "thrower_place": ["TSpawn"],
+            "thrower_name": ["donk"],
+            "thrower_steamid": ["111"],
+            "thrower_side": ["TERRORIST"],
+            "X": [1120.0],
+            "Y": [1120.0],
+            "Z": [64.0],
+            "round_num": [5],
+        }
+    ).write_parquet(tmp_path / "smokes.parquet")
+    pl.DataFrame(
+        {
+            "round_num": [5, 5, 5, 5],
+            "tick": [1500, 1500, 5000, 1500],
+            "thrusmoke": [True, False, True, True],
+            "attacker_X": [100.0, 100.0, 100.0, 100.0],
+            "attacker_Y": [100.0, 100.0, 100.0, 100.0],
+            "victim_X": [2000.0, 2000.0, 2000.0, 100.0],
+            "victim_Y": [2000.0, 2000.0, 2000.0, 5000.0],
+            "attacker_name": ["donk"] * 4,
+            "victim_name": ["v"] * 4,
+        }
+    ).write_parquet(tmp_path / "kills.parquet")
+    evs = utility_events(lake, _mini_mapper(), 5)
+    smoke = next(e for e in evs if e.nade == "smoke")
+    # Only the in-window thrusmoke kill whose line crosses the bloom counts:
+    # not the no-flag kill, not the late kill, not the far-away segment.
+    assert smoke.kills_through == 1
+    assert smoke.damage is None
+
+
+def test_smoke_kills_through_none_without_kills_table(tmp_path):
+    lake = _mini_lake(tmp_path)
+    pl.DataFrame(
+        {
+            "entity_id": [21],
+            "start_tick": [1100],
+            "end_tick": [2100],
+            "thrower_X": [105.0],
+            "thrower_Y": [105.0],
+            "thrower_Z": [64.0],
+            "thrower_place": ["TSpawn"],
+            "thrower_name": ["donk"],
+            "thrower_steamid": ["111"],
+            "thrower_side": ["TERRORIST"],
+            "X": [1120.0],
+            "Y": [1120.0],
+            "Z": [64.0],
+            "round_num": [5],
+        }
+    ).write_parquet(tmp_path / "smokes.parquet")
+    evs = utility_events(lake, _mini_mapper(), 5)
+    smoke = next(e for e in evs if e.nade == "smoke")
+    assert smoke.kills_through is None
 
 
 @pytest.fixture(scope="module")

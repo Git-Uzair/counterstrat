@@ -8,7 +8,14 @@ from typing import Any
 import polars as pl
 
 from counterstrat.constants import BEAT_INTERVAL_S, UNITS_PER_METER
-from counterstrat.roundscript.models import KillEvent, MovementLine, PlantEvent, ZoneStint
+from counterstrat.roundscript.models import (
+    KillEvent,
+    MovementLine,
+    PlantEvent,
+    RotationEvent,
+    UtilEvent,
+    ZoneStint,
+)
 
 # Gaze semantics (space-vision research item 4). Yaw convention verified on
 # real kills: degrees, 0 = +X (east), CCW positive; attacker yaw matches
@@ -16,6 +23,21 @@ from counterstrat.roundscript.models import KillEvent, MovementLine, PlantEvent,
 HOLD_MIN_S = 8  # stints shorter than this are transit, not holds
 LOCKED_STD_DEG = 15.0  # circular yaw std below this = locked angle (probe: 9 deg)
 GAZE_CONE_DEG = 40.0  # a watched zone's centroid must sit within this of mean yaw
+
+# Rotation semantics (2026-09-05 advanced-analytics plan Task 1). Heuristic
+# correlation, never causation: a hold of >= 4s broken within 8s of a trigger.
+ROTATION_HOLD_MIN_S = 4.0  # stint age at the trigger for it to be a hold
+ROTATION_RESPONSE_S = 8.0  # the hold must break within this window
+ROTATION_DISPLACE_U = 96.0  # ~2.4m sustained displacement = left the hold
+VICTIM_MOVING_SPEED = 100.0  # u/s at death above walking pace = moving
+# Tie-break when two triggers share a second: the stronger claim wins.
+_TRIGGER_PRIORITY = {
+    "plant": 0,
+    "first_blood": 1,
+    "utility_near": 2,
+    "shots": 3,
+    "visible_contact": 4,
+}
 
 
 @dataclass
@@ -296,6 +318,163 @@ def _normalize_side(side_val: Any) -> str:
     if "TERRORIST" in s or s == "T":
         return "T"
     return "CT"
+
+
+def _stint_at(stints: list[ZoneStint], t: float) -> int | None:
+    for i, st in enumerate(stints):
+        if st.t0 <= t < st.t1:
+            return i
+    return None
+
+
+def _position_samples(
+    ticks: pl.DataFrame, round_num: int
+) -> dict[str, list[tuple[float, float, float]]]:
+    """Per-player (clock_s, x, y) samples for one round, 16 Hz, alive only."""
+    req = {"round_num", "clock_s", "name", "X", "Y"}
+    if ticks.is_empty() or not req.issubset(ticks.columns):
+        return {}
+    df = ticks.filter((pl.col("round_num") == round_num) & (pl.col("clock_s") >= 0.0))
+    if "is_alive" in df.columns:
+        df = df.filter(pl.col("is_alive"))
+    df = df.drop_nulls(["name", "clock_s", "X", "Y"]).sort("clock_s")
+    out: dict[str, list[tuple[float, float, float]]] = {}
+    for row in df.select(["name", "clock_s", "X", "Y"]).iter_rows():
+        out.setdefault(str(row[0]), []).append((float(row[1]), float(row[2]), float(row[3])))
+    return out
+
+
+def _displacement_latency(
+    samples: list[tuple[float, float, float]] | None, t_trigger: float, until: float
+) -> float | None:
+    """Seconds from the trigger to the first SUSTAINED displacement off the hold.
+
+    The anchor is the position at the trigger; sustained means the next sample
+    (when one exists) is also displaced, so a peek-and-return jiggle never
+    counts. None when the tick frame cannot answer (caller falls back to the
+    whole-second stint boundary).
+    """
+    if not samples:
+        return None
+    anchor = None
+    for c, x, y in samples:
+        if c <= t_trigger:
+            anchor = (x, y)
+        else:
+            break
+    if anchor is None:
+        return None
+    window = [(c, x, y) for c, x, y in samples if t_trigger < c <= until + 1.0]
+    for i, (c, x, y) in enumerate(window):
+        if math.hypot(x - anchor[0], y - anchor[1]) <= ROTATION_DISPLACE_U:
+            continue
+        if i + 1 < len(window):
+            _, nx, ny = window[i + 1]
+            if math.hypot(nx - anchor[0], ny - anchor[1]) <= ROTATION_DISPLACE_U:
+                continue
+        return round(c - t_trigger, 1)
+    return None
+
+
+def detect_rotations(
+    tracks: dict[str, list[ZoneStint]],
+    sides: dict[str, str],
+    ticks: pl.DataFrame,
+    round_num: int,
+    *,
+    kills: list[KillEvent] | None = None,
+    plant: PlantEvent | None = None,
+    utility: list[UtilEvent] | None = None,
+    first_shot_t: float | None = None,
+    sightlines: list[dict] | None = None,
+) -> list[RotationEvent]:
+    """Trigger-conditioned hold-breaks (2026-09-05 advanced-analytics plan Task 1).
+
+    For each trigger, a player whose stint had lasted >= 4s when it fired and
+    whose stint breaks within 8s gets one RotationEvent; the nearest earlier
+    trigger claims a break. Latency is refined from the 16 Hz tick positions
+    (first sustained displacement off the hold), falling back to the
+    whole-second stint boundary when the frame lacks positions. Triggers:
+    ``first_blood`` / ``plant`` / ``shots`` (round-level), ``utility_near``
+    (any ENEMY detonation - nearness is temporal, the plan's over-rotation
+    read needs cross-map responses), ``visible_contact`` (an enemy stint
+    entering a sightline partner of the hold; needs the matrix). CS2 demos
+    carry no footstep audio - sound is never a trigger.
+    """
+    if not tracks:
+        return []
+
+    round_level: list[tuple[str, float]] = []
+    if kills:
+        round_level.append(("first_blood", min(k.t for k in kills)))
+    if plant is not None:
+        round_level.append(("plant", plant.t))
+    if first_shot_t is not None:
+        round_level.append(("shots", float(first_shot_t)))
+
+    partners: dict[str, set[str]] = {}
+    for sl in sightlines or []:
+        a, b = str(sl.get("from") or ""), str(sl.get("to") or "")
+        if a and b:
+            partners.setdefault(a, set()).add(b)
+            partners.setdefault(b, set()).add(a)
+
+    positions = _position_samples(ticks, round_num)
+
+    events: list[RotationEvent] = []
+    for player, stints in sorted(tracks.items()):
+        if len(stints) < 2:
+            continue
+        side = sides.get(player, "")
+        triggers = list(round_level)
+        for u in utility or []:
+            if u.side != side:
+                triggers.append(("utility_near", u.t))
+        if partners:
+            for enemy, estints in tracks.items():
+                if enemy == player or sides.get(enemy, "") == side:
+                    continue
+                for j in range(1, len(estints)):  # spawn stints are not "entering"
+                    est = estints[j]
+                    pi = _stint_at(stints, float(est.t0))
+                    if pi is not None and est.zone in partners.get(stints[pi].zone, set()):
+                        triggers.append(("visible_contact", float(est.t0)))
+
+        # stint index -> ((t_trigger, -priority), trigger name)
+        best: dict[int, tuple[tuple[float, int], str, float]] = {}
+        for name, t_trig in triggers:
+            i = _stint_at(stints, t_trig)
+            if i is None or i + 1 >= len(stints):
+                continue
+            st = stints[i]
+            if t_trig - st.t0 < ROTATION_HOLD_MIN_S:
+                continue
+            if st.t1 - t_trig > ROTATION_RESPONSE_S:
+                continue
+            key = (t_trig, -_TRIGGER_PRIORITY.get(name, 9))
+            cur = best.get(i)
+            if cur is None or key > cur[0]:
+                best[i] = (key, name, t_trig)
+
+        for i, (_, name, t_trig) in sorted(best.items()):
+            st, nxt = stints[i], stints[i + 1]
+            latency = _displacement_latency(positions.get(player), t_trig, float(st.t1))
+            if latency is None:
+                latency = round(float(st.t1) - t_trig, 1)
+            events.append(
+                RotationEvent(
+                    t_trigger=t_trig,
+                    trigger=name,
+                    player=player,
+                    side=side,
+                    from_zone=st.zone,
+                    to_zone=nxt.zone,
+                    latency_s=latency,
+                )
+            )
+
+    events.sort(key=lambda e: (e.t_trigger, e.player))
+    return events
 
 
 def _calculate_role_hints(
