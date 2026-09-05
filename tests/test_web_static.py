@@ -122,10 +122,16 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     # Reset controls: per-zone clear buttons plus a confirmed reset-all.
     assert "callout-reset-btn" in js
     assert "resetAll" in js and "confirm(" in js
-    # Custom zone placement: point-and-name, rebuild polling, styled labels.
+    # Custom zone placement: drag-a-rectangle, rebuild polling, styled labels.
     assert "is-placing" in js
     assert "/zones" in js and "pollJob" in js
     assert "is-user-zone" in js
+    # Rect zones: drag ghost, corner payloads, and rendered footprints.
+    assert "zone-ghost" in js
+    assert "zone-footprint" in js
+    assert '"rect"' in js and "u2" in js
+    css = client_app.get("/static/style.css").text
+    assert ".zone-footprint" in css and ".zone-ghost" in css
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:

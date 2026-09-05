@@ -702,21 +702,36 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
     custom = {z.name: z for z in load_custom_zones(cfg.data_root, map_name)}
     anchors = _zone_anchors(cfg, map_name, zones, places)
     levels = sorted({a[2] for a in anchors.values()}) or ["default"]
+    cal = _radar_calibration(cfg, map_name)
+    world_per_norm = (cal.scale * cal.image_px) if cal is not None else None
+
+    def _zone_entry(z: str) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "name": z,
+            "alias": aliases.get(z),
+            "u": anchors.get(z, (None, None, None))[0],
+            "v": anchors.get(z, (None, None, None))[1],
+            "level": anchors.get(z, (None, None, None))[2],
+            "custom": z in custom,
+            "shape": custom[z].shape if z in custom else None,
+            "radius": custom[z].radius if z in custom else None,
+            "half_x": custom[z].half_x if z in custom else None,
+            "half_y": custom[z].half_y if z in custom else None,
+        }
+        # Normalized footprint extents so the editor can draw the region.
+        cz = custom.get(z)
+        if cz is not None and world_per_norm:
+            if cz.shape == "rect":
+                entry["half_u"] = round((cz.half_x or 0) / world_per_norm, 4)
+                entry["half_v"] = round((cz.half_y or 0) / world_per_norm, 4)
+            else:
+                entry["radius_u"] = round(cz.radius / world_per_norm, 4)
+        return entry
+
     return {
         "map_name": map_name,
         "levels": ["default", "lower"] if "lower" in levels else ["default"],
-        "zones": [
-            {
-                "name": z,
-                "alias": aliases.get(z),
-                "u": anchors.get(z, (None, None, None))[0],
-                "v": anchors.get(z, (None, None, None))[1],
-                "level": anchors.get(z, (None, None, None))[2],
-                "custom": z in custom,
-                "radius": custom[z].radius if z in custom else None,
-            }
-            for z in zones
-        ],
+        "zones": [_zone_entry(z) for z in zones],
     }
 
 
@@ -778,7 +793,10 @@ class ZonePlacement(BaseModel):
     u: float
     v: float
     level: str = "default"
-    radius: float = 150.0
+    shape: str = "sphere"
+    radius: float = 150.0  # sphere only
+    u2: float | None = None  # rect only: the drag's opposite corner
+    v2: float | None = None
 
 
 class ZoneUpdateRequest(BaseModel):
@@ -817,7 +835,18 @@ def put_zones(
 
     zones: list[CustomZone] = []
     for p in req.zones:
-        x, y = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
+        half_x = half_y = None
+        if p.shape == "rect":
+            if p.u2 is None or p.v2 is None:
+                raise HTTPException(
+                    status_code=400, detail=f"Rect zone {p.name!r} needs both drag corners"
+                )
+            x1, y1 = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
+            x2, y2 = pixel_to_game(cal, p.u2 * cal.image_px, p.v2 * cal.image_px)
+            x, y = (x1 + x2) / 2, (y1 + y2) / 2
+            half_x, half_y = round(abs(x2 - x1) / 2, 1), round(abs(y2 - y1) / 2, 1)
+        else:
+            x, y = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
         z = _infer_world_z(cfg, map_name, x, y, p.level, cal)
         if z is None:
             raise HTTPException(
@@ -831,7 +860,10 @@ def put_zones(
                 y=round(y, 1),
                 z=round(z, 1),
                 level=p.level,
+                shape="rect" if p.shape == "rect" else "sphere",
                 radius=p.radius,
+                half_x=half_x,
+                half_y=half_y,
             )
         )
     try:

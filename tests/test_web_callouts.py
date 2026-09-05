@@ -328,6 +328,67 @@ def test_put_zones_places_zone_rebuilds_and_anchors_at_user_point(
     assert ticks["last_place_name"].to_list()[:3] == ["Middle"] * 3
 
 
+def test_put_zones_rect_drag_bakes_and_reports_extents(cfg: AppConfig, client: TestClient):
+    """A dragged rectangle: corners -> world box, ticks inside rename, the
+    callouts payload carries the shape and normalized extents for drawing."""
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [200.0, 210.0, 900.0],
+                "Y": [-300.0, -290.0, 900.0],
+                "Z": [0.0] * 3,
+                "last_place_name": ["Middle", "Middle", "BombsiteA"],
+                "is_alive": [True] * 3,
+                "steamid": [1, 1, 2],
+                "round_num": [1] * 3,
+                "tick": [0, 4, 8],
+                "clock_s": [0.0, 1.0, 2.0],
+                "team_name": ["CT", "CT", "TERRORIST"],
+            }
+        ),
+    )
+    _seed_empty_tables(cfg)
+
+    # Drag corners (0.55, 0.60) -> (0.65, 0.70): world box x [102.4, 307.2],
+    # y [-409.6, -204.8]; center (204.8, -307.2), half extents 102.4.
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={
+            "zones": [
+                {"name": "Bagsy", "shape": "rect", "u": 0.55, "v": 0.60, "u2": 0.65, "v2": 0.70}
+            ]
+        },
+    )
+    assert r.status_code == 200, r.text
+    saved = r.json()["zones"][0]
+    assert saved["shape"] == "rect"
+    assert abs(saved["half_x"] - 102.4) < 0.2 and abs(saved["half_y"] - 102.4) < 0.2
+    assert abs(saved["x"] - 204.8) < 0.2 and abs(saved["y"] - -307.2) < 0.2
+    job = client.get(f"/api/jobs/{r.json()['job_id']}").json()
+    assert job["stage"] == "done", job
+
+    ticks = pl.read_parquet(cfg.data_root / "lake" / "m1" / "ticks.parquet")
+    assert ticks["last_place_name"].to_list() == ["Bagsy", "Bagsy", "BombsiteA"]
+
+    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
+    bagsy = zones["Bagsy"]
+    assert bagsy["custom"] is True and bagsy["shape"] == "rect"
+    # Normalized extents: 102.4 world units / 2048 world-per-image = 0.05.
+    assert abs(bagsy["half_u"] - 0.05) < 1e-3 and abs(bagsy["half_v"] - 0.05) < 1e-3
+    # The anchor is the rect center: (0.60, 0.65) on the image.
+    assert abs(bagsy["u"] - 0.60) < 1e-3 and abs(bagsy["v"] - 0.65) < 1e-3
+
+    # A rect without its second corner is rejected.
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Halfy", "shape": "rect", "u": 0.5, "v": 0.5}]},
+    )
+    assert r.status_code == 400 and "corners" in r.json()["detail"]
+
+
 def test_put_zones_validation(cfg: AppConfig, client: TestClient):
     # No radar calibration -> cannot place.
     r = client.put(

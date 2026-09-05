@@ -150,6 +150,18 @@
     return state.zones
       .filter(function (z) { return z.custom; })
       .map(function (z) {
+        if (z.shape === "rect" && z.half_u && z.half_v) {
+          // Round-trip a rect as its two corners around the stored center.
+          return {
+            name: z.name,
+            shape: "rect",
+            u: z.u - z.half_u,
+            v: z.v - z.half_v,
+            u2: z.u + z.half_u,
+            v2: z.v + z.half_v,
+            level: z.level || "default",
+          };
+        }
         return {
           name: z.name,
           u: z.u,
@@ -205,23 +217,84 @@
     state.placing = on;
     el.addBtn.classList.toggle("active", on);
     el.frame.classList.toggle("is-placing", on);
-    if (on) setStatus("Click the radar where the new callout belongs. Esc cancels.", false);
+    if (!on) clearGhost();
+    if (on) setStatus("Drag a rectangle over the area the callout covers. Esc cancels.", false);
   }
 
-  function placeAt(ev) {
+  function clearGhost() {
+    if (state.dragGhost) {
+      state.dragGhost.remove();
+      state.dragGhost = null;
+    }
+    state.dragStart = null;
+  }
+
+  function pointerUV(ev) {
+    const rect = el.labels.getBoundingClientRect();
+    return {
+      u: Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width)),
+      v: Math.min(1, Math.max(0, (ev.clientY - rect.top) / rect.height)),
+    };
+  }
+
+  function dragStart(ev) {
     if (!state.placing) return;
     ev.stopPropagation();
-    const rect = el.labels.getBoundingClientRect();
-    const u = (ev.clientX - rect.left) / rect.width;
-    const v = (ev.clientY - rect.top) / rect.height;
+    ev.preventDefault();
+    state.dragStart = pointerUV(ev);
+    const ghost = document.createElement("div");
+    ghost.className = "zone-ghost";
+    el.labels.appendChild(ghost);
+    state.dragGhost = ghost;
+    dragMove(ev);
+  }
+
+  function dragMove(ev) {
+    if (!state.placing || !state.dragStart || !state.dragGhost) return;
+    const cur = pointerUV(ev);
+    const left = Math.min(state.dragStart.u, cur.u);
+    const top = Math.min(state.dragStart.v, cur.v);
+    state.dragGhost.style.left = `${left * 100}%`;
+    state.dragGhost.style.top = `${top * 100}%`;
+    state.dragGhost.style.width = `${Math.abs(cur.u - state.dragStart.u) * 100}%`;
+    state.dragGhost.style.height = `${Math.abs(cur.v - state.dragStart.v) * 100}%`;
+  }
+
+  function dragEnd(ev) {
+    if (!state.placing || !state.dragStart) return;
+    ev.stopPropagation();
+    const start = state.dragStart;
+    const cur = pointerUV(ev);
+    clearGhost();
+    const frame = el.labels.getBoundingClientRect();
+    const draggedPx = Math.max(
+      Math.abs(cur.u - start.u) * frame.width,
+      Math.abs(cur.v - start.v) * frame.height
+    );
+    if (draggedPx < 8) {
+      setStatus("Drag a rectangle (press and move) to size the zone. Esc cancels.", false);
+      return;
+    }
+    const corners = {
+      u: Math.min(start.u, cur.u),
+      v: Math.min(start.v, cur.v),
+      u2: Math.max(start.u, cur.u),
+      v2: Math.max(start.v, cur.v),
+    };
     setPlacing(false);
+    nameNewZone(corners);
+  }
+
+  function nameNewZone(corners) {
+    const cu = (corners.u + corners.u2) / 2;
+    const cv = (corners.v + corners.v2) / 2;
     const input = document.createElement("input");
     input.type = "text";
     input.className = "callout-edit-input";
     input.placeholder = "callout name";
     input.style.position = "absolute";
-    input.style.left = `${u * 100}%`;
-    input.style.top = `${v * 100}%`;
+    input.style.left = `${cu * 100}%`;
+    input.style.top = `${cv * 100}%`;
     el.labels.appendChild(input);
     input.focus();
     let done = false;
@@ -232,7 +305,15 @@
       input.remove();
       if (!save || !name) { render(); return; }
       const payload = zonesPayload();
-      payload.push({ name: name, u: u, v: v, level: state.level, radius: 150 });
+      payload.push({
+        name: name,
+        shape: "rect",
+        u: corners.u,
+        v: corners.v,
+        u2: corners.u2,
+        v2: corners.v2,
+        level: state.level,
+      });
       putZones(payload, `Placing ${name}`);
     }
     input.addEventListener("keydown", function (kev) {
@@ -308,6 +389,29 @@
     // Map labels for zones with a known anchor.
     el.labels.innerHTML = "";
     const multiLevel = state.levels.length > 1;
+    // The user's zone footprints render under the labels: rectangles as
+    // boxes, legacy spheres as circles - placement is no longer blind.
+    state.zones.forEach(function (zone) {
+      if (!zone.custom || zone.u === null || zone.u === undefined) return;
+      if (multiLevel && zone.level && zone.level !== state.level) return;
+      const fp = document.createElement("div");
+      if (zone.shape === "rect" && zone.half_u && zone.half_v) {
+        fp.className = "zone-footprint";
+        fp.style.left = `${(zone.u - zone.half_u) * 100}%`;
+        fp.style.top = `${(zone.v - zone.half_v) * 100}%`;
+        fp.style.width = `${zone.half_u * 2 * 100}%`;
+        fp.style.height = `${zone.half_v * 2 * 100}%`;
+      } else if (zone.radius_u) {
+        fp.className = "zone-footprint is-round";
+        fp.style.left = `${(zone.u - zone.radius_u) * 100}%`;
+        fp.style.top = `${(zone.v - zone.radius_u) * 100}%`;
+        fp.style.width = `${zone.radius_u * 2 * 100}%`;
+        fp.style.height = `${zone.radius_u * 2 * 100}%`;
+      } else {
+        return;
+      }
+      el.labels.appendChild(fp);
+    });
     state.zones.forEach(function (zone) {
       if (zone.u === null || zone.u === undefined) return;
       // On multi-level maps only the selected level's zones are shown, so the
@@ -323,7 +427,9 @@
       btn.style.top = `${zone.v * 100}%`;
       btn.textContent = labelFor(zone);
       btn.title = zone.custom
-        ? `${zone.name} (your callout, r=${zone.radius}) - click to rename`
+        ? (zone.shape === "rect"
+          ? `${zone.name} (your callout, ${Math.round((zone.half_x || 0) * 2)}\u00d7${Math.round((zone.half_y || 0) * 2)} units)`
+          : `${zone.name} (your callout, r=${zone.radius}) - click to rename`)
         : zone.alias
           ? `${zone.alias} (game name: ${zone.name}) - click to edit`
           : `${zone.name} - click to rename`;
@@ -341,17 +447,26 @@
         : `<code>${escapeHtml(zone.name)}</code>`;
       const aliasTd = document.createElement("td");
       if (zone.custom) {
-        // A user-created zone: its position/size are the identity - edit the
-        // radius or delete it (its ground folds back to the game zone).
-        const radius = document.createElement("input");
-        radius.type = "number";
-        radius.min = "64";
-        radius.max = "600";
-        radius.value = zone.radius || 150;
-        radius.title = "radius in game units";
-        radius.className = "form-control form-control-sm callout-radius-input";
-        radius.addEventListener("change", function () { setRadius(zone.name, radius.value); });
-        aliasTd.appendChild(radius);
+        // A user-created zone: its position/size are the identity - delete it
+        // to redraw (its ground folds back to the game zone).
+        if (zone.shape === "rect") {
+          const dims = document.createElement("span");
+          dims.className = "callout-zone-dims";
+          dims.textContent =
+            `${Math.round((zone.half_x || 0) * 2)}\u00d7${Math.round((zone.half_y || 0) * 2)} units`;
+          dims.title = "Rectangle size - delete and redraw to resize";
+          aliasTd.appendChild(dims);
+        } else {
+          const radius = document.createElement("input");
+          radius.type = "number";
+          radius.min = "64";
+          radius.max = "600";
+          radius.value = zone.radius || 150;
+          radius.title = "radius in game units";
+          radius.className = "form-control form-control-sm callout-radius-input";
+          radius.addEventListener("change", function () { setRadius(zone.name, radius.value); });
+          aliasTd.appendChild(radius);
+        }
         const del = document.createElement("button");
         del.type = "button";
         del.className = "callout-reset-btn";
@@ -416,8 +531,10 @@
     el.levelLower.addEventListener("click", function () { setLevel("lower"); });
     el.resetAll.addEventListener("click", resetAll);
     el.addBtn.addEventListener("click", function () { setPlacing(!state.placing); });
-    // Capture phase: while placing, the map click wins over label buttons.
-    el.labels.addEventListener("click", placeAt, true);
+    // Capture phase: while placing, the drag wins over label buttons.
+    el.labels.addEventListener("pointerdown", dragStart, true);
+    el.labels.addEventListener("pointermove", dragMove, true);
+    el.labels.addEventListener("pointerup", dragEnd, true);
     document.addEventListener("keydown", function (ev) {
       if (ev.key === "Escape" && state.placing) setPlacing(false);
     });

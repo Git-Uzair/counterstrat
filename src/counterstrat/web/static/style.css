@@ -1611,6 +1611,33 @@ textarea#chat-input:disabled {
 
 .callouts-frame.is-placing { cursor: crosshair; }
 .callouts-frame.is-placing .callout-label { pointer-events: none; }
+.callouts-frame.is-placing .callouts-labels { touch-action: none; }
+
+/* Custom zone footprints: the region a zone actually covers */
+
+.zone-footprint {
+  position: absolute;
+  border: 1px dashed var(--color-success-text);
+  background-color: rgba(63, 185, 80, 0.08);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.zone-footprint.is-round { border-radius: 50%; }
+
+.zone-ghost {
+  position: absolute;
+  border: 1px solid var(--color-success-text);
+  background-color: rgba(63, 185, 80, 0.15);
+  pointer-events: none;
+}
+
+.callout-zone-dims {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  margin-right: 6px;
+}
 
 #callouts-add.active { border-color: var(--color-success-text); color: var(--color-success-text); }
 

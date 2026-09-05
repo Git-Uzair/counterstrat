@@ -1,7 +1,9 @@
-"""User-defined callout zones: spheres baked into the lake vocabulary.
+"""User-defined callout zones baked into the lake vocabulary.
 
-A custom zone is a named world-space sphere (Z scaled x2, mirroring
-ZoneMapper verticality weighting). :func:`rezone_ticks` rewrites
+A custom zone is a named world-space region: a sphere (Z scaled x2,
+mirroring ZoneMapper verticality weighting) or an axis-aligned rectangle
+(half-extents around the center, with a fixed +-RECT_Z_BAND vertical band
+so stacked levels stay independent). :func:`rezone_ticks` rewrites
 ``last_place_name`` for ticks inside a region while preserving the game's
 own name in ``place_default`` - idempotent, reversible, and applied at the
 data layer so every consumer (scripts, miners, card, anchors, SQL, prompts)
@@ -10,6 +12,7 @@ inherits the user's vocabulary without translation.
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 from pydantic import BaseModel
@@ -17,8 +20,9 @@ from pydantic import BaseModel
 from counterstrat.aliases import _ALIAS_RE
 
 Z_SCALE = 2.0  # verticality weight, mirrors ZoneMapper.z_scale
-MIN_RADIUS = 64.0
+MIN_RADIUS = 64.0  # also the min/max for rect half-extents
 MAX_RADIUS = 600.0
+RECT_Z_BAND = 200.0  # rect vertical half-extent: covers ramps, excludes nuke's other level
 _LEVELS = {"default", "lower"}
 
 
@@ -28,7 +32,32 @@ class CustomZone(BaseModel):
     y: float
     z: float
     level: str = "default"
-    radius: float = 150.0
+    shape: Literal["sphere", "rect"] = "sphere"
+    radius: float = 150.0  # sphere only
+    half_x: float | None = None  # rect only: X half-extent
+    half_y: float | None = None  # rect only: Y half-extent
+
+    def z_half(self) -> float:
+        """Vertical half-extent: the Z distance at which a tick still belongs."""
+        return RECT_Z_BAND if self.shape == "rect" else self.radius / Z_SCALE
+
+
+def _zones_overlap(a: "CustomZone", b: "CustomZone") -> bool:
+    """True when two zones claim the same ground (XY footprint AND Z band)."""
+    if abs(a.z - b.z) > a.z_half() + b.z_half():
+        return False  # stacked levels (nuke) never conflict
+    if a.shape == "sphere" and b.shape == "sphere":
+        d2 = (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + ((a.z - b.z) * Z_SCALE) ** 2
+        return d2 < (a.radius + b.radius) ** 2
+    if a.shape == "rect" and b.shape == "rect":
+        return abs(a.x - b.x) < (a.half_x or 0) + (b.half_x or 0) and abs(a.y - b.y) < (
+            a.half_y or 0
+        ) + (b.half_y or 0)
+    rect, sphere = (a, b) if a.shape == "rect" else (b, a)
+    # Closest point of the rect footprint to the sphere center, in 2D.
+    cx = min(max(sphere.x, rect.x - (rect.half_x or 0)), rect.x + (rect.half_x or 0))
+    cy = min(max(sphere.y, rect.y - (rect.half_y or 0)), rect.y + (rect.half_y or 0))
+    return (sphere.x - cx) ** 2 + (sphere.y - cy) ** 2 < sphere.radius**2
 
 
 def _zones_path(data_root: Path, map_name: str) -> Path:
@@ -63,14 +92,21 @@ def save_custom_zones(
         if z.name in seen:
             raise ValueError(f"Duplicate zone name {z.name!r}")
         seen.add(z.name)
-        if not (MIN_RADIUS <= z.radius <= MAX_RADIUS):
+        if z.shape == "rect":
+            if z.half_x is None or z.half_y is None:
+                raise ValueError(f"Rect zone {z.name!r} needs half_x and half_y")
+            for half in (z.half_x, z.half_y):
+                if not (MIN_RADIUS <= half <= MAX_RADIUS):
+                    raise ValueError(
+                        f"rect half-extents must be {MIN_RADIUS:.0f}-{MAX_RADIUS:.0f} units"
+                    )
+        elif not (MIN_RADIUS <= z.radius <= MAX_RADIUS):
             raise ValueError(f"radius must be {MIN_RADIUS:.0f}-{MAX_RADIUS:.0f} units")
         if z.level not in _LEVELS:
             raise ValueError(f"Unknown level {z.level!r}")
     for i, a in enumerate(zones):
         for b in zones[i + 1 :]:
-            d2 = (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + ((a.z - b.z) * Z_SCALE) ** 2
-            if d2 < (a.radius + b.radius) ** 2:
+            if _zones_overlap(a, b):
                 raise ValueError(f"Zones {a.name!r} and {b.name!r} overlap - shrink or move one")
 
     ordered = sorted(zones, key=lambda z: z.name)
@@ -92,10 +128,18 @@ def rezone_ticks(df: pl.DataFrame, zones: list[CustomZone]) -> pl.DataFrame:
     # Descending name order wraps ascending names outermost: deterministic
     # precedence even though overlaps are rejected at save time.
     for z in sorted(zones, key=lambda z: z.name, reverse=True):
-        d2 = (
-            (pl.col("X") - z.x) ** 2
-            + (pl.col("Y") - z.y) ** 2
-            + ((pl.col("Z") - z.z) * Z_SCALE) ** 2
-        )
-        expr = pl.when(d2 <= z.radius**2).then(pl.lit(z.name)).otherwise(expr)
+        if z.shape == "rect":
+            inside = (
+                pl.col("X").is_between(z.x - (z.half_x or 0), z.x + (z.half_x or 0))
+                & pl.col("Y").is_between(z.y - (z.half_y or 0), z.y + (z.half_y or 0))
+                & ((pl.col("Z") - z.z).abs() <= RECT_Z_BAND)
+            )
+        else:
+            d2 = (
+                (pl.col("X") - z.x) ** 2
+                + (pl.col("Y") - z.y) ** 2
+                + ((pl.col("Z") - z.z) * Z_SCALE) ** 2
+            )
+            inside = d2 <= z.radius**2
+        expr = pl.when(inside).then(pl.lit(z.name)).otherwise(expr)
     return df.with_columns(expr.alias("last_place_name"))
