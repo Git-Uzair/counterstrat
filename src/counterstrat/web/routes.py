@@ -729,8 +729,6 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
             "v": anchors.get(z, (None, None, None))[1],
             "level": anchors.get(z, (None, None, None))[2],
             "custom": z in custom,
-            "shape": custom[z].shape if z in custom else None,
-            "radius": custom[z].radius if z in custom else None,
             "half_x": custom[z].half_x if z in custom else None,
             "half_y": custom[z].half_y if z in custom else None,
             "bounds": list(zone_bounds[z]) if z not in custom and z in zone_bounds else None,
@@ -738,11 +736,8 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
         # Normalized footprint extents so the editor can draw the region.
         cz = custom.get(z)
         if cz is not None and world_per_norm:
-            if cz.shape == "rect":
-                entry["half_u"] = round((cz.half_x or 0) / world_per_norm, 4)
-                entry["half_v"] = round((cz.half_y or 0) / world_per_norm, 4)
-            else:
-                entry["radius_u"] = round(cz.radius / world_per_norm, 4)
+            entry["half_u"] = round(cz.half_x / world_per_norm, 4)
+            entry["half_v"] = round(cz.half_y / world_per_norm, 4)
         return entry
 
     return {
@@ -831,13 +826,11 @@ def _infer_world_z(
 
 class ZonePlacement(BaseModel):
     name: str
-    u: float
+    u: float  # one drag corner
     v: float
+    u2: float  # the opposite corner
+    v2: float
     level: str = "default"
-    shape: str = "sphere"
-    radius: float = 150.0  # sphere only
-    u2: float | None = None  # rect only: the drag's opposite corner
-    v2: float | None = None
 
 
 class ZoneUpdateRequest(BaseModel):
@@ -876,18 +869,9 @@ def put_zones(
 
     zones: list[CustomZone] = []
     for p in req.zones:
-        half_x = half_y = None
-        if p.shape == "rect":
-            if p.u2 is None or p.v2 is None:
-                raise HTTPException(
-                    status_code=400, detail=f"Rect zone {p.name!r} needs both drag corners"
-                )
-            x1, y1 = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
-            x2, y2 = pixel_to_game(cal, p.u2 * cal.image_px, p.v2 * cal.image_px)
-            x, y = (x1 + x2) / 2, (y1 + y2) / 2
-            half_x, half_y = round(abs(x2 - x1) / 2, 1), round(abs(y2 - y1) / 2, 1)
-        else:
-            x, y = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
+        x1, y1 = pixel_to_game(cal, p.u * cal.image_px, p.v * cal.image_px)
+        x2, y2 = pixel_to_game(cal, p.u2 * cal.image_px, p.v2 * cal.image_px)
+        x, y = (x1 + x2) / 2, (y1 + y2) / 2
         z = _infer_world_z(cfg, map_name, x, y, p.level, cal)
         if z is None:
             raise HTTPException(
@@ -904,11 +888,9 @@ def put_zones(
                 x=round(x, 1),
                 y=round(y, 1),
                 z=round(z, 1),
+                half_x=round(abs(x2 - x1) / 2, 1),
+                half_y=round(abs(y2 - y1) / 2, 1),
                 level=p.level,
-                shape="rect" if p.shape == "rect" else "sphere",
-                radius=p.radius,
-                half_x=half_x,
-                half_y=half_y,
             )
         )
     try:

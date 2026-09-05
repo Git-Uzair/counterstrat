@@ -99,7 +99,7 @@ def test_rebuild_map_zones_bakes_ticks_card_and_prunes_caches(cfg: AppConfig):
     save_custom_zones(
         cfg.data_root,
         MAP,
-        [CustomZone(name="Sandbags", x=102.0, y=102.0, z=0.0, radius=100.0)],
+        [CustomZone(name="Sandbags", x=102.0, y=102.0, z=0.0, half_x=100.0, half_y=100.0)],
         reserved=set(),
     )
     # Stale LLM caches that must die with the rebuild.
@@ -137,7 +137,7 @@ def test_rebuild_is_idempotent(cfg: AppConfig):
     save_custom_zones(
         cfg.data_root,
         MAP,
-        [CustomZone(name="Sandbags", x=102.0, y=102.0, z=0.0, radius=100.0)],
+        [CustomZone(name="Sandbags", x=102.0, y=102.0, z=0.0, half_x=100.0, half_y=100.0)],
         reserved=set(),
     )
     rebuild_map_zones(cfg, MAP)

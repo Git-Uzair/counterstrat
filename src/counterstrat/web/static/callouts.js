@@ -9,7 +9,7 @@
 
   const state = {
     mapName: null,
-    zones: [], // [{name, alias, u, v, level, custom, shape, radius, half_u, half_v}]
+    zones: [], // [{name, alias, u, v, level, custom, half_x/y, half_u/v, bounds}]
     levels: ["default"],
     level: "default", // which radar level is on screen (nuke upper/lower)
     view: { k: 1, tx: 0, ty: 0 }, // zoom/pan transform of the map frame
@@ -205,27 +205,17 @@
   // ------------------------------------------------------- custom zones
 
   function zonesPayload() {
+    // Round-trip each rect as its two corners around the stored center.
     return state.zones
       .filter(function (z) { return z.custom; })
       .map(function (z) {
-        if (z.shape === "rect" && z.half_u && z.half_v) {
-          // Round-trip a rect as its two corners around the stored center.
-          return {
-            name: z.name,
-            shape: "rect",
-            u: z.u - z.half_u,
-            v: z.v - z.half_v,
-            u2: z.u + z.half_u,
-            v2: z.v + z.half_v,
-            level: z.level || "default",
-          };
-        }
         return {
           name: z.name,
-          u: z.u,
-          v: z.v,
+          u: z.u - z.half_u,
+          v: z.v - z.half_v,
+          u2: z.u + z.half_u,
+          v2: z.v + z.half_v,
           level: z.level || "default",
-          radius: z.radius || 150,
         };
       });
   }
@@ -370,7 +360,6 @@
       const payload = zonesPayload();
       payload.push({
         name: name,
-        shape: "rect",
         u: corners.u,
         v: corners.v,
         u2: corners.u2,
@@ -394,14 +383,6 @@
       zonesPayload().filter(function (z) { return z.name !== name; }),
       `Removing ${name}`
     );
-  }
-
-  function setRadius(name, value) {
-    const payload = zonesPayload();
-    const target = payload.find(function (z) { return z.name === name; });
-    if (!target) return;
-    target.radius = Number(value) || target.radius;
-    putZones(payload, `Resizing ${name}`);
   }
 
   // ---------------------------------------------------------------- render
@@ -467,27 +448,18 @@
         el.labels.appendChild(box);
       });
     }
-    // The user's zone footprints render under the labels: rectangles as
-    // boxes, legacy spheres as circles - placement is no longer blind.
+    // The user's zone footprints render under the labels - placement is
+    // never blind.
     state.zones.forEach(function (zone) {
       if (!zone.custom || zone.u === null || zone.u === undefined) return;
       if (multiLevel && zone.level && zone.level !== state.level) return;
+      if (!zone.half_u || !zone.half_v) return;
       const fp = document.createElement("div");
-      if (zone.shape === "rect" && zone.half_u && zone.half_v) {
-        fp.className = "zone-footprint";
-        fp.style.left = `${(zone.u - zone.half_u) * 100}%`;
-        fp.style.top = `${(zone.v - zone.half_v) * 100}%`;
-        fp.style.width = `${zone.half_u * 2 * 100}%`;
-        fp.style.height = `${zone.half_v * 2 * 100}%`;
-      } else if (zone.radius_u) {
-        fp.className = "zone-footprint is-round";
-        fp.style.left = `${(zone.u - zone.radius_u) * 100}%`;
-        fp.style.top = `${(zone.v - zone.radius_u) * 100}%`;
-        fp.style.width = `${zone.radius_u * 2 * 100}%`;
-        fp.style.height = `${zone.radius_u * 2 * 100}%`;
-      } else {
-        return;
-      }
+      fp.className = "zone-footprint";
+      fp.style.left = `${(zone.u - zone.half_u) * 100}%`;
+      fp.style.top = `${(zone.v - zone.half_v) * 100}%`;
+      fp.style.width = `${zone.half_u * 2 * 100}%`;
+      fp.style.height = `${zone.half_v * 2 * 100}%`;
       el.labels.appendChild(fp);
     });
     state.zones.forEach(function (zone) {
@@ -505,9 +477,7 @@
       btn.style.top = `${zone.v * 100}%`;
       btn.textContent = labelFor(zone);
       btn.title = zone.custom
-        ? (zone.shape === "rect"
-          ? `${zone.name} (your callout, ${Math.round((zone.half_x || 0) * 2)}\u00d7${Math.round((zone.half_y || 0) * 2)} units)`
-          : `${zone.name} (your callout, r=${zone.radius}) - click to rename`)
+        ? `${zone.name} (your callout, ${Math.round((zone.half_x || 0) * 2)}\u00d7${Math.round((zone.half_y || 0) * 2)} units)`
         : zone.alias
           ? `${zone.alias} (game name: ${zone.name}) - click to edit`
           : `${zone.name} - click to rename`;
@@ -527,24 +497,12 @@
       if (zone.custom) {
         // A user-created zone: its position/size are the identity - delete it
         // to redraw (its ground folds back to the game zone).
-        if (zone.shape === "rect") {
-          const dims = document.createElement("span");
-          dims.className = "callout-zone-dims";
-          dims.textContent =
-            `${Math.round((zone.half_x || 0) * 2)}\u00d7${Math.round((zone.half_y || 0) * 2)} units`;
-          dims.title = "Rectangle size - delete and redraw to resize";
-          aliasTd.appendChild(dims);
-        } else {
-          const radius = document.createElement("input");
-          radius.type = "number";
-          radius.min = "64";
-          radius.max = "600";
-          radius.value = zone.radius || 150;
-          radius.title = "radius in game units";
-          radius.className = "form-control form-control-sm callout-radius-input";
-          radius.addEventListener("change", function () { setRadius(zone.name, radius.value); });
-          aliasTd.appendChild(radius);
-        }
+        const dims = document.createElement("span");
+        dims.className = "callout-zone-dims";
+        dims.textContent =
+          `${Math.round((zone.half_x || 0) * 2)}\u00d7${Math.round((zone.half_y || 0) * 2)} units`;
+        dims.title = "Rectangle size - delete and redraw to resize";
+        aliasTd.appendChild(dims);
         const del = document.createElement("button");
         del.type = "button";
         del.className = "callout-reset-btn";

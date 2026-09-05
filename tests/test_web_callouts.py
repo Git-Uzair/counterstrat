@@ -347,7 +347,17 @@ def test_put_zones_places_zone_rebuilds_and_anchors_at_user_point(
     # Click at world (200, -300): u=(200+1024)/2048, v=(1024+300)/2048.
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Sandbags", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+        json={
+            "zones": [
+                {
+                    "name": "Sandbags",
+                    "u": 612 / 1024 - 0.02,
+                    "v": 662 / 1024 - 0.02,
+                    "u2": 612 / 1024 + 0.02,
+                    "v2": 662 / 1024 + 0.02,
+                }
+            ]
+        },
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -367,8 +377,8 @@ def test_put_zones_places_zone_rebuilds_and_anchors_at_user_point(
 
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
     sb = zones["Sandbags"]
-    assert sb["custom"] is True and sb["radius"] == 100.0
-    # Anchor = the user's click, not a tick medoid.
+    assert sb["custom"] is True and abs(sb["half_u"] - 0.02) < 1e-3
+    # Anchor = the center of the user's drawn rect, not a tick medoid.
     assert abs(sb["u"] - 612 / 1024) < 1e-3 and abs(sb["v"] - 662 / 1024) < 1e-3
     assert zones["Middle"]["custom"] is False
 
@@ -388,7 +398,7 @@ def test_put_zones_places_zone_rebuilds_and_anchors_at_user_point(
 
 def test_put_zones_rect_drag_bakes_and_reports_extents(cfg: AppConfig, client: TestClient):
     """A dragged rectangle: corners -> world box, ticks inside rename, the
-    callouts payload carries the shape and normalized extents for drawing."""
+    callouts payload carries the normalized extents for drawing."""
     _seed_calibration(cfg, MAP)
     _seed_calibration_cache(
         cfg,
@@ -426,15 +436,10 @@ def test_put_zones_rect_drag_bakes_and_reports_extents(cfg: AppConfig, client: T
     # y [-409.6, -204.8]; center (204.8, -307.2), half extents 102.4.
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={
-            "zones": [
-                {"name": "Bagsy", "shape": "rect", "u": 0.55, "v": 0.60, "u2": 0.65, "v2": 0.70}
-            ]
-        },
+        json={"zones": [{"name": "Bagsy", "u": 0.55, "v": 0.60, "u2": 0.65, "v2": 0.70}]},
     )
     assert r.status_code == 200, r.text
     saved = r.json()["zones"][0]
-    assert saved["shape"] == "rect"
     assert abs(saved["half_x"] - 102.4) < 0.2 and abs(saved["half_y"] - 102.4) < 0.2
     assert abs(saved["x"] - 204.8) < 0.2 and abs(saved["y"] - -307.2) < 0.2
     job = client.get(f"/api/jobs/{r.json()['job_id']}").json()
@@ -445,18 +450,18 @@ def test_put_zones_rect_drag_bakes_and_reports_extents(cfg: AppConfig, client: T
 
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
     bagsy = zones["Bagsy"]
-    assert bagsy["custom"] is True and bagsy["shape"] == "rect"
+    assert bagsy["custom"] is True
     # Normalized extents: 102.4 world units / 2048 world-per-image = 0.05.
     assert abs(bagsy["half_u"] - 0.05) < 1e-3 and abs(bagsy["half_v"] - 0.05) < 1e-3
     # The anchor is the rect center: (0.60, 0.65) on the image.
     assert abs(bagsy["u"] - 0.60) < 1e-3 and abs(bagsy["v"] - 0.65) < 1e-3
 
-    # A rect without its second corner is rejected.
+    # A zone without its second corner is rejected outright (422 validation).
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Halfy", "shape": "rect", "u": 0.5, "v": 0.5}]},
+        json={"zones": [{"name": "Halfy", "u": 0.5, "v": 0.5}]},
     )
-    assert r.status_code == 400 and "corners" in r.json()["detail"]
+    assert r.status_code == 422
 
 
 def test_put_zones_grounds_from_shipped_anchor_z(
@@ -476,18 +481,14 @@ def test_put_zones_grounds_from_shipped_anchor_z(
     # Rect centered exactly on the anchor's world position (204.8, -307.2).
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={
-            "zones": [
-                {"name": "Bagsy", "shape": "rect", "u": 0.55, "v": 0.60, "u2": 0.65, "v2": 0.70}
-            ]
-        },
+        json={"zones": [{"name": "Bagsy", "u": 0.55, "v": 0.60, "u2": 0.65, "v2": 0.70}]},
     )
     assert r.status_code == 200, r.text
     assert r.json()["zones"][0]["z"] == 42.0
     # Far from every anchor -> rejected, message names the real problem.
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Far", "u": 0.05, "v": 0.05, "radius": 100.0}]},
+        json={"zones": [{"name": "Far", "u": 0.04, "v": 0.04, "u2": 0.06, "v2": 0.06}]},
     )
     assert r.status_code == 400 and "position data" in r.json()["detail"]
 
@@ -511,7 +512,7 @@ def test_user_lake_never_grounds_placement(cfg: AppConfig, client: TestClient):
     )
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Bagsy", "u": 0.6, "v": 0.65, "radius": 100.0}]},
+        json={"zones": [{"name": "Bagsy", "u": 0.58, "v": 0.63, "u2": 0.62, "v2": 0.67}]},
     )
     assert r.status_code == 400 and "position data" in r.json()["detail"]
 
@@ -536,7 +537,7 @@ def test_put_zones_grounds_from_calibration_cache(cfg: AppConfig, client: TestCl
 
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Bagsy", "u": 0.6, "v": 0.65, "radius": 100.0}]},
+        json={"zones": [{"name": "Bagsy", "u": 0.58, "v": 0.63, "u2": 0.62, "v2": 0.67}]},
     )
     assert r.status_code == 200, r.text
     assert r.json()["zones"][0]["z"] == 64.0
@@ -546,7 +547,7 @@ def test_put_zones_validation(cfg: AppConfig, client: TestClient):
     # No radar calibration -> cannot place.
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "A", "u": 0.5, "v": 0.5, "radius": 100.0}]},
+        json={"zones": [{"name": "A", "u": 0.49, "v": 0.49, "u2": 0.51, "v2": 0.51}]},
     )
     assert r.status_code == 400 and "calibration" in r.json()["detail"]
 
@@ -578,26 +579,56 @@ def test_put_zones_validation(cfg: AppConfig, client: TestClient):
     # Far from any calibration data -> rejected (cannot ground the zone).
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "A", "u": 0.01, "v": 0.01, "radius": 100.0}]},
+        json={"zones": [{"name": "A", "u": 0.005, "v": 0.005, "u2": 0.025, "v2": 0.025}]},
     )
     assert r.status_code == 400 and "position data" in r.json()["detail"]
     # Name collision with a game zone.
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Middle", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+        json={
+            "zones": [
+                {
+                    "name": "Middle",
+                    "u": 612 / 1024 - 0.02,
+                    "v": 662 / 1024 - 0.02,
+                    "u2": 612 / 1024 + 0.02,
+                    "v2": 662 / 1024 + 0.02,
+                }
+            ]
+        },
     )
     assert r.status_code == 400 and "reserved" in r.json()["detail"]
     # Name collision with an alias value.
     client.put(f"/api/maps/{MAP}/aliases", json={"aliases": {"Water": "Pond"}})
     r = client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Pond", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+        json={
+            "zones": [
+                {
+                    "name": "Pond",
+                    "u": 612 / 1024 - 0.02,
+                    "v": 662 / 1024 - 0.02,
+                    "u2": 612 / 1024 + 0.02,
+                    "v2": 662 / 1024 + 0.02,
+                }
+            ]
+        },
     )
     assert r.status_code == 400 and "reserved" in r.json()["detail"]
     # And the reverse: an alias may not take a custom zone's name.
     client.put(
         f"/api/maps/{MAP}/zones",
-        json={"zones": [{"name": "Sandbags", "u": 612 / 1024, "v": 662 / 1024, "radius": 100.0}]},
+        json={
+            "zones": [
+                {
+                    "name": "Sandbags",
+                    "u": 612 / 1024 - 0.02,
+                    "v": 662 / 1024 - 0.02,
+                    "u2": 612 / 1024 + 0.02,
+                    "v2": 662 / 1024 + 0.02,
+                }
+            ]
+        },
     )
     r = client.put(f"/api/maps/{MAP}/aliases", json={"aliases": {"Water": "Sandbags"}})
     assert r.status_code == 400

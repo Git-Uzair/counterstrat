@@ -1629,8 +1629,6 @@ textarea#chat-input:disabled {
   pointer-events: none;
 }
 
-.zone-footprint.is-round { border-radius: 50%; }
-
 .zone-ghost {
   position: absolute;
   border: 1px solid var(--color-success-text);
@@ -1670,8 +1668,6 @@ textarea#chat-input:disabled {
   padding: 0 4px;
   margin-left: 4px;
 }
-
-.callout-radius-input { width: 80px; }
 
 .callout-edit-input {
   width: 110px;

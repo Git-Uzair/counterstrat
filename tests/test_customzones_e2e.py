@@ -54,7 +54,7 @@ def test_custom_zone_reaches_scripts_and_teambook(tmp_path: Path, anubis_lake):
     save_custom_zones(
         cfg.data_root,
         MAP,
-        [CustomZone(name="Sandbags", x=cx, y=cy, z=cz, radius=200.0)],
+        [CustomZone(name="Sandbags", x=cx, y=cy, z=cz, half_x=200.0, half_y=200.0)],
         reserved=set(),
     )
 

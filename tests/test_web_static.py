@@ -129,7 +129,8 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     # Rect zones: drag ghost, corner payloads, and rendered footprints.
     assert "zone-ghost" in js
     assert "zone-footprint" in js
-    assert '"rect"' in js and "u2" in js
+    assert "u2" in js and "v2" in js
+    assert "radius" not in js  # sphere zones are gone
     # Zoom/pan for precision placement.
     assert "callouts-zoom" in js
     assert "onWheel" in js and "resetView" in js

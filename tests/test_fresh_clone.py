@@ -75,7 +75,6 @@ def test_fresh_clone_accepts_personal_callouts(clone: TestClient):
             "zones": [
                 {
                     "name": "myspot",
-                    "shape": "rect",
                     "u": mid[0] - 0.02,
                     "v": mid[1] - 0.02,
                     "u2": mid[0] + 0.02,
@@ -86,4 +85,5 @@ def test_fresh_clone_accepts_personal_callouts(clone: TestClient):
     )
     assert r.status_code == 200, r.text
     zones = {z["name"]: z for z in clone.get("/api/maps/de_anubis/callouts").json()["zones"]}
-    assert zones["myspot"]["custom"] is True and zones["myspot"]["shape"] == "rect"
+    assert zones["myspot"]["custom"] is True
+    assert zones["myspot"]["half_u"] and zones["myspot"]["half_v"]
