@@ -217,21 +217,9 @@ def test_job_persistence_survives_reload(client_app: TestClient, test_cfg: AppCo
     assert reloaded.stage == state.stage
 
 
-def test_reports_503_without_key(client_app: TestClient):
-    r = client_app.get("/api/reports/team123/de_anubis")
-    assert r.status_code == 503
-    assert "API key" in r.json()["detail"]
-
-
-def test_reports_cached_markdown(client_app: TestClient, test_cfg: AppConfig):
-    report_file = test_cfg.data_root / "teambooks" / "team1" / "de_anubis" / "dossier.md"
-    report_file.parent.mkdir(parents=True, exist_ok=True)
-    report_file.write_text("# Anti-Strat Dossier\n\nCached content.", encoding="utf-8")
-
-    r = client_app.get("/api/reports/team1/de_anubis")
-    assert r.status_code == 200
-    assert "Cached content." in r.text
-    assert "text/markdown" in r.headers["content-type"]
+def test_reports_endpoint_removed(client_app: TestClient):
+    """The dossier feature is gone: its endpoint must not resurface."""
+    assert client_app.get("/api/reports/team123/de_anubis").status_code == 404
 
 
 def test_upload_rejects_unsupported_extension(client_app: TestClient):

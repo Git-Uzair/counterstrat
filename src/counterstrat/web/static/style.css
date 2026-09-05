@@ -427,6 +427,9 @@ code, pre {
   border-radius: var(--radius-md);
   background-color: var(--bg-primary);
   overflow: hidden;
+  /* Never compress to fit: keep natural height so .teams-list scrolls
+     instead of squishing every group. */
+  flex-shrink: 0;
 }
 
 .team-group-head-row {

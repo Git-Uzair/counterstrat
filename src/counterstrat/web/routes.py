@@ -20,7 +20,6 @@ from fastapi import (
     File,
     HTTPException,
     Request,
-    Response,
     UploadFile,
 )
 from pydantic import BaseModel
@@ -906,51 +905,6 @@ def put_zones(
         "zones": [z.model_dump() for z in saved],
         "job_id": job_id,
     }
-
-
-@router.get("/reports/{team_key}/{map_name}")
-def get_report(team_key: str, map_name: str, cfg: ConfigDep, mock: str | None = None) -> Response:
-    team_key = resolve_team_id(cfg.data_root, team_key)
-    dossier_path = cfg.data_root / "teambooks" / team_key / map_name / "dossier.md"
-    if dossier_path.exists():
-        return Response(
-            content=dossier_path.read_text(encoding="utf-8"), media_type="text/markdown"
-        )
-
-    key = cfg.anthropic_api_key if cfg.provider == "anthropic" else cfg.gemini_api_key
-    if not key:
-        if mock == "1":
-            mock_content = f"# Anti-Strat Dossier: {team_key} on {map_name}\n\n## 1. Executive Summary\nOffline UI test dossier."
-            return Response(content=mock_content, media_type="text/markdown")
-        raise HTTPException(
-            status_code=503,
-            detail=f"No API key configured for provider '{cfg.provider}'. Please set it in Settings.",
-        )
-
-    # Bundle loading resolves the cluster and re-keys scripts, so the dossier
-    # mines the full merged corpus across stand-in lineups.
-    card, teambook, scripts, lex = _load_team_bundle(cfg, team_key, map_name)
-    try:
-        from counterstrat.llm.base import make_client
-        from counterstrat.llm.dossier import generate as generate_dossier
-
-        client = make_client(cfg)
-        dossier = generate_dossier(
-            client,
-            card,
-            teambook,
-            scripts,
-            lex,
-            renamer=load_renamer(cfg.data_root, map_name),
-            anchors=map_zone_anchors(cfg, map_name),
-        )
-        dossier_path.parent.mkdir(parents=True, exist_ok=True)
-        dossier_path.write_text(dossier.text, encoding="utf-8")
-        return Response(content=dossier.text, media_type="text/markdown")
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to generate dossier: {exc}") from exc
 
 
 # --- 3. Settings & Models ---

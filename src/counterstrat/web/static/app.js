@@ -37,7 +37,7 @@
     // Chat
     targetTitle: document.getElementById("target-title"),
     targetMeta: document.getElementById("target-meta"),
-    dossierBtn: document.getElementById("dossier-btn"),
+
     messagesContainer: document.getElementById("messages-container"),
     chatWelcome: document.getElementById("chat-welcome"),
     chatForm: document.getElementById("chat-form"),
@@ -552,10 +552,6 @@
       el.targetMeta.innerHTML = `Sample size: <strong class="stat-n">n = ${mStats.rounds} rounds</strong> across ${mStats.demos} demo${mStats.demos === 1 ? "" : "s"} (${escapeHtml(team.team_key)})`;
     }
 
-    // Enable Dossier button
-    el.dossierBtn.disabled = false;
-    el.dossierBtn.title = "Download strategic dossier markdown report";
-
     // Create session
     createChatSession(team.team_key, mapName, displayName, matchIds || null);
   }
@@ -832,47 +828,6 @@
   }
 
   // =========================================================================
-  // 4. Dossier Download
-  // =========================================================================
-
-  function downloadDossier() {
-    if (!state.currentTeamKey || !state.currentMapName) return;
-
-    const isMock = window.location.search.includes("mock=1");
-    const url = `/api/reports/${state.currentTeamKey}/${state.currentMapName}${isMock ? "?mock=1" : ""}`;
-    el.dossierBtn.disabled = true;
-    el.dossierBtn.textContent = "Generating...";
-
-    fetch(url)
-      .then(function (res) {
-        if (!res.ok) {
-          return res.json().then(function (err) {
-            throw new Error(err.detail || `Server returned ${res.status}`);
-          });
-        }
-        return res.text();
-      })
-      .then(function (markdownText) {
-        const blob = new Blob([markdownText], { type: "text/markdown;charset=utf-8" });
-        const downloadUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = downloadUrl;
-        a.download = `${state.currentTeamKey}_${state.currentMapName}_dossier.md`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(downloadUrl);
-      })
-      .catch(function (err) {
-        alert(`Could not download dossier:\n${err.message}`);
-      })
-      .finally(function () {
-        el.dossierBtn.disabled = false;
-        el.dossierBtn.textContent = "Download Dossier (.md)";
-      });
-  }
-
-  // =========================================================================
   // 5. Settings Modal
   // =========================================================================
 
@@ -1016,8 +971,6 @@
       }
     });
 
-    // Dossier Download
-    el.dossierBtn.addEventListener("click", downloadDossier);
 
     // Settings Modal
     el.settingsBtn.addEventListener("click", openSettings);

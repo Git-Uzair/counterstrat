@@ -55,7 +55,7 @@ def test_index_page(client_app: TestClient) -> None:
     assert "teams-list" in resp.text
     assert "messages-container" in resp.text
     assert "settings-modal" in resp.text
-    assert "dossier-btn" in resp.text
+    assert "dossier" not in resp.text.lower()  # the dossier feature is gone
     # Multi-demo ingestion: multi-select input + the per-file queue panel.
     assert "multiple" in resp.text
     assert "ingest-queue" in resp.text
@@ -204,7 +204,7 @@ def test_insights_endpoint_mock_flow(chat_client: TestClient) -> None:
     assert chat_client.get(url).status_code == 404
 
 
-def test_mock_chat_and_report_flow(chat_client: TestClient) -> None:
+def test_mock_chat_flow(chat_client: TestClient) -> None:
     # 1. Create chat session
     created = chat_client.post(
         "/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": "de_anubis"}
@@ -223,8 +223,3 @@ def test_mock_chat_and_report_flow(chat_client: TestClient) -> None:
     assert "tool_trace" in data
     assert len(data["tool_trace"]) >= 1
     assert data["tool_trace"][0]["name"] == "get_tendencies"
-
-    # 3. Download dossier with ?mock=1 offline flag
-    report_resp = chat_client.get(f"/api/reports/{SYNTHETIC_TEAM}/de_anubis?mock=1")
-    assert report_resp.status_code == 200
-    assert "Anti-Strat Dossier" in report_resp.text

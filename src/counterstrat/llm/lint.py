@@ -1,42 +1,25 @@
-"""Dossier generator and anti-hallucination lint gate."""
+"""Anti-hallucination lint for generated scouting text (First Read).
+
+Names keep their historical "dossier" form: the lint predates the dossier
+feature's removal and is shared by every LLM text generator.
+"""
 
 import re
 from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 
-from counterstrat.llm.base import LLMClient, LLMResult
-from counterstrat.llm.prompts import (
-    build_system,
-    build_user,
-    format_map_scene_graph,
-    select_exemplars,
-)
-from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
-from counterstrat.mining.econ_policy import build_econ_policy
-from counterstrat.mining.gaps import build_gap_report
-from counterstrat.mining.range_profile import build_range_profile
 from counterstrat.mining.tendencies import TeamBook
-from counterstrat.mining.utility_book import build_utility_book
-from counterstrat.roundscript.models import RoundScript
 
 
 class DossierLint(BaseModel):
-    """Anti-hallucination lint findings for generated scouting dossiers."""
+    """Anti-hallucination lint findings for generated scouting text."""
 
     unknown_zones: list[str] = Field(default_factory=list)
     bad_citations: list[str] = Field(default_factory=list)
     freq_mismatches: list[str] = Field(default_factory=list)
     ok: bool = True
-
-
-class Dossier(BaseModel):
-    """Scouting dossier with verification report and token usage."""
-
-    text: str
-    lint: DossierLint
-    usage: LLMResult
 
 
 def lint_dossier(
@@ -46,7 +29,7 @@ def lint_dossier(
     valid_evidence: set[str] | Sequence[str],
     aliases: dict[str, str] | None = None,
 ) -> DossierLint:
-    """Audit a generated scouting dossier for fabricated zones, citations, or frequencies.
+    """Audit generated scouting text for fabricated zones, citations, or frequencies.
 
     With ``aliases`` (canonical -> user callout) the valid vocabulary flips: the
     user's callout is accepted and the renamed canonical is rejected, because
@@ -163,59 +146,3 @@ def lint_dossier(
         freq_mismatches=freq_mismatches,
         ok=ok,
     )
-
-
-def generate(
-    client: LLMClient,
-    card: MapCard,
-    teambook: TeamBook,
-    scripts: list[RoundScript],
-    lex: Lexicon,
-    renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
-    anchors: dict | None = None,  # web.routes.map_zone_anchors output for this map
-) -> Dossier:
-    """Generate a scouting dossier and enforce anti-hallucination gate with single retry."""
-    exemplars = select_exemplars(teambook, scripts, cap=12)
-    system = build_system(format_map_scene_graph(card, anchors or {}))
-    user = build_user(
-        teambook,
-        exemplars,
-        utility_book=build_utility_book(scripts, teambook.team_key),
-        gap_report=build_gap_report(scripts, teambook.team_key),
-        econ_policy=build_econ_policy(scripts, teambook.team_key),
-        range_profile=build_range_profile(scripts, teambook.team_key),
-    )
-    if renamer:
-        system = renamer.rename_text(system)
-        user = renamer.rename_text(user)
-    aliases = renamer.aliases if renamer else None
-    valid_evidence = {f"{s.match_id}:{s.round_num}" for s in scripts}
-
-    result = client.complete(system=system, user=user)
-    lint = lint_dossier(result.text, teambook, lex, valid_evidence, aliases=aliases)
-
-    if not lint.ok:
-        # Retry once with feedback
-        error_lines: list[str] = []
-        if lint.unknown_zones:
-            error_lines.append(f"Unknown zones: {lint.unknown_zones}")
-        if lint.bad_citations:
-            error_lines.append(f"Bad citations: {lint.bad_citations}")
-        if lint.freq_mismatches:
-            error_lines.append(f"Frequency mismatches: {lint.freq_mismatches}")
-        error_msg = "\n".join(error_lines)
-        retry_user = f"{user}\n\nPrevious draft had errors:\n{error_msg}\nPlease fix and rewrite."
-
-        retry_result = client.complete(system=system, user=retry_user)
-        lint = lint_dossier(retry_result.text, teambook, lex, valid_evidence, aliases=aliases)
-        combined_usage = LLMResult(
-            text=retry_result.text,
-            input_tokens=result.input_tokens + retry_result.input_tokens,
-            output_tokens=result.output_tokens + retry_result.output_tokens,
-            cache_read_tokens=result.cache_read_tokens + retry_result.cache_read_tokens,
-            model=retry_result.model,
-            provider=retry_result.provider,
-        )
-        return Dossier(text=retry_result.text, lint=lint, usage=combined_usage)
-
-    return Dossier(text=result.text, lint=lint, usage=result)

@@ -4,12 +4,8 @@ import math
 from typing import TYPE_CHECKING
 
 from counterstrat.constants import RANGE_CLOSE_M, RANGE_LONG_M
-from counterstrat.mining.econ_policy import EconPolicy
-from counterstrat.mining.gaps import GapReport
 from counterstrat.mining.range_profile import RangeProfile
 from counterstrat.mining.tendencies import TeamBook
-from counterstrat.mining.utility_book import UtilityBook
-from counterstrat.roundscript.models import RoundScript
 
 if TYPE_CHECKING:
     from counterstrat.mapcard.compile import MapCard
@@ -166,41 +162,6 @@ def format_map_scene_graph(card: "MapCard", anchors: dict[str, tuple]) -> str:
     return "\n".join(lines)
 
 
-def build_system(map_block: str, zone_map: str = "") -> str:
-    """Build the system prompt containing the map block and dossier output contract.
-
-    ``map_block`` is ``format_map_scene_graph`` output (callers may still pass
-    raw card yaml plus a ``zone_map`` add-on; both land inside <map_card>).
-    """
-    return f"""You are an elite Counter-Strike 2 strategic analyst producing a comprehensive anti-strat scouting dossier.
-
-<map_card>
-{map_block}{zone_map}
-</map_card>
-
-Output Contract & Required Sections:
-You must structure the dossier using the following exact eight sections:
-1. Identity & Overview
-2. Defaults & Roles
-3. Execute Repertoire with Counters
-4. Gaps & Triggers
-5. Economy Policy with Exploit
-6. Player-Specific Weaknesses
-7. Round-State Playbook Table
-8. Confidence & Evidence Appendix
-
-Mandatory Rules:
-- Exploit-first: open every section with a single bold **Exploit:** sentence - the one
-  thing an IGL should do with that section - before any analysis.
-- Zone formatting: Wrap EVERY zone name in backticks, e.g. `Middle`, `BombsiteA`. Only use valid zones defined in the Map Card. Do NOT invent zone names.
-- Evidence citations: You must cite evidence as `match_id:round_num` (e.g. `deadbeefcafe1234:7`) for every specific pattern, round outcome, or tactical claim.
-- Frequencies: Quote frequencies and percentages verbatim from the TeamBook profile. Do not round differently or hallucinate numbers.
-- Sample sizes & confidence: Explicitly hedge any tendency marked `low_n` or based on a small sample size, and prefer rows marked signal over noise rows.
-- Gaps & Triggers: build section 4 from the Gap Findings data (zone, beat window, trigger, lift); when no finding exists, say the defense shows no systematic hole at 15s resolution.
-- Timings: Express round timings in seconds (e.g. 15s, 45s) rather than MM:SS notation to prevent citation ambiguity.
-"""
-
-
 def build_chat_system(
     map_block: str,
     teambook: TeamBook,
@@ -273,91 +234,3 @@ Tool rules:
 - Wrap every zone name in backticks and use only zones defined in the Map Card.
 - If the tools do not cover the question, say so plainly instead of guessing.
 """
-
-
-def select_exemplars(
-    teambook: TeamBook, scripts: list[RoundScript], cap: int = 12
-) -> list[RoundScript]:
-    """Select exemplar RoundScripts based on tendency coverage.
-
-    For each of the top 6 tendencies by sample size `n`, takes up to 2 most recent
-    evidence round IDs, deduplicating and maintaining order, capped at `cap` items.
-    """
-    script_map = {f"{s.match_id}:{s.round_num}": s for s in scripts}
-    sorted_tendencies = sorted(teambook.tendencies, key=lambda t: t.n, reverse=True)
-
-    selected_ids: list[str] = []
-    seen: set[str] = set()
-
-    for t in sorted_tendencies[:6]:
-        recent_evidence = t.evidence[-2:]
-        for eid in recent_evidence:
-            if eid in script_map and eid not in seen:
-                seen.add(eid)
-                selected_ids.append(eid)
-                if len(selected_ids) >= cap:
-                    break
-        if len(selected_ids) >= cap:
-            break
-
-    return [script_map[eid] for eid in selected_ids]
-
-
-def build_user(
-    teambook: TeamBook,
-    exemplars: list[RoundScript],
-    utility_book: UtilityBook | None = None,
-    gap_report: GapReport | None = None,
-    econ_policy: EconPolicy | None = None,
-    range_profile: RangeProfile | None = None,
-) -> str:
-    """Build the user turn: TeamBook tables, mined artifacts, and exemplar scripts.
-
-    ``range_profile`` must be mined from ALL the team's scripts, not the
-    exemplar subset - callers with full scripts pass it in.
-    """
-    sections = [
-        "## Team Profile & Tendencies",
-        teambook.to_table_text(),
-        "",
-        "## Key Tendency Summaries",
-        "\n".join(f"- {s}" for s in teambook.to_sentences()),
-        "",
-    ]
-    if range_profile is not None and (range_lines := range_profile.to_prompt_lines()):
-        sections.append("## Engagement Range Profile (kill distances in meters)")
-        sections.extend(range_lines)
-        sections.append("")
-    if utility_book is not None and utility_book.patterns:
-        sections.append("## Utility Book (top patterns)")
-        for p in utility_book.top_patterns(limit=10):
-            lineup = f" [{p.lineup_id}]" if p.lineup_id else ""
-            sections.append(
-                f"- {p.side} {p.nade} -> `{p.to_zone}`{lineup}: {p.count}/{p.rounds_seen} rounds, "
-                f"median {p.median_t:.0f}s (evidence: {', '.join(p.evidence[:3])})"
-            )
-        sections.append("")
-    if gap_report is not None and gap_report.findings:
-        sections.append("## Gap Findings")
-        for f in gap_report.findings[:12]:
-            sections.append(
-                f"- {f.side} vacate `{f.zone}` at {f.window} on '{f.trigger}': "
-                f"{f.vacancy_rate:.0%} of {f.n} rounds (baseline {f.baseline_rate:.0%}, "
-                f"lift {f.lift:+.0%}; evidence: {', '.join(f.evidence[:3])})"
-            )
-        sections.append("")
-    if econ_policy is not None and econ_policy.policy:
-        sections.append("## Economy Policy")
-        for state, dist in econ_policy.policy.items():
-            dist_str = ", ".join(f"{b} {p:.0%}" for b, p in dist.items())
-            sections.append(f"- {state} (n={econ_policy.ns.get(state, 0)}): {dist_str}")
-        sections.append("")
-    sections.append("## Exemplar Round Scripts")
-    if exemplars:
-        for s in exemplars:
-            sections.append(f"### Round {s.match_id}:{s.round_num}")
-            sections.append(s.to_timeline_text())
-            sections.append("")
-    else:
-        sections.append("No exemplar round scripts available.")
-    return "\n".join(sections)

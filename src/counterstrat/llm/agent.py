@@ -7,7 +7,7 @@ The loop is deliberately provider-agnostic: it only speaks ``LLMClient.chat`` pl
 from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import ChatTurn, LLMClient, LLMResult
-from counterstrat.llm.dossier import lint_dossier
+from counterstrat.llm.lint import lint_dossier
 from counterstrat.llm.tools import SessionContext, execute_tool, tool_specs
 
 TRACE_PREVIEW_CHARS = 200

@@ -13,7 +13,7 @@ import re
 from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import LLMClient, LLMResult
-from counterstrat.llm.dossier import lint_dossier
+from counterstrat.llm.lint import lint_dossier
 from counterstrat.llm.prompts import TACTICAL_DOCTRINE, format_map_scene_graph
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
