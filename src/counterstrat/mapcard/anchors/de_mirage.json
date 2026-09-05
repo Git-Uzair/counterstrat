@@ -1,126 +1,128 @@
 {
   "map_name": "de_mirage",
-  "computed_at": "2026-09-05T02:42:48.571792+00:00",
-  "demos": 3,
+  "computed_at": "2026-09-05T02:48:15.961967+00:00",
+  "demos": 5,
   "generated_from": [
     "1-41850537-f26b-48b0-9855-1f1e82caf35b-1-1.dem.zst",
+    "1-66c621bf-98a7-4cf5-a3c2-d0a615401252-1-1.dem.zst",
     "1-b4d870ae-84d2-4161-8d62-6c05ce4bc97e-1-1.dem.zst",
+    "1-d6b92604-da79-46ab-92ff-86319783eb1a-1-1.dem.zst",
     "1-f3583760-4746-476d-93f7-6060e8348418-1-1.dem.zst"
   ],
   "anchors": {
     "Apartments": {
-      "u": 0.3435,
-      "v": 0.1914,
+      "u": 0.341,
+      "v": 0.1923,
       "level": "default"
     },
     "BackAlley": {
-      "u": 0.5396,
-      "v": 0.2185,
+      "u": 0.5372,
+      "v": 0.2188,
       "level": "default"
     },
     "BombsiteA": {
-      "u": 0.528,
-      "v": 0.715,
+      "u": 0.5298,
+      "v": 0.7179,
       "level": "default"
     },
     "BombsiteB": {
-      "u": 0.2522,
-      "v": 0.2873,
+      "u": 0.2465,
+      "v": 0.2847,
       "level": "default"
     },
     "CTSpawn": {
-      "u": 0.3079,
+      "u": 0.3073,
       "v": 0.7047,
       "level": "default"
     },
     "Catwalk": {
-      "u": 0.4676,
-      "v": 0.3591,
+      "u": 0.4689,
+      "v": 0.3579,
       "level": "default"
     },
     "Connector": {
-      "u": 0.5039,
-      "v": 0.5493,
+      "u": 0.5025,
+      "v": 0.5509,
       "level": "default"
     },
     "House": {
-      "u": 0.7065,
-      "v": 0.1786,
+      "u": 0.7013,
+      "v": 0.1783,
       "level": "default"
     },
     "Jungle": {
-      "u": 0.4409,
-      "v": 0.6062,
+      "u": 0.4385,
+      "v": 0.6055,
       "level": "default"
     },
     "Ladder": {
-      "u": 0.4078,
-      "v": 0.3805,
+      "u": 0.4089,
+      "v": 0.3765,
       "level": "default"
     },
     "Middle": {
-      "u": 0.5167,
-      "v": 0.4828,
+      "u": 0.5145,
+      "v": 0.4823,
       "level": "default"
     },
     "PalaceAlley": {
       "u": 0.7762,
-      "v": 0.5917,
+      "v": 0.5902,
       "level": "default"
     },
     "PalaceInterior": {
-      "u": 0.6864,
-      "v": 0.7392,
+      "u": 0.6857,
+      "v": 0.7381,
       "level": "default"
     },
     "Scaffolding": {
-      "u": 0.63,
-      "v": 0.7425,
+      "u": 0.6287,
+      "v": 0.7434,
       "level": "default"
     },
     "Shop": {
-      "u": 0.2652,
-      "v": 0.4455,
+      "u": 0.2637,
+      "v": 0.442,
       "level": "default"
     },
     "SideAlley": {
-      "u": 0.7394,
-      "v": 0.2477,
+      "u": 0.7447,
+      "v": 0.2468,
       "level": "default"
     },
     "SnipersNest": {
-      "u": 0.4002,
-      "v": 0.4777,
+      "u": 0.4,
+      "v": 0.4776,
       "level": "default"
     },
     "Stairs": {
       "u": 0.5327,
-      "v": 0.6169,
+      "v": 0.619,
       "level": "default"
     },
     "TRamp": {
-      "u": 0.7032,
-      "v": 0.6497,
+      "u": 0.7034,
+      "v": 0.6484,
       "level": "default"
     },
     "TSpawn": {
       "u": 0.8682,
-      "v": 0.366,
+      "v": 0.3656,
       "level": "default"
     },
     "TopofMid": {
-      "u": 0.6914,
-      "v": 0.3988,
+      "u": 0.6934,
+      "v": 0.3966,
       "level": "default"
     },
     "Truck": {
-      "u": 0.2161,
-      "v": 0.1771,
+      "u": 0.2089,
+      "v": 0.1885,
       "level": "default"
     },
     "Underpass": {
-      "u": 0.4463,
-      "v": 0.3017,
+      "u": 0.4462,
+      "v": 0.3007,
       "level": "default"
     }
   }
