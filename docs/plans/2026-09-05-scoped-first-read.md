@@ -46,4 +46,16 @@ Status: APPROVED (user requirements list confirmed verbatim + "remove the Dossie
    collapsible; cache-busters bumped; pins updated.
 9. Full suite + ruff + commits per task group.
 
+## Execution record (2026-09-05, all tasks DONE)
+
+| Task | Commit |
+|---|---|
+| 1 sidebar flex-shrink + 2 dossier removal | 69332ec |
+| 3-7 scope.py, scoped insights, scope-hash sessions, first-read block, deletion purge | 839064c |
+| 8 frontend pinned panel, cards, replay, invalidation | b83565d |
+
+Suite at completion: 402 passed / 5 live-deselected; ruff clean; node
+--check clean on app.js + callouts.js. The lint gate (lint_dossier) moved
+to llm/lint.py and stays on First Read generation.
+
 PLAN COMPLETE
