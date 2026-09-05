@@ -17,12 +17,21 @@ from counterstrat.llm.lint import lint_dossier
 from counterstrat.llm.prompts import TACTICAL_DOCTRINE, format_map_scene_graph
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
+from counterstrat.mining.deaths import build_death_profiles
 from counterstrat.mining.econ_policy import EconPolicy
 from counterstrat.mining.gaps import GapReport
 from counterstrat.mining.range_profile import build_range_profile
+from counterstrat.mining.retakes import build_retake_report
+from counterstrat.mining.rotations import build_rotation_report
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.mining.utility_book import UtilityBook
+from counterstrat.mining.utility_roi import build_utility_roi
 from counterstrat.roundscript.models import RoundScript
+
+# Advanced-analytics sections (2026-09-05 plan Task 4) are budget-capped: the
+# timelines own the prompt, these blocks stay compact.
+SECTION_ROW_CAP = 15
+EVIDENCE_CAP = 3
 
 
 class Insights(BaseModel):
@@ -92,6 +101,12 @@ Language rules - the reader is a player, not a database:
 Tactical doctrine - apply when reading positions, lone players, and fight ranges:
 {TACTICAL_DOCTRINE}
 
+Extra data blocks (present when the corpus carries them) - Rotation Responses
+(trigger-conditioned hold-breaks; movement-derived, CS2 demos carry no audio so never
+cite sound cues), Utility ROI (what each nade pattern buys), Death Contexts (how each
+player dies), Retake Book (post-plant conversion and approach vectors) - are inputs to
+the same six sections above, never new sections.
+
 Hard rules:
 - Never present a consequence of normal play as an insight. Banned tautologies:
   CTs leaving the other site post-plant to retake; Ts not standing on bombsites
@@ -107,6 +122,101 @@ Hard rules:
 """
 
 
+def _evidence(ids: list[str], labels: dict[str, str]) -> str:
+    return ", ".join(_friendly_round(e, labels) for e in ids[:EVIDENCE_CAP])
+
+
+def _rotation_lines(scripts: list[RoundScript], team_key: str, labels: dict[str, str]) -> list[str]:
+    report = build_rotation_report(scripts, team_key)
+    lines = []
+    for r in report.rows[:SECTION_ROW_CAP]:
+        fake = f", fake-follow {r.fake_rate:.0%}" if r.fake_rate is not None else ""
+        lines.append(
+            f"- {r.side} {r.player} on {r.trigger}: median {r.median_latency_s:.1f}s to break "
+            f"hold (n={r.n}{fake}; evidence: {_evidence(r.evidence, labels)})"
+        )
+    return lines
+
+
+def _roi_lines(scripts: list[RoundScript], team_key: str, labels: dict[str, str]) -> list[str]:
+    roi = build_utility_roi(scripts, team_key)
+    lines: list[str] = []
+    for r in roi.rows:
+        parts = []
+        if r.avg_enemy_blind_s is not None:
+            parts.append(f"enemy-blind {r.avg_enemy_blind_s:.1f}s avg")
+        if r.avg_team_blind_s:
+            parts.append(f"team-blind {r.avg_team_blind_s:.1f}s avg")
+        if r.avg_damage is not None:
+            parts.append(f"avg damage {r.avg_damage:.0f}")
+        if r.kills_through:
+            parts.append(f"{r.kills_through} kill(s) through it")
+        if not parts:
+            continue  # nothing measured: the Utility Book already covers frequency
+        if r.cost_per_enemy_blind_s is not None:
+            parts.append(f"${r.cost_per_enemy_blind_s:.0f} per enemy-blind second")
+        if r.cost_per_damage is not None:
+            parts.append(f"${r.cost_per_damage:.0f} per damage point")
+        lines.append(
+            f"- {r.side} {r.nade} {r.pattern}: n={r.n}, "
+            + ", ".join(parts)
+            + f" (${r.cost}/nade; evidence: {_evidence(r.evidence, labels)})"
+        )
+        if len(lines) >= SECTION_ROW_CAP:
+            break
+    return lines
+
+
+def _death_lines(scripts: list[RoundScript], team_key: str, labels: dict[str, str]) -> list[str]:
+    profiles = build_death_profiles(scripts, team_key)
+    lines: list[str] = []
+    for p in profiles.players[:SECTION_ROW_CAP]:
+        parts = []
+        if p.moving_rate is not None:
+            parts.append(f"{p.moving_rate:.0%} of measured deaths on the move (n={p.moving_n})")
+        if p.median_preaim_off_deg is not None:
+            parts.append(
+                f"crosshair median {p.median_preaim_off_deg:.0f} deg off the killer "
+                f"(n={p.preaim_n})"
+            )
+        if p.weapons:
+            weapon, count = next(iter(p.weapons.items()))
+            parts.append(f"most-held at death: {weapon} x{count}")
+        if p.by_range:
+            parts.append("range: " + ", ".join(f"{b.band} x{b.n}" for b in p.by_range))
+        if not parts:
+            continue
+        lines.append(
+            f"- {p.player} ({p.n} deaths): "
+            + "; ".join(parts)
+            + f" (evidence: {_evidence(p.evidence, labels)})"
+        )
+    return lines
+
+
+def _retake_lines(scripts: list[RoundScript], team_key: str, labels: dict[str, str]) -> list[str]:
+    report = build_retake_report(scripts, team_key)
+    lines: list[str] = []
+    for r in report.rows[:SECTION_ROW_CAP]:
+        verb = "retake of" if r.side == "CT" else "post-plant hold of"
+        lines.append(
+            f"- {r.side} {verb} `{r.site}` at {r.man_diff}: {r.win_rate:.0%} of {r.n} "
+            f"(evidence: {_evidence(r.evidence, labels)})"
+        )
+    for a in report.approaches[: max(0, SECTION_ROW_CAP - len(lines))]:
+        how = "+".join(a.approaches)
+        whose = (
+            f"retakes come via {how} into"
+            if a.side == "CT"
+            else f"held against retakes via {how} into"
+        )
+        lines.append(
+            f"- {a.side} {whose} `{a.site}`: {a.win_rate:.0%} of {a.n} "
+            f"(evidence: {_evidence(a.evidence, labels)})"
+        )
+    return lines
+
+
 def build_insights_user(
     *,
     teambook: TeamBook,
@@ -115,6 +225,7 @@ def build_insights_user(
     econ_policy: EconPolicy,
     scripts: list[RoundScript],
     game_labels: dict[str, str] | None = None,
+    other_teams: list[str] | None = None,
 ) -> str:
     labels = game_labels or default_game_labels(teambook.generated_from)
     total_rounds = sum(t.n for t in teambook.tendencies if t.level == 0)
@@ -128,6 +239,10 @@ def build_insights_user(
     ]
     for mid in teambook.generated_from:
         sections.append(f"- {labels.get(mid, mid[:8])}")
+    if other_teams:
+        sections.append(
+            "- matchup data available in chat via get_matchup: " + ", ".join(other_teams)
+        )
     sections += ["", teambook.to_table_text(), "", "## Utility Book"]
     for p in utility_book.patterns:
         lineup = f" [{p.lineup_id}]" if p.lineup_id else ""
@@ -166,6 +281,31 @@ def build_insights_user(
     if range_lines:
         sections += ["", "## Engagement Range Profile (kill distances in meters)"]
         sections += range_lines
+    # Advanced analytics (2026-09-05 plan Task 4): compact mined blocks, each
+    # omitted when the corpus carries nothing measured. Budget-trivial next to
+    # the timelines, which must never grow.
+    rotation_lines = _rotation_lines(scripts, teambook.team_key, labels)
+    if rotation_lines:
+        sections += [
+            "",
+            (
+                "## Rotation Responses (holds broken within 8s of a trigger; "
+                "movement-derived - demos carry no audio)"
+            ),
+        ]
+        sections += rotation_lines
+    roi_lines = _roi_lines(scripts, teambook.team_key, labels)
+    if roi_lines:
+        sections += ["", "## Utility ROI (measured effects; blind seconds are sums per flash)"]
+        sections += roi_lines
+    death_lines = _death_lines(scripts, teambook.team_key, labels)
+    if death_lines:
+        sections += ["", "## Death Contexts (how each of their players dies)"]
+        sections += death_lines
+    retake_lines = _retake_lines(scripts, teambook.team_key, labels)
+    if retake_lines:
+        sections += ["", "## Retake Book (post-plant conversion; man-diff at the plant)"]
+        sections += retake_lines
     sections += ["", "## All Round Timelines (ground truth; every kill and grenade timestamped)"]
     for s in sorted(scripts, key=lambda s: (s.match_id, s.round_num)):
         pistol = " (pistol round)" if s.round_num in (1, 13) else ""
@@ -225,6 +365,7 @@ def generate_insights(
     max_tokens: int | None = None,  # None = the model's own maximum: never cut analysis short
     anchors: dict | None = None,  # web.routes.map_zone_anchors output for this map
     sightlines: list[dict] | None = None,  # calibration sightlines (vocabulary-aware)
+    other_teams: list[str] | None = None,  # other booked teams on this map (get_matchup note)
 ) -> Insights:
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
     labels = game_labels or default_game_labels(teambook.generated_from)
@@ -238,6 +379,7 @@ def generate_insights(
         econ_policy=econ_policy,
         scripts=scripts,
         game_labels=labels,
+        other_teams=other_teams,
     )
     if renamer:
         system = renamer.rename_text(system)

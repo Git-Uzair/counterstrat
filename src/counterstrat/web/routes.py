@@ -556,6 +556,14 @@ def get_insights(
         from counterstrat.mining.econ_policy import build_econ_policy
         from counterstrat.mining.gaps import build_gap_report
         from counterstrat.mining.utility_book import build_utility_book
+        from counterstrat.teams import load_or_build_clusters
+
+        clusters = {c.team_id: c for c in load_or_build_clusters(cfg.data_root).values()}
+        other_teams = sorted(
+            c.name
+            for c in clusters.values()
+            if c.team_id != team_key and any(m.map_name == map_name for m in c.matches.values())
+        )
 
         client = make_client(cfg)
         insights = generate_insights(
@@ -571,6 +579,7 @@ def get_insights(
             renamer=load_renamer(cfg.data_root, map_name),
             anchors=map_zone_anchors(cfg, map_name),
             sightlines=_shipped_sightlines_or_none(cfg, map_name),
+            other_teams=other_teams or None,
         )
     except HTTPException:
         raise
