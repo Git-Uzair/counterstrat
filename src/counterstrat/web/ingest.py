@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -28,10 +29,16 @@ logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
+# Ingest pipelines mutate shared artifacts (corpus.jsonl, teams.json, map cards,
+# teambooks): one at a time. Waiting jobs stay visibly "queued".
+_INGEST_LOCK = threading.Lock()
+
 
 class JobState(BaseModel):
     job_id: str
-    stage: Literal["queued", "extracting", "mapcard", "serializing", "mining", "done", "error"]
+    stage: Literal[
+        "queued", "extracting", "mapcard", "serializing", "mining", "done", "error", "duplicate"
+    ]
     match_id: str | None = None
     map_name: str | None = None
     detail: str = ""
@@ -159,7 +166,12 @@ def _scripts_for_team(
 
 
 def run_ingest(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
-    """Execute the full offline ingest pipeline for a demo file."""
+    """Execute the full offline ingest pipeline for a demo file (one at a time)."""
+    with _INGEST_LOCK:
+        _run_ingest_locked(job_id, demo_path, cfg)
+
+
+def _run_ingest_locked(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
     state = load_job_state(cfg.data_root, job_id) or JobState(job_id=job_id, stage="queued")
     try:
         # 1. Register and Extract

@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from counterstrat.aliases import alias_fingerprint, load_aliases, load_renamer, save_aliases
 from counterstrat.config import AppConfig
-from counterstrat.corpus import load_manifest
+from counterstrat.corpus import _sha256_16, load_manifest
 from counterstrat.customzones import CustomZone, load_custom_zones, save_custom_zones
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
@@ -126,6 +126,11 @@ def upload_demo(
     upload_dir = cfg.data_root / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     dest_path = upload_dir / f"{stem}.dem"
+    # Never overwrite an existing upload: same-named files get a numbered stem.
+    bump = 1
+    while dest_path.exists():
+        bump += 1
+        dest_path = upload_dir / f"{stem}-{bump}.dem"
 
     try:
         if fmt == "zst":
@@ -163,6 +168,32 @@ def upload_demo(
         )
 
     job_id = uuid.uuid4().hex[:12]
+
+    # Content-hash duplicate check: a match that already finished ingesting
+    # (registered AND has round scripts) short-circuits instead of burning a
+    # full pipeline run. Registered-but-scriptless matches (a crashed ingest)
+    # re-run normally.
+    match_id = _sha256_16(dest_path)
+    existing = load_manifest(cfg.data_root / "corpus.jsonl").get(match_id)
+    if existing is not None and any((cfg.data_root / "scripts" / match_id).glob("round_*.json")):
+        recorded = Path(existing.path)
+        if recorded.exists() and dest_path.resolve() != recorded.resolve():
+            dest_path.unlink()  # redundant copy; the recorded upload is canonical
+        save_job_state(
+            cfg.data_root,
+            JobState(
+                job_id=job_id,
+                stage="duplicate",
+                match_id=match_id,
+                map_name=existing.map_name,
+                detail=(
+                    f"Already ingested as match {match_id} "
+                    f"({existing.map_name}, {Path(existing.path).name})"
+                ),
+            ),
+        )
+        return {"job_id": job_id, "filename": filename}
+
     job_state = JobState(job_id=job_id, stage="queued")
     save_job_state(cfg.data_root, job_state)
 

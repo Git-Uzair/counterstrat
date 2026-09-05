@@ -214,6 +214,88 @@ def test_upload_compressed_zst_and_gz(client_app: TestClient, monkeypatch):
     assert "job_id" in r2.json()
 
 
+def test_upload_duplicate_short_circuits(client_app: TestClient, test_cfg: AppConfig, monkeypatch):
+    """Re-uploading already-ingested content must not re-run the pipeline."""
+    import hashlib
+
+    monkeypatch.setattr("counterstrat.web.routes.run_ingest", lambda *args, **kwargs: None)
+    content = b"PBDEMS2\0" + b"x" * 64
+    mid = hashlib.sha256(content).hexdigest()[:16]
+
+    r1 = client_app.post("/api/demos", files={"demo": ("dup.dem", content)})
+    assert r1.status_code == 200
+
+    # Simulate that first ingest COMPLETED: manifest entry + round scripts exist.
+    from counterstrat.corpus import DemoRecord
+
+    rec = DemoRecord(
+        match_id=mid,
+        path=str(test_cfg.data_root / "uploads" / "dup.dem"),
+        map_name="de_anubis",
+        patch_version="14178",
+        demo_version_guid="g",
+        server_name="s",
+        registered_at="2026-09-05T00:00:00Z",
+    )
+    (test_cfg.data_root / "corpus.jsonl").write_text(rec.model_dump_json() + "\n", encoding="utf-8")
+    scripts_dir = test_cfg.data_root / "scripts" / mid
+    scripts_dir.mkdir(parents=True)
+    (scripts_dir / "round_1.json").write_text("{}", encoding="utf-8")
+
+    r2 = client_app.post("/api/demos", files={"demo": ("dup2.dem", content)})
+    assert r2.status_code == 200
+    job = client_app.get(f"/api/jobs/{r2.json()['job_id']}").json()
+    assert job["stage"] == "duplicate"
+    assert job["match_id"] == mid
+    assert job["map_name"] == "de_anubis"
+    assert "dup.dem" in job["detail"] or mid in job["detail"]
+    # The redundant copy is removed; the original upload survives.
+    assert not (test_cfg.data_root / "uploads" / "dup2.dem").exists()
+    assert (test_cfg.data_root / "uploads" / "dup.dem").exists()
+
+
+def test_upload_incomplete_prior_ingest_reruns(
+    client_app: TestClient, test_cfg: AppConfig, monkeypatch
+):
+    """Registered but script-less (a crashed ingest) is NOT a duplicate: re-run."""
+    import hashlib
+
+    ran = []
+    monkeypatch.setattr("counterstrat.web.routes.run_ingest", lambda *args, **kwargs: ran.append(1))
+    content = b"PBDEMS2\0" + b"y" * 64
+    mid = hashlib.sha256(content).hexdigest()[:16]
+    from counterstrat.corpus import DemoRecord
+
+    rec = DemoRecord(
+        match_id=mid,
+        path=str(test_cfg.data_root / "uploads" / "crashed.dem"),
+        map_name="de_dust2",
+        patch_version="14140",
+        demo_version_guid="g",
+        server_name="s",
+        registered_at="2026-09-05T00:00:00Z",
+    )
+    (test_cfg.data_root / "corpus.jsonl").write_text(rec.model_dump_json() + "\n", encoding="utf-8")
+    r = client_app.post("/api/demos", files={"demo": ("crashed.dem", content)})
+    assert r.status_code == 200
+    job = client_app.get(f"/api/jobs/{r.json()['job_id']}").json()
+    assert job["stage"] == "queued"
+    assert ran == [1]
+
+
+def test_upload_same_filename_never_overwrites(
+    client_app: TestClient, test_cfg: AppConfig, monkeypatch
+):
+    monkeypatch.setattr("counterstrat.web.routes.run_ingest", lambda *args, **kwargs: None)
+    a = b"PBDEMS2\0" + b"a" * 32
+    b = b"PBDEMS2\0" + b"b" * 32
+    assert client_app.post("/api/demos", files={"demo": ("same.dem", a)}).status_code == 200
+    assert client_app.post("/api/demos", files={"demo": ("same.dem", b)}).status_code == 200
+    uploaded = list((test_cfg.data_root / "uploads").glob("*.dem"))
+    assert len(uploaded) == 2
+    assert {p.read_bytes() for p in uploaded} == {a, b}
+
+
 def test_list_demos_empty_and_populated(client_app: TestClient, test_cfg: AppConfig):
     # Initially empty
     r = client_app.get("/api/demos")
