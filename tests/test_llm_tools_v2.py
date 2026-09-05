@@ -39,6 +39,11 @@ def test_tool_specs_include_v2_tools():
         "get_gap_report",
         "get_economy_read",
         "get_player_profile",
+        "get_rotation_report",
+        "get_utility_roi",
+        "get_death_profiles",
+        "get_retake_report",
+        "get_matchup",
         "sql_query",
     ]
 
@@ -121,6 +126,157 @@ def test_get_tendencies_level_filter(session_ctx_v2):
     out = _run(session_ctx_v2, "get_tendencies", {"side": "T", "level": 2})
     assert out["tendencies"]
     assert all(row["level"] == 2 for row in out["tendencies"])
+
+
+# --- Advanced analytics tools (2026-09-05 plan Task 3) ---
+
+
+@pytest.fixture
+def session_ctx_v3(session_ctx_v2: SessionContext) -> SessionContext:
+    """session_ctx_v2 with enriched scripts: rotations, effects, death contexts."""
+    from counterstrat.roundscript.models import KillEvent, RotationEvent
+
+    scripts = dict(session_ctx_v2.scripts)
+    r13 = scripts["m1:13"]  # the team plays CT here
+    scripts["m1:13"] = r13.model_copy(
+        update={
+            "rotations": [
+                RotationEvent(
+                    t_trigger=20.0,
+                    trigger="utility_near",
+                    player="p1",
+                    side="CT",
+                    from_zone="BombsiteB",
+                    to_zone="Middle",
+                    latency_s=2.1,
+                )
+            ],
+            "utility": [
+                u.model_copy(update={"enemy_blind_s": 2.5, "team_blind_s": 0.5})
+                for u in r13.utility
+            ],
+            "kills": [
+                *r13.kills,
+                KillEvent(
+                    t=30.0,
+                    killer="e1",
+                    victim="p1",
+                    killer_side="T",
+                    zone="BombsiteB",
+                    weapon="ak47",
+                    headshot=False,
+                    traded_within_4s=False,
+                    distance=12.0,
+                    victim_moving=True,
+                    victim_preaim_off_deg=35.0,
+                    victim_weapon="AK-47",
+                ),
+            ],
+        }
+    )
+    return session_ctx_v2.model_copy(update={"scripts": scripts})
+
+
+def test_get_rotation_report_filters_and_warns_about_audio(session_ctx_v3):
+    out = _run(session_ctx_v3, "get_rotation_report", {"side": "CT"})
+    assert "no footstep or sound" in out["note"]
+    assert len(out["rows"]) == 1
+    row = out["rows"][0]
+    assert row["player"] == "p1" and row["trigger"] == "utility_near"
+    assert row["median_latency_s"] == 2.1 and row["n"] == 1
+    assert row["evidence"] == ["m1:13"]
+
+    none = _run(session_ctx_v3, "get_rotation_report", {"side": "CT", "trigger": "plant"})
+    assert none["rows"] == []
+
+
+def test_get_utility_roi_renders_measured_rows(session_ctx_v3):
+    out = _run(session_ctx_v3, "get_utility_roi", {"side": "CT"})
+    assert out["rows"], "the enriched CT flash pattern must appear"
+    smoke = next(r for r in out["rows"] if r["pattern"] == "Mid-Smoke")
+    assert smoke["avg_enemy_blind_s"] == 2.5 and smoke["avg_team_blind_s"] == 0.5
+    assert smoke["cost_per_enemy_blind_s"] is None  # n < 5: no verdict
+    t_side = _run(session_ctx_v3, "get_utility_roi", {"side": "T"})
+    assert all(r["side"] == "T" for r in t_side["rows"])
+
+
+def test_get_death_profiles_by_player(session_ctx_v3):
+    out = _run(session_ctx_v3, "get_death_profiles", {"player": "p1"})
+    assert len(out["players"]) == 1
+    p = out["players"][0]
+    assert p["n"] == 1 and p["moving_rate"] == 1.0
+    assert p["median_preaim_off_deg"] == 35.0
+    assert p["weapons"] == {"AK-47": 1}
+    assert [(b["band"], b["n"]) for b in p["by_range"]] == [("close", 1)]
+
+    missing = _run(session_ctx_v3, "get_death_profiles", {"player": "ghost"})
+    assert "error" in missing and "p1" in missing["error"]
+
+
+def test_get_retake_report_rows_and_site_filter(session_ctx_v3):
+    out = _run(session_ctx_v3, "get_retake_report", {})
+    assert out["rows"], "synthetic plants must yield conversion rows"
+    ct_b = next(r for r in out["rows"] if r["side"] == "CT" and r["site"] == "BombsiteB")
+    assert ct_b["man_diff"] == "-1" and ct_b["win_rate"] == 1.0 and ct_b["n"] == 3
+
+    only_a = _run(session_ctx_v3, "get_retake_report", {"site": "BombsiteA"})
+    assert all(r["site"] == "BombsiteA" for r in only_a["rows"])
+
+
+def test_get_matchup_diffs_both_books(tmp_path, session_ctx_v3, synthetic_scripts):
+    import json as _json
+
+    from conftest import SYNTHETIC_OPPONENT
+
+    # Every demo books both teams: m1's scripts ARE the opponent's rounds too.
+    scripts_dir = tmp_path / "scripts" / "m1"
+    scripts_dir.mkdir(parents=True)
+    for s in synthetic_scripts:
+        (scripts_dir / f"round_{s.round_num:03d}.json").write_text(s.to_json(), encoding="utf-8")
+    (tmp_path / "teams.json").write_text(
+        _json.dumps(
+            {
+                "built_from": [],
+                "clusters": [
+                    {
+                        "team_id": SYNTHETIC_OPPONENT,
+                        "name": "team_xyz",
+                        "lineup_keys": [SYNTHETIC_OPPONENT],
+                        "steamids": [],
+                        "matches": {"m1": {"map_name": "de_anubis", "rounds": 9}},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ctx = session_ctx_v3.model_copy(update={"data_root": str(tmp_path)})
+
+    out = _run(ctx, "get_matchup", {"opponent": "team_xyz"})
+    assert out["opponent"] == {
+        "name": "team_xyz",
+        "team_id": SYNTHETIC_OPPONENT,
+        "matches": 1,
+        "rounds": 9,
+    }
+    for key in (
+        "their_top_utility",
+        "their_dump_windows",
+        "their_range_profile",
+        "our_gap_findings",
+        "our_dump_windows",
+        "our_range_profile",
+        "overlap_zones",
+    ):
+        assert key in out, key
+
+    unknown = _run(ctx, "get_matchup", {"opponent": "ghosts"})
+    assert "error" in unknown and "team_xyz" in unknown["error"]
+
+
+def test_get_matchup_without_data_root_errors(session_ctx_v3):
+    out = _run(session_ctx_v3, "get_matchup", {"opponent": "team_xyz"})
+    assert "error" in out
 
 
 def test_get_round_script_returns_full_timeline(session_ctx: SessionContext):

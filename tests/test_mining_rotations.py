@@ -89,6 +89,7 @@ def test_rotation_report_rates_n_and_evidence():
     by_key = {(r.player, r.trigger): r for r in report.rows}
 
     util = by_key[("b4", "utility_near")]
+    assert util.side == "CT"
     assert util.n == 2
     assert util.median_latency_s == 2.5
     assert util.fakes_n == 1 and util.fake_rate == 0.5

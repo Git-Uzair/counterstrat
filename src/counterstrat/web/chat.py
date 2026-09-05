@@ -356,6 +356,7 @@ def _build_session(
         gap_report=build_gap_report(script_list, team_key),
         econ_policy=build_econ_policy(script_list, team_key),
         renamer=renamer if renamer else None,
+        data_root=str(cfg.data_root),
     )
     return ChatSession(
         session_id=session_id,

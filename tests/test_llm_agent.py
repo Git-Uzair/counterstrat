@@ -50,6 +50,11 @@ def test_tool_specs_expose_the_contract_tools():
         "get_gap_report",
         "get_economy_read",
         "get_player_profile",
+        "get_rotation_report",
+        "get_utility_roi",
+        "get_death_profiles",
+        "get_retake_report",
+        "get_matchup",
         "sql_query",
     ]
     for spec in tool_specs():

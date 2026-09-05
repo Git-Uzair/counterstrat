@@ -20,6 +20,7 @@ TRIGGER_MATCH_TOL_S = 0.5  # matching a rotation back to its utility event
 
 
 class RotationRow(BaseModel):
+    side: str  # the side the team played when these rotations happened
     player: str
     trigger: str
     n: int
@@ -76,7 +77,7 @@ def _is_fake(script: RoundScript, rot: RotationEvent) -> bool | None:
 def build_rotation_report(scripts: list[RoundScript], team_key: str) -> RotationReport:
     """Mine per-(player, trigger) rotation latencies and fake-follow rates."""
     map_name = scripts[0].map_name if scripts else ""
-    groups: dict[tuple[str, str], list[tuple[float, str, bool | None]]] = {}
+    groups: dict[tuple[str, str, str], list[tuple[float, str, bool | None]]] = {}
     for s in scripts:
         side = _team_side(s, team_key)
         if side is None:
@@ -85,16 +86,17 @@ def build_rotation_report(scripts: list[RoundScript], team_key: str) -> Rotation
         for rot in s.rotations:
             if rot.side != side:
                 continue
-            groups.setdefault((rot.player, rot.trigger), []).append(
+            groups.setdefault((side, rot.player, rot.trigger), []).append(
                 (rot.latency_s, round_id, _is_fake(s, rot))
             )
 
     rows: list[RotationRow] = []
-    for (player, trigger), obs in sorted(groups.items()):
+    for (side, player, trigger), obs in sorted(groups.items()):
         located = [fake for _, _, fake in obs if fake is not None]
         fakes_n = sum(1 for f in located if f)
         rows.append(
             RotationRow(
+                side=side,
                 player=player,
                 trigger=trigger,
                 n=len(obs),

@@ -7,6 +7,7 @@ data (``{"error": ...}``) so the agent loop can recover instead of crashing the 
 import json
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,13 +15,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from counterstrat.llm.base import ToolCall, ToolSpec
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
+from counterstrat.mining.deaths import build_death_profiles
 from counterstrat.mining.econ_policy import EconPolicy
 from counterstrat.mining.gaps import GapReport
+from counterstrat.mining.range_profile import build_range_profile
+from counterstrat.mining.retakes import build_retake_report
+from counterstrat.mining.rotations import build_rotation_report
 
 # _normalize_site is the same site normalisation the miner used to build the
 # TeamBook, so `site` filters here agree with mined `site_committed` keys.
 from counterstrat.mining.tendencies import TeamBook, _normalize_site
-from counterstrat.mining.utility_book import UtilityBook
+from counterstrat.mining.utility_book import UtilityBook, build_utility_book
+from counterstrat.mining.utility_roi import build_utility_roi
 from counterstrat.roundscript.models import RoundScript
 
 SQL_ROW_LIMIT = 50
@@ -60,6 +66,18 @@ TRIGGER_SCHEMA = {
         "after_util_dump",
     ],
 }
+ROTATION_TRIGGER_SCHEMA = {
+    "type": "string",
+    "enum": ["first_blood", "utility_near", "plant", "shots", "visible_contact"],
+}
+# Every rotation answer carries this so the model never invents sound reads.
+ROTATION_NOTE = (
+    "Rotations are movement-derived correlations: a hold of >=4s broken within 8s of a "
+    "trigger (first_blood, utility_near = any enemy detonation, plant, shots, "
+    "visible_contact via the sightline matrix). CS2 demos contain no footstep or sound "
+    "events - never attribute a rotation to audio. Empty rows on corpora ingested "
+    "before this upgrade: Rebuild the map to enrich them."
+)
 # Situation -> (buy classes, prev outcomes, econ policy states) used by get_playbook.
 SITUATION_FILTERS: dict[str, tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]] = {
     "pistol": ((), (), ("pistol",)),
@@ -89,6 +107,8 @@ class SessionContext(BaseModel):
     econ_policy: EconPolicy | None = None
     # Callout renamer (counterstrat.aliases.Renamer); None = canonical names.
     renamer: Any = None
+    # Data root for cross-team lookups (get_matchup); None disables them.
+    data_root: str | None = None
 
 
 def tool_specs() -> list[ToolSpec]:
@@ -230,6 +250,84 @@ def tool_specs() -> list[ToolSpec]:
             input_schema={
                 "type": "object",
                 "properties": {"player": {"type": "string"}},
+            },
+        ),
+        ToolSpec(
+            name="get_rotation_report",
+            description=(
+                "Who breaks their hold on what trigger, how fast, and how often the "
+                "trigger was a fake (no follow-up contact at the trigger zone within "
+                "10s). Per (player, trigger): median latency seconds, fake rate, n, "
+                "evidence rounds. Movement-derived correlation only - CS2 demos carry "
+                "no sound/footstep events, so never explain a rotation with audio. Use "
+                "for 'who over-rotates' and 'how do they react to utility/plants'."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "side": SIDE_SCHEMA,
+                    "trigger": ROTATION_TRIGGER_SCHEMA,
+                },
+            },
+        ),
+        ToolSpec(
+            name="get_utility_roi",
+            description=(
+                "What each recurring nade pattern (lineup or from>to pair) actually "
+                "buys: avg enemy/team blind seconds (sums per flash), damage per "
+                "HE/molly, kills through each smoke, unit cost, and cost-per-value "
+                "verdicts (only at n>=5; below that quote the numbers and hedge). "
+                "None fields mean 'not measured' (pre-upgrade corpus), never zero. "
+                "Use for 'is their utility efficient' and 'which flashes hurt us'."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {"side": SIDE_SCHEMA},
+            },
+        ),
+        ToolSpec(
+            name="get_death_profiles",
+            description=(
+                "How each of their players dies: % of deaths while moving, median "
+                "crosshair-off-killer degrees at death, weapon out when they died, "
+                "split by engagement range band. Sub-sample n per field (old corpora "
+                "carry unmeasured deaths). Use for 'who peeks dry', 'who gets caught "
+                "repositioning' and 'whose crosshair is off'."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {"player": {"type": "string"}},
+            },
+        ),
+        ToolSpec(
+            name="get_retake_report",
+            description=(
+                "Post-plant conversion from both chairs: retake win rate per (site, "
+                "man-diff at plant) when they were CT, post-plant hold win rate when "
+                "they were T, plus approach-vector sets (zones the retakers entered "
+                "the site from, when tracks exist). Small corpora mean small n - "
+                "state it. Use for 'what's their B retake conversion' and 'how do "
+                "they approach retakes'."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {"site": {"type": "string"}},
+            },
+        ),
+        ToolSpec(
+            name="get_matchup",
+            description=(
+                "Diff this team against ANOTHER booked team on the same map (every "
+                "demo books both teams, so opponents you ingested are queryable by "
+                "name). Returns their top utility patterns and dump windows vs our "
+                "gap findings and timings, plus both engagement-range profiles. "
+                "Unknown names return the list of available teams. Use when the "
+                "analyst names the next opponent."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {"opponent": {"type": "string"}},
+                "required": ["opponent"],
             },
         ),
         ToolSpec(
@@ -462,6 +560,160 @@ def _tool_get_player_profile(ctx: SessionContext, args: dict) -> str:
     return json.dumps({"roles": [r.model_dump() for r in roles]})
 
 
+def _tool_get_rotation_report(ctx: SessionContext, args: dict) -> str:
+    side = str(args["side"]).upper() if args.get("side") else None
+    trigger = args.get("trigger")
+    report = build_rotation_report(list(ctx.scripts.values()), ctx.team_key)
+    rows = [
+        r.model_dump()
+        for r in report.rows
+        if (side is None or r.side == side) and (trigger is None or r.trigger == trigger)
+    ]
+    return json.dumps({"note": ROTATION_NOTE, "side": side, "trigger": trigger, "rows": rows})
+
+
+def _tool_get_utility_roi(ctx: SessionContext, args: dict) -> str:
+    side = str(args["side"]).upper() if args.get("side") else None
+    roi = build_utility_roi(list(ctx.scripts.values()), ctx.team_key)
+    rows = [r.model_dump() for r in roi.rows if side is None or r.side == side]
+    return json.dumps(
+        {
+            "note": (
+                "Blind seconds are SUMS across victims per flash; None = not measured "
+                "(pre-upgrade corpus), never zero. Cost-per-value verdicts only at n>=5."
+            ),
+            "side": side,
+            "rows": rows,
+        }
+    )
+
+
+def _tool_get_death_profiles(ctx: SessionContext, args: dict) -> str:
+    profiles = build_death_profiles(list(ctx.scripts.values()), ctx.team_key)
+    players = profiles.players
+    if args.get("player"):
+        wanted = str(args["player"]).lower()
+        players = [p for p in players if p.player.lower() == wanted]
+        if not players:
+            known = ", ".join(p.player for p in profiles.players) or "none recorded"
+            return json.dumps({"error": f"No deaths for {args['player']!r}; roster: {known}"})
+    return json.dumps(
+        {
+            "note": (
+                "moving_n/preaim_n are the measured sub-samples; deaths from "
+                "pre-upgrade corpora carry no context fields."
+            ),
+            "players": [p.model_dump() for p in players],
+        }
+    )
+
+
+def _tool_get_retake_report(ctx: SessionContext, args: dict) -> str:
+    report = build_retake_report(list(ctx.scripts.values()), ctx.team_key)
+    site = str(args["site"]) if args.get("site") else None
+    rows = [r.model_dump() for r in report.rows if site is None or r.site == site]
+    approaches = [a.model_dump() for a in report.approaches if site is None or a.site == site]
+    return json.dumps(
+        {
+            "note": (
+                "side=CT rows are their retakes, side=T rows their post-plant holds; "
+                "man_diff is the acting side's advantage at the plant. Approach rows "
+                "on T-side describe the ENEMY retake vectors they held against."
+            ),
+            "site": site,
+            "rows": rows,
+            "approaches": approaches,
+        }
+    )
+
+
+def _tool_get_matchup(ctx: SessionContext, args: dict) -> str:
+    opponent = str(args.get("opponent") or "").strip()
+    if not opponent:
+        return json.dumps({"error": "Name the opponent team to compare against"})
+    if not ctx.data_root:
+        return json.dumps({"error": "Matchup lookup is unavailable in this session"})
+    from counterstrat.teams import load_or_build_clusters
+
+    data_root = Path(ctx.data_root)
+    clusters = {c.team_id: c for c in load_or_build_clusters(data_root).values()}
+    booked = [
+        c
+        for c in clusters.values()
+        if c.team_id != ctx.team_key and any(m.map_name == ctx.map_name for m in c.matches.values())
+    ]
+    target = next(
+        (
+            c
+            for c in booked
+            if c.name.lower() == opponent.lower()
+            or c.team_id == opponent
+            or opponent in c.lineup_keys
+        ),
+        None,
+    )
+    if target is None:
+        names = sorted(f"{c.name} ({c.team_id})" for c in booked)
+        return json.dumps(
+            {
+                "error": (
+                    f"No booked team {opponent!r} on {ctx.map_name}. "
+                    f"Available: {', '.join(names) if names else 'none'}"
+                )
+            }
+        )
+
+    keys = target.all_keys()
+    their_scripts: list[RoundScript] = []
+    match_ids = sorted(m for m, tm in target.matches.items() if tm.map_name == ctx.map_name)
+    for mid in match_ids:
+        for path in sorted((data_root / "scripts" / mid).glob("round_*.json")):
+            try:
+                s = RoundScript.model_validate_json(path.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001, S112 - one bad script must not kill the diff
+                continue
+            update: dict[str, str] = {}
+            if s.t_team_key in keys:
+                update["t_team_key"] = target.team_id
+            if s.ct_team_key in keys:
+                update["ct_team_key"] = target.team_id
+            their_scripts.append(s.model_copy(update=update) if update else s)
+    if not their_scripts:
+        return json.dumps(
+            {"error": f"No round scripts on disk for {target.name} on {ctx.map_name}"}
+        )
+
+    theirs_book = build_utility_book(their_scripts, target.team_id)
+    our_scripts = list(ctx.scripts.values())
+    theirs_played = sum(1 for s in their_scripts if target.team_id in (s.t_team_key, s.ct_team_key))
+    our_gaps = ctx.gap_report.findings if ctx.gap_report else []
+    their_zones = {p.to_zone for p in theirs_book.patterns}
+    return json.dumps(
+        {
+            "note": (
+                "Diff brief: their patterns mined over their own rounds, ours over this "
+                "session's scope. overlap_zones = zones their utility targets that also "
+                "appear in our gap findings - the collision points to plan around."
+            ),
+            "opponent": {
+                "name": target.name,
+                "team_id": target.team_id,
+                "matches": len(match_ids),
+                "rounds": theirs_played,
+            },
+            "their_top_utility": [p.model_dump() for p in theirs_book.top_patterns(limit=12)],
+            "their_dump_windows": theirs_book.dump_windows,
+            "their_range_profile": build_range_profile(
+                their_scripts, target.team_id
+            ).to_prompt_lines(),
+            "our_gap_findings": [f.model_dump() for f in our_gaps[:12]],
+            "our_dump_windows": ctx.utility_book.dump_windows if ctx.utility_book else [],
+            "our_range_profile": build_range_profile(our_scripts, ctx.team_key).to_prompt_lines(),
+            "overlap_zones": sorted(their_zones & {f.zone for f in our_gaps}),
+        }
+    )
+
+
 _HANDLERS: dict[str, Callable[[SessionContext, dict], str]] = {
     "get_tendencies": _tool_get_tendencies,
     "list_rounds": _tool_list_rounds,
@@ -472,6 +724,11 @@ _HANDLERS: dict[str, Callable[[SessionContext, dict], str]] = {
     "get_gap_report": _tool_get_gap_report,
     "get_economy_read": _tool_get_economy_read,
     "get_player_profile": _tool_get_player_profile,
+    "get_rotation_report": _tool_get_rotation_report,
+    "get_utility_roi": _tool_get_utility_roi,
+    "get_death_profiles": _tool_get_death_profiles,
+    "get_retake_report": _tool_get_retake_report,
+    "get_matchup": _tool_get_matchup,
     "sql_query": _tool_sql_query,
 }
 
@@ -491,7 +748,7 @@ def execute_tool(ctx: SessionContext, call: ToolCall) -> str:
         if ctx.renamer:
             if call.name == "sql_query" and args.get("sql"):
                 args["sql"] = ctx.renamer.unalias_sql(str(args["sql"]))
-            for key in ("to_zone",):  # zone-valued tool filters arrive as callouts
+            for key in ("to_zone", "site"):  # zone-valued tool filters arrive as callouts
                 if isinstance(args.get(key), str):
                     args[key] = ctx.renamer.unalias_sql(f"'{args[key]}'")[1:-1]
         out = handler(ctx, args)

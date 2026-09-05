@@ -78,13 +78,16 @@ def build_utility_roi(scripts: list[RoundScript], team_key: str) -> UtilityROI:
     for (side, nade, pattern), obs in sorted(groups.items()):
         events = [u for u, _ in obs]
         n = len(events)
-        avg_enemy = _avg([u.enemy_blind_s for u in events if u.enemy_blind_s is not None])
+        enemy_vals = [u.enemy_blind_s for u in events if u.enemy_blind_s is not None]
+        damage_vals = [float(u.damage) for u in events if u.damage is not None]
+        avg_enemy = _avg(enemy_vals)
         avg_team = _avg([u.team_blind_s for u in events if u.team_blind_s is not None])
-        avg_damage = _avg([float(u.damage) for u in events if u.damage is not None])
+        avg_damage = _avg(damage_vals)
         kt_measured = [u.kills_through for u in events if u.kills_through is not None]
         kills_through = sum(kt_measured) if kt_measured else None
         cost = _cost(nade, side)
-        verdict_ok = n >= MIN_VERDICT_N
+        # Verdicts gate on the MEASURED sub-sample: five throws with one
+        # measured effect is one data point, not five.
         rows.append(
             UtilityROIRow(
                 side=side,
@@ -97,10 +100,14 @@ def build_utility_roi(scripts: list[RoundScript], team_key: str) -> UtilityROI:
                 kills_through=kills_through,
                 cost=cost,
                 cost_per_enemy_blind_s=(
-                    round(cost / avg_enemy, 1) if verdict_ok and avg_enemy else None
+                    round(cost / avg_enemy, 1)
+                    if len(enemy_vals) >= MIN_VERDICT_N and avg_enemy
+                    else None
                 ),
                 cost_per_damage=(
-                    round(cost / avg_damage, 1) if verdict_ok and avg_damage else None
+                    round(cost / avg_damage, 1)
+                    if len(damage_vals) >= MIN_VERDICT_N and avg_damage
+                    else None
                 ),
                 evidence=sorted({rid for _, rid in obs})[:MAX_EVIDENCE],
             )

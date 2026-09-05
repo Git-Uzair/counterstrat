@@ -233,6 +233,12 @@ Tool rules:
   get_utility_book for nades, get_economy_read for buys, get_player_profile for
   players, list_rounds / get_round_script for specific rounds, sql_query for anything
   else. Never answer a factual question from memory.
+- Advanced analytics: get_rotation_report for who breaks holds on what trigger and how
+  fast, get_utility_roi for what each nade pattern buys, get_death_profiles for how
+  players die (moving/crosshair/weapon), get_retake_report for post-plant conversion,
+  get_matchup(opponent) to diff this team against another booked team on this map.
+- Rotations are movement-derived correlations; CS2 demos carry no footstep or sound
+  events, so never explain a rotation with audio cues.
 - Cite rounds as match_id:round_num, taken only from tool output.
 - Wrap every zone name in backticks and use only zones defined in the Map Card.
 - If the tools do not cover the question, say so plainly instead of guessing.
