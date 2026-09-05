@@ -179,6 +179,16 @@
     if (statusClass) row.classList.add(statusClass);
   }
 
+  // Finished rows clean themselves up; errors stay until the page reloads.
+  function dismissQueueRow(row, delayMs) {
+    setTimeout(function () {
+      row.remove();
+      if (el.ingestQueue.children.length === 0) {
+        el.ingestQueue.classList.add("hidden");
+      }
+    }, delayMs);
+  }
+
   function uploadOneDemo(file, row) {
     setQueueRow(row, "uploading", `Uploading ${file.name}...`, "status-running");
     const formData = new FormData();
@@ -216,10 +226,12 @@
             delete state.pollTimers[jobId];
             setQueueRow(row, "done", `Ingested match ${job.match_id || ""}`, "status-done");
             loadTeams();
+            dismissQueueRow(row, 1200);
           } else if (job.stage === "duplicate") {
             clearInterval(state.pollTimers[jobId]);
             delete state.pollTimers[jobId];
             setQueueRow(row, "duplicate", job.detail || "Already ingested", "status-duplicate");
+            dismissQueueRow(row, 6000);
           } else if (job.stage === "error") {
             clearInterval(state.pollTimers[jobId]);
             delete state.pollTimers[jobId];
@@ -292,6 +304,9 @@
       const group = document.createElement("div");
       group.className = "team-group";
 
+      const headRow = document.createElement("div");
+      headRow.className = "team-group-head-row";
+
       const header = document.createElement("button");
       header.type = "button";
       header.className = "team-group-header";
@@ -303,7 +318,31 @@
       header.addEventListener("click", function () {
         group.classList.toggle("collapsed");
       });
-      group.appendChild(header);
+      headRow.appendChild(header);
+
+      const teamDelete = document.createElement("button");
+      teamDelete.type = "button";
+      teamDelete.className = "team-delete";
+      teamDelete.textContent = "\u00d7";
+      teamDelete.title = `Delete team ${displayName} and every match under it`;
+      teamDelete.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        const allIds = [];
+        maps.forEach(function (mapName) {
+          const mStats = (team.map_stats && team.map_stats[mapName]) || {};
+          (mStats.matches || []).forEach(function (m) {
+            allIds.push(m.match_id);
+          });
+        });
+        deleteMatches(
+          allIds,
+          `Delete team ${displayName} entirely ` +
+            `(${allIds.length} match${allIds.length === 1 ? "" : "es"} across ` +
+            `${maps.length} map${maps.length === 1 ? "" : "s"})?`
+        );
+      });
+      headRow.appendChild(teamDelete);
+      group.appendChild(headRow);
 
       const body = document.createElement("div");
       body.className = "team-group-body";
@@ -341,7 +380,10 @@
     delAll.title = `Delete all ${matches.length} ${mapName} match(es) of ${displayName}`;
     delAll.addEventListener("click", function (ev) {
       ev.stopPropagation();
-      deleteMatches(matches.map(function (m) { return m.match_id; }), displayName, mapName);
+      deleteMatches(
+        matches.map(function (m) { return m.match_id; }),
+        `Delete all ${matches.length} ${mapName} match(es) of ${displayName}?`
+      );
     });
     head.appendChild(delAll);
     card.appendChild(head);
@@ -432,7 +474,10 @@
     del.title = `Delete this match (${line.opp} ${line.score}) and everything mined from it`;
     del.addEventListener("click", function (ev) {
       ev.stopPropagation();
-      deleteMatches([m.match_id], displayName, mapName);
+      deleteMatches(
+        [m.match_id],
+        `Delete this ${mapName} match of ${displayName} (${line.opp}${line.score ? " " + line.score : ""})?`
+      );
     });
     row.appendChild(del);
 
@@ -447,13 +492,10 @@
     return row;
   }
 
-  function deleteMatches(matchIds, displayName, mapName) {
+  function deleteMatches(matchIds, question) {
     if (!matchIds || matchIds.length === 0) return;
-    const many = matchIds.length > 1;
     const ok = window.confirm(
-      (many
-        ? `Delete all ${matchIds.length} ${mapName} matches of ${displayName}?`
-        : `Delete this ${mapName} match of ${displayName}?`) +
+      question +
         "\n\nEach demo file, its parsed data, and everything mined from it are removed - " +
         "including from the opposing team's card (a demo belongs to both teams). " +
         "Team profiles are rebuilt from the remaining demos."
@@ -469,15 +511,9 @@
         return res.json();
       })
       .then(function () {
-        // Selection may reference deleted data: reset the workspace state.
-        const current = state.currentMatchIds;
-        const hitsCurrent =
-          state.currentMapName === mapName ||
-          (current && current.some(function (id) { return matchIds.indexOf(id) !== -1; }));
-        if (hitsCurrent) {
-          state.currentSessionId = null;
-          state.currentMatchIds = null;
-        }
+        // Deletion reclusters teams (ids can change): reset the selection.
+        state.currentSessionId = null;
+        state.currentMatchIds = null;
         loadTeams();
       })
       .catch(function (err) {
@@ -519,11 +555,6 @@
     // Enable Dossier button
     el.dossierBtn.disabled = false;
     el.dossierBtn.title = "Download strategic dossier markdown report";
-
-    // Hand the selection to the radar viewer (static/radar.js), if present.
-    if (window.CounterStratRadar) {
-      window.CounterStratRadar.onTargetSelected(team.team_key, mapName, displayName, matchIds || null);
-    }
 
     // Create session
     createChatSession(team.team_key, mapName, displayName, matchIds || null);

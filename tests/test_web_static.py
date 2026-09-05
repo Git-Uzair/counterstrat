@@ -59,6 +59,10 @@ def test_index_page(client_app: TestClient) -> None:
     # Multi-demo ingestion: multi-select input + the per-file queue panel.
     assert "multiple" in resp.text
     assert "ingest-queue" in resp.text
+    # The radar tab is retired; the callout editor keeps its own tab.
+    assert 'id="tab-radar"' not in resp.text
+    assert "radar.js" not in resp.text
+    assert 'id="tab-callouts"' in resp.text
 
 
 def test_static_app_js(client_app: TestClient) -> None:
@@ -72,18 +76,23 @@ def test_static_app_js(client_app: TestClient) -> None:
     # Feedback round: the AI First Read panel (keeps the shared panel classes).
     assert "/insights" in resp.text
     assert "ai-first-read" in resp.text
-    # Multi-upload queue: every file gets its own polled row; duplicates are terminal.
+    # Multi-upload queue: every file gets its own polled row; duplicates are
+    # terminal; finished rows dismiss themselves.
     assert "uploadDemoFiles" in resp.text
     assert "duplicate" in resp.text
+    assert "dismissQueueRow" in resp.text
     # Team-grouped catalog tree with per-match subset selection.
     assert "team-group" in resp.text
     assert "match-row" in resp.text and "match-check" in resp.text
     assert "match_ids" in resp.text
     assert "opponent_name" in resp.text and "score_won" in resp.text
-    # Deletion: single match rows and whole map cards, one DELETE call.
+    # Deletion: match rows, map cards, and whole teams - one DELETE call each.
     assert "deleteMatches" in resp.text
+    assert "team-delete" in resp.text
     assert 'method: "DELETE"' in resp.text
     assert "/api/demos?matches=" in resp.text
+    # The radar viewer handoff is gone with the tab.
+    assert "CounterStratRadar" not in resp.text
 
 
 def test_static_style_has_catalog_tree(client_app: TestClient) -> None:

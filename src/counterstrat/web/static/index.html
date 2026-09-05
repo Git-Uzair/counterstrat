@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=8">
 </head>
 <body>
   <div class="app-shell">
@@ -62,8 +62,6 @@
           </div>
           <div class="view-tabs" role="tablist">
             <button type="button" id="tab-chat" class="view-tab active" role="tab">Chat</button>
-            <button type="button" id="tab-radar" class="view-tab" role="tab" disabled
-                    title="Select a team and map first">Radar</button>
             <button type="button" id="tab-callouts" class="view-tab" role="tab"
                     title="Rename map callouts - the analyst speaks your names">Callouts</button>
           </div>
@@ -88,76 +86,6 @@
             </div>
           </div>
         </div>
-
-        <section id="radar-view" class="radar-view hidden" aria-label="Radar overlay">
-          <div class="radar-controls">
-            <div class="radar-control-group">
-              <span class="radar-control-label">Layers</span>
-              <label class="radar-check"><input type="checkbox" id="layer-heatmap" checked> Heatmap</label>
-              <label class="radar-check"><input type="checkbox" id="layer-trails" checked> Trails</label>
-              <label class="radar-check"><input type="checkbox" id="layer-utility" checked> Utility</label>
-              <label class="radar-check"><input type="checkbox" id="layer-duels" checked> Duels</label>
-              <label class="radar-check"><input type="checkbox" id="layer-bombs" checked> Bomb</label>
-            </div>
-            <div class="radar-control-group">
-              <label class="radar-control-label" for="radar-side">Side</label>
-              <select id="radar-side" class="form-control form-control-sm">
-                <option value="">Both</option>
-                <option value="T">T</option>
-                <option value="CT">CT</option>
-              </select>
-              <label class="radar-control-label" for="radar-round">Round</label>
-              <select id="radar-round" class="form-control form-control-sm">
-                <option value="">All rounds</option>
-              </select>
-              <label class="radar-control-label" for="radar-trail-rounds">Trails</label>
-              <select id="radar-trail-rounds" class="form-control form-control-sm">
-                <option value="1">1 round</option>
-                <option value="2">2 rounds</option>
-                <option value="4" selected>4 rounds</option>
-                <option value="8">8 rounds</option>
-                <option value="12">12 rounds</option>
-                <option value="30">All rounds</option>
-              </select>
-              <div id="radar-level-toggle" class="radar-level-toggle hidden">
-                <button type="button" id="radar-level-default" class="btn btn-sm btn-outline active">Upper</button>
-                <button type="button" id="radar-level-lower" class="btn btn-sm btn-outline">Lower</button>
-              </div>
-              <button type="button" id="radar-refresh" class="btn btn-sm btn-outline">Reload</button>
-              <button type="button" id="radar-reset-view" class="btn btn-sm btn-outline"
-                      title="Reset zoom, pan, side/round filters and player selection (double-click the map resets zoom only)">Reset view</button>
-            </div>
-          </div>
-
-          <div id="radar-players" class="radar-players hidden"></div>
-
-          <div class="radar-stage">
-            <div class="radar-frame">
-              <img id="radar-image" class="radar-image" alt="Overhead radar">
-              <canvas id="radar-canvas" class="radar-canvas" width="1024" height="1024"></canvas>
-              <div id="radar-tooltip" class="radar-tooltip hidden"></div>
-            </div>
-          </div>
-
-          <div class="radar-footer">
-            <div id="radar-status" class="radar-status">
-              Select a team and map, then open the Radar tab. Scroll to zoom, drag to pan,
-              click a player to trace them alone.
-            </div>
-            <ul class="radar-legend">
-              <li><span class="swatch swatch-ct"></span>CT</li>
-              <li><span class="swatch swatch-t"></span>T</li>
-              <li><span class="glyph glyph-kill">×</span>Kill by team</li>
-              <li><span class="glyph glyph-death">×</span>Kill against</li>
-              <li><span class="glyph glyph-smoke">◉</span>Smoke</li>
-              <li><span class="glyph glyph-flash">✦</span>Flash</li>
-              <li><span class="glyph glyph-he">◆</span>HE</li>
-              <li><span class="glyph glyph-molotov">▲</span>Molotov</li>
-              <li><span class="glyph glyph-decoy">▢</span>Decoy</li>
-              <li><span class="glyph glyph-bomb">C4</span>Plant</li>
-            </ul>
-          </div>
-        </section>
 
         <section id="callouts-view" class="callouts-view hidden" aria-label="Callout editor">
           <div class="callouts-controls">
@@ -259,8 +187,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=5"></script>
-  <script src="/static/radar.js?v=4"></script>
-  <script src="/static/callouts.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
+  <script src="/static/callouts.js?v=6"></script>
 </body>
 </html>

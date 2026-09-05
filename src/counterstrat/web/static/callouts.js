@@ -20,7 +20,6 @@
 
   function cacheElements() {
     el.tabChat = document.getElementById("tab-chat");
-    el.tabRadar = document.getElementById("tab-radar");
     el.tabCallouts = document.getElementById("tab-callouts");
     el.view = document.getElementById("callouts-view");
     el.mapSelect = document.getElementById("callouts-map");
@@ -36,7 +35,6 @@
     el.tableBody = document.querySelector("#callouts-table tbody");
     el.messages = document.getElementById("messages-container");
     el.inputBar = document.getElementById("chat-input-bar");
-    el.radarView = document.getElementById("radar-view");
   }
 
   function escapeHtml(str) {
@@ -391,25 +389,24 @@
     el.view.classList.remove("hidden");
     el.messages.classList.add("hidden");
     el.inputBar.classList.add("hidden");
-    if (el.radarView) el.radarView.classList.add("hidden");
     el.tabCallouts.classList.add("active");
     el.tabChat.classList.remove("active");
-    el.tabRadar.classList.remove("active");
     loadMaps();
   }
 
-  function hideCallouts() {
+  function showChat() {
     el.view.classList.add("hidden");
+    el.messages.classList.remove("hidden");
+    el.inputBar.classList.remove("hidden");
     el.tabCallouts.classList.remove("active");
+    el.tabChat.classList.add("active");
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     cacheElements();
     if (!el.view) return;
     el.tabCallouts.addEventListener("click", showCallouts);
-    // radar.js owns chat/radar switching; we only retract our own view.
-    el.tabChat.addEventListener("click", hideCallouts);
-    el.tabRadar.addEventListener("click", hideCallouts);
+    el.tabChat.addEventListener("click", showChat);
     el.mapSelect.addEventListener("change", function () {
       state.mapName = el.mapSelect.value;
       state.level = "default";

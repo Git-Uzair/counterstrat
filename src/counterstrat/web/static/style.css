@@ -289,6 +289,10 @@ code, pre {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* The catalog is the sidebar's scroll container: without flex sizing it
+     grows past the viewport and the overflow is clipped, not scrollable. */
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -425,12 +429,22 @@ code, pre {
   overflow: hidden;
 }
 
+.team-group-head-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.team-group-head-row:hover {
+  background-color: var(--bg-tertiary);
+}
+
 .team-group-header {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
+  padding: 9px 4px 9px 12px;
   border: none;
   background: transparent;
   color: var(--text-primary);
@@ -441,8 +455,19 @@ code, pre {
   cursor: pointer;
 }
 
-.team-group-header:hover {
-  background-color: var(--bg-tertiary);
+.team-delete {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.team-delete:hover {
+  color: var(--color-error-text);
 }
 
 .team-group-chevron {
