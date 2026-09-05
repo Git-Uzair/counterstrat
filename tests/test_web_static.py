@@ -119,9 +119,12 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     assert "/api/maps" in js and "/aliases" in js
     assert "callout-label" in js
     assert "setLevel" in js  # nuke upper/lower switching
-    # Reset controls: per-zone clear buttons plus a confirmed reset-all.
+    # Reset controls: per-zone clear buttons plus a confirmed reset-all that
+    # removes BOTH renames and placed zones (regression: it once only cleared
+    # aliases while claiming to remove all custom callouts).
     assert "callout-reset-btn" in js
     assert "resetAll" in js and "confirm(" in js
+    assert 'putZones([], "Removing all custom callouts")' in js
     # Custom zone placement: drag-a-rectangle, rebuild polling, styled labels.
     assert "is-placing" in js
     assert "/zones" in js and "pollJob" in js

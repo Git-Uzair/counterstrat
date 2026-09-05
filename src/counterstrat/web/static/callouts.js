@@ -194,12 +194,34 @@
 
   function resetAll() {
     if (!state.mapName) return;
-    if (!window.confirm(`Remove ALL custom callouts for ${state.mapName}? The game names come back.`)) {
-      return;
-    }
-    state.zones.forEach(function (z) { z.alias = null; });
-    state.dirty = true;
-    saveAll();
+    const customCount = state.zones.filter(function (z) { return z.custom; }).length;
+    const ok = window.confirm(
+      `Remove ALL custom callouts for ${state.mapName}? ` +
+        `Every rename is cleared and all ${customCount} placed zone(s) are deleted - ` +
+        "their ground folds back to the game's names."
+    );
+    if (!ok) return;
+    // Clear renames first, then delete every placed zone (the zones PUT also
+    // rebuilds the map data so re-zoned ticks fold back).
+    fetch(`/api/maps/${encodeURIComponent(state.mapName)}/aliases`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aliases: {} }),
+    })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().then(function (body) {
+            throw new Error((body && body.detail) || `Server returned ${res.status}`);
+          });
+        }
+        if (customCount > 0) {
+          putZones([], "Removing all custom callouts");
+        } else {
+          loadCallouts();
+          setStatus("All renames cleared.", false);
+        }
+      })
+      .catch(function (err) { setStatus(`Reset failed: ${err.message}`, true); });
   }
 
   // ------------------------------------------------------- custom zones
