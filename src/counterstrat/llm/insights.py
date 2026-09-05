@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from counterstrat.llm.base import LLMClient, LLMResult
 from counterstrat.llm.lint import lint_dossier
-from counterstrat.llm.prompts import TACTICAL_DOCTRINE, format_map_scene_graph
+from counterstrat.llm.prompts import TACTICAL_DOCTRINE, format_map_scene_graph, map_priors_block
 from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
 from counterstrat.mining.deaths import build_death_profiles
@@ -66,7 +66,7 @@ def _friendly_round(round_id: str, labels: dict[str, str]) -> str:
     return f"{labels.get(mid, mid[:8])} R{rn}"
 
 
-def build_insights_system(map_block: str, zone_map: str = "") -> str:
+def build_insights_system(map_block: str, zone_map: str = "", map_name: str = "") -> str:
     return f"""You are an elite CS2 anti-strat analyst writing the FIRST READ on an opponent
 for an in-game leader. You reason about WHY a team does something - economy pressure,
 momentum, role habits, utility dependencies - and you never confuse normal play with a
@@ -75,7 +75,7 @@ tendency.
 <map_card>
 {map_block}{zone_map}
 </map_card>
-
+{map_priors_block(map_name)}
 Write the brief in markdown with EXACTLY these six sections, in this order:
 ## T Pistol - their T-side pistol round default, and the punish.
 ## CT Pistol - their CT-side pistol round setup, and the punish.
@@ -370,7 +370,8 @@ def generate_insights(
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
     labels = game_labels or default_game_labels(teambook.generated_from)
     system = build_insights_system(
-        format_map_scene_graph(card, anchors or {}, sightlines=sightlines)
+        format_map_scene_graph(card, anchors or {}, sightlines=sightlines),
+        map_name=card.map,
     )
     user = build_insights_user(
         teambook=teambook,

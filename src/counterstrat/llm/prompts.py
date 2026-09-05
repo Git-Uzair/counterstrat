@@ -43,7 +43,112 @@ Engagement range (close < {RANGE_CLOSE_M:.0f}m, long > {RANGE_LONG_M:.0f}m):
   and force the close fight instead of crossing it.
 - A team's kill-distance profile is a read: kills clustered close mean tight
   positions that must close space - fight them long; kills clustered long mean
-  static long-line holds - deny the line and flood the short route."""
+  static long-line holds - deny the line and flood the short route.
+
+Utility, smokes and contested space:
+- A smoke denies vision BOTH ways. It is a wall, not a corridor: running through it
+  into a set crossfire trades a body for nothing - defenders hold the exit and shoot
+  the first silhouette. Smokes ISOLATE angles (cut the anchor from his support, cut a
+  rotation lane, blind the AWP line); whatever angle remains still has to be fought
+  with flashes and trade pairs. Only call a through-smoke push with cover behind it
+  (flash over the far edge, HE on the likely exit-watcher) or a confirmed man
+  advantage - and expect CS2 smokes to be spammed or cleared by HE.
+- Spent utility does not mean open space. When a package is dumped, the DENIAL layer
+  expires - the defense does not: bodies still hold the angles the utility covered,
+  and a player staring at a fading smoke edge is pre-committed to that swing. The
+  real window is "their utility cannot answer yours": attack it with your own flash
+  over the smoke edge and a paired entry, never dry. "Their nades are gone, walk in"
+  loses to one crosshair. Prescribe WHO flashes, WHO entries, WHO trades.
+- Some space is mandatory. When a zone decides the round's geometry - the mid or
+  connector artery, the choke feeding the site hit, the retake path before the plant
+  ticks down - taking it late is worse than taking it hurt: trading 20-40hp through a
+  molly or an HE to arrive inside the timing window beats arriving healthy after it
+  closes. Waiting out utility costs clock, and clock is a resource: defenders reset,
+  rotations land, information decays. Treat wait-vs-force as an exchange rate (HP
+  against seconds and surprise), never as a default "wait it out"."""
+
+
+# League-wide per-map priors (2026 active-duty pool), distilled from public map
+# guides and pro play. These are PRIORS about how the map works, not reads on
+# any team: measured tendencies from the corpus always override them. Zone
+# words here are generic - the model must map them onto the card's own zone
+# vocabulary and only cite zones that exist in the Map Card.
+MAP_PRIORS: dict[str, str] = {
+    "de_ancient": """T high-value space: mid is the pivot - mid control opens the fast mid-to-B
+split (faster than the CT A-to-B rotate) and the elbow path toward A. A hits die to the
+CT-elbow angle unless it is smoked first; ruins must be cleared or mollied or the plant
+gets disrupted from behind. Cave feeds B; on ecos the tight cave corridors negate rifle
+range and make B rushes viable.
+CT high-value space: early mid aggression denies the T scout and is standard at pro
+level - punish it or expect it. B control IS the donut: a CT who cedes the donut
+platform usually loses the site, and B retakes start by retaking donut, not the bomb.
+A holds pair elbow with a temple/ruins crossfire. Long rotates make over-rotating on
+utility-only pressure the classic Ancient leak.""",
+    "de_anubis": """T high-value space: mid is not optional - it links bridge, canal and connector
+and threatens both sites; a team that ignores mid becomes predictable. B is strongest as
+a B-long PLUS connector split (long-only hits collapse into one choke); A is strongest
+with A-main plus water/canal pressure stretching the defense. Fakes convert well here
+because rotations are punishable - showing one lane then finishing the other is a core
+win condition.
+CT high-value space: contest mid for information without donating the opening; losing
+connector traps the B anchor between two doors, and losing canal silently gets the team
+surrounded. The E-box area supports B holds and retakes. The known CT leak on Anubis is
+over-rotating on one sound or one smoke - confirm pressure before abandoning a site.""",
+    "de_inferno": """T high-value space: banana control is a full-time job even in rounds that end
+A - conceding it feeds CT aggression and free info. A takes are utility-heavy: apps plus
+mid/second-mid splits, with arch/library smoked. Post-plant strength comes from
+banana and arch crossfires, not site bodies.
+CT high-value space: banana is the mandatory contest - molly waves delay, then re-take
+it with utility rather than dry re-peeks. A defense layers apps with mid; retakes on
+Inferno are among the strongest in the pool when utility is saved, so anchors should
+delay and survive instead of dying to the first wave.""",
+    "de_mirage": """T high-value space: mid control is near-mandatory - window smoked, catwalk or
+short taken - because it unlocks A ramp/palace splits, B cat pressure, and the connector
+lurk. B hits pair apps with mid presence so the site cannot be bracketed from short.
+CT high-value space: window/mid dominance dictates the half; connector is the artery
+that lets a mid player support either site. A holds live on jungle-stairs crossfires;
+B lives on apps aggression or underpass info. Losing mid without a fight is the
+canonical Mirage CT leak.""",
+    "de_nuke": """T high-value space: outside control (toward red/silo) forces the defense to split
+between garage/heaven and the inside game; ramp control feeds both B and the hut/A
+pressure. Secret and lower splits convert outside control into B hits. Crossing outside
+without smokes into garage/heaven AWPs is the classic throw.
+CT high-value space: ramp is the mandatory contest and heaven/garage anchor the outside
+cross. Retakes flow through hut, heaven and vents - Nuke defenses can concede a site and
+retake with numbers because rotations are short.""",
+    "de_dust2": """T high-value space: mid-doors/xbox and long are the round-shaping fights - long
+control plus catwalk pressure brackets A, and mid-to-B through doors pairs with tunnels
+for the B split. Dry-crossing mid into the CT AWP line is the classic throw.
+CT high-value space: the mid-doors AWP line, early long-pit contact, and short boosts
+shape the half. B holds need the doors/window/tunnels triangle layered - a tunnels-only
+watch collapses to the mid split.""",
+    "de_overpass": """T high-value space: water/connector control decides B - heaven-plus-water splits
+are the strong B take - while long A with monster fakes stretches the defense. Bathrooms
+and short feed the A hit.
+CT high-value space: connector is the artery; lose it and B gets bracketed from two
+doors. Long control and a monster anchor hold A; boost spots and water aggression are
+info tools. Over-committing to long on utility-only pressure opens the B split.""",
+}
+
+
+def map_priors_block(map_name: str) -> str:
+    """The map's league-wide priors block, or "" when the map has none.
+
+    Rendered into chat and First Read system prompts. Framed explicitly as
+    priors so the model treats corpus data as the authority when they clash.
+    """
+    text = MAP_PRIORS.get((map_name or "").strip().lower())
+    if not text:
+        return ""
+    return (
+        "\n<map_priors>\n"
+        f"General {map_name} priors (league-wide map knowledge, NOT this team's data; "
+        "measured tendencies from the corpus always override these; translate the "
+        "generic words onto this card's zone vocabulary and only cite zones from the "
+        "Map Card):\n"
+        f"{text}\n"
+        "</map_priors>\n"
+    )
 
 
 def format_zone_map(anchors: dict[str, tuple]) -> str:
@@ -193,7 +298,7 @@ stronger reads, so state the coverage when the analyst asks how reliable a read 
 <map_card>
 {map_block}{zone_map}
 </map_card>
-
+{map_priors_block(teambook.map_name)}
 <team_signals>
 {teambook.to_table_text()}
 </team_signals>
@@ -209,7 +314,9 @@ Doctrine:
   an opening kill, conditioned stacking after repeated losses, losing mid control, and
   trickle rotations. When you find one, name the trigger and the punish window.
 - Recurring utility lineups are commitments: once their package is spent
-  (dump_windows), the zones it covered go naked - that is a timing window.
+  (dump_windows), their DENIAL of those zones expires - but the zones stay manned.
+  The window is that their utility cannot answer yours: attack it with your own
+  flashes and trade pairs, never dry.
 - Pistols rarely produce reads. When pistol data is thin, say so and recommend a solid
   default instead of inventing a tendency.
 
