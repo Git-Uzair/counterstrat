@@ -240,6 +240,27 @@ def list_demos(cfg: ConfigDep) -> list[dict[str, Any]]:
     return out
 
 
+@router.delete("/demos")
+def remove_demos(matches: str, request: Request, cfg: ConfigDep) -> dict[str, Any]:
+    """Delete N demos (csv of match ids) in one pass with a single rebuild."""
+    from counterstrat.web.maintenance import delete_demos
+
+    match_ids = [part.strip() for part in matches.split(",") if part.strip()]
+    if not match_ids:
+        raise HTTPException(status_code=400, detail="No match ids given")
+    try:
+        recs = delete_demos(cfg, match_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Demo(s) not found: {exc.args[0]}") from exc
+    sessions = getattr(request.app.state, "chat_sessions", None)
+    if isinstance(sessions, dict):
+        sessions.clear()
+    return {
+        "deleted": [rec.match_id for rec in recs],
+        "maps": sorted({rec.map_name for rec in recs}),
+    }
+
+
 @router.delete("/demos/{match_id}")
 def remove_demo(match_id: str, request: Request, cfg: ConfigDep) -> dict[str, Any]:
     """Delete one demo and everything derived from it, then rebuild the rest."""

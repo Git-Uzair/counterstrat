@@ -325,30 +325,41 @@ def rebuild_artifacts(cfg: AppConfig) -> dict[str, Any]:
     return {"teams": len(unique), "rebuilt": len(live), "pruned": pruned}
 
 
-def delete_demo(cfg: AppConfig, match_id: str) -> DemoRecord:
-    """Remove one demo and everything derived from it; rebuild the rest.
+def delete_demos(cfg: AppConfig, match_ids: list[str]) -> list[DemoRecord]:
+    """Remove N demos and everything derived from them; rebuild the rest ONCE.
 
-    The .dem file itself is only deleted when it lives inside the app's data
-    root (i.e. it was uploaded); externally registered files are left alone.
+    All ids are validated first: an unknown id rejects the whole batch
+    (KeyError naming the missing ids) with nothing deleted. The .dem files
+    themselves are only deleted when they live inside the app's data root
+    (i.e. they were uploaded); externally registered files are left alone.
     """
     manifest_path = cfg.data_root / "corpus.jsonl"
     manifest = load_manifest(manifest_path)
-    if match_id not in manifest:
-        raise KeyError(match_id)
-    rec = manifest.pop(match_id)
+    ordered = list(dict.fromkeys(match_ids))
+    missing = [mid for mid in ordered if mid not in manifest]
+    if missing:
+        raise KeyError(", ".join(missing))
+
+    recs = []
+    for match_id in ordered:
+        rec = manifest.pop(match_id)
+        recs.append(rec)
+        for derived in (cfg.data_root / "lake" / match_id, cfg.data_root / "scripts" / match_id):
+            shutil.rmtree(derived, ignore_errors=True)
+        try:
+            demo_path = Path(rec.path).resolve()
+            if demo_path.is_file() and demo_path.is_relative_to(cfg.data_root.resolve()):
+                demo_path.unlink()
+        except OSError as exc:
+            logger.warning("Could not delete demo file %s: %s", rec.path, exc)
 
     lines = [manifest[mid].model_dump_json() for mid in manifest]
     manifest_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
-    for derived in (cfg.data_root / "lake" / match_id, cfg.data_root / "scripts" / match_id):
-        shutil.rmtree(derived, ignore_errors=True)
-
-    try:
-        demo_path = Path(rec.path).resolve()
-        if demo_path.is_file() and demo_path.is_relative_to(cfg.data_root.resolve()):
-            demo_path.unlink()
-    except OSError as exc:
-        logger.warning("Could not delete demo file %s: %s", rec.path, exc)
-
     rebuild_artifacts(cfg)
-    return rec
+    return recs
+
+
+def delete_demo(cfg: AppConfig, match_id: str) -> DemoRecord:
+    """Remove one demo and everything derived from it; rebuild the rest."""
+    return delete_demos(cfg, [match_id])[0]

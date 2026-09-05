@@ -90,6 +90,49 @@ def test_delete_demo_removes_everything_and_rebuilds(populated: AppConfig):
     assert KEY_A not in live_dirs and KEY_C not in live_dirs
 
 
+def test_batch_delete_removes_all_and_rebuilds_once(populated: AppConfig, monkeypatch):
+    """One card-level delete call removes N demos with a single artifact rebuild."""
+    cfg = populated
+    client = TestClient(create_app(cfg))
+
+    calls = []
+    import counterstrat.web.maintenance as maintenance
+
+    real = maintenance.rebuild_artifacts
+    monkeypatch.setattr(maintenance, "rebuild_artifacts", lambda c: (calls.append(1), real(c))[1])
+
+    r = client.delete("/api/demos", params={"matches": "m_one,m_two"})
+    assert r.status_code == 200
+    body = r.json()
+    assert sorted(body["deleted"]) == ["m_one", "m_two"]
+    assert calls == [1]
+
+    manifest_text = (cfg.data_root / "corpus.jsonl").read_text(encoding="utf-8")
+    for mid in ("m_one", "m_two"):
+        assert mid not in manifest_text
+        assert not (cfg.data_root / "lake" / mid).exists()
+        assert not (cfg.data_root / "scripts" / mid).exists()
+        assert not (cfg.data_root / "uploads" / f"{mid}.dem").exists()
+    # No teambooks survive an emptied corpus.
+    assert not list(cfg.data_root.glob("teambooks/*/*/teambook.json"))
+
+
+def test_batch_delete_unknown_id_rejects_whole_batch(populated: AppConfig):
+    cfg = populated
+    client = TestClient(create_app(cfg))
+    r = client.delete("/api/demos", params={"matches": "m_one,ghost"})
+    assert r.status_code == 404
+    assert "ghost" in r.json()["detail"]
+    # Nothing was deleted.
+    assert "m_one" in (cfg.data_root / "corpus.jsonl").read_text(encoding="utf-8")
+    assert (cfg.data_root / "lake" / "m_one").exists()
+
+
+def test_batch_delete_requires_ids(populated: AppConfig):
+    client = TestClient(create_app(populated))
+    assert client.delete("/api/demos", params={"matches": " , "}).status_code == 400
+
+
 def test_delete_unknown_demo_404(populated: AppConfig):
     client = TestClient(create_app(populated))
     assert client.delete("/api/demos/ghost").status_code == 404
