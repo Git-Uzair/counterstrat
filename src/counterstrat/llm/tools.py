@@ -580,7 +580,12 @@ def _tool_get_utility_roi(ctx: SessionContext, args: dict) -> str:
         {
             "note": (
                 "Blind seconds are SUMS across victims per flash; None = not measured "
-                "(pre-upgrade corpus), never zero. Cost-per-value verdicts only at n>=5."
+                "(pre-upgrade corpus), never zero. Cost-per-value verdicts only at n>=5. "
+                "cost_per_* fields are efficiency RATIOS (unit price / avg measured "
+                "effect), not prices: a $600 incendiary averaging 0.16 damage reads as "
+                "$3750 per damage point while still costing $600. Zoning utility "
+                "legitimately reads near-zero damage - its value is map control, which "
+                "these numbers cannot see - so never call a nade wasted on damage alone."
             ),
             "side": side,
             "rows": rows,
