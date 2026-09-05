@@ -458,14 +458,19 @@ def get_insights(
     team_key: str,
     map_name: str,
     cfg: ConfigDep,
+    matches: str | None = None,
     generate: str | None = None,
     mock: str | None = None,
 ) -> dict[str, Any]:
-    """LLM First Read: cached when fresh, generated over the full corpus on demand.
+    """LLM First Read for an analysis scope (any subset of the team's matches).
 
-    Without ``generate=1`` this only serves a fresh cache (404 otherwise), so
-    the UI can poll cheaply and let the analyst trigger the paid call.
+    The scope hash of (team, map, exact match ids) keys the cache - the same
+    key the chat session uses - so every selection gets its own read, reused
+    forever until a demo in it is deleted. Without ``generate=1`` this only
+    serves a cache (404 otherwise), so the UI can probe cheaply.
     """
+    from counterstrat.web.scope import scope_hash
+
     team_key = resolve_team_id(cfg.data_root, team_key)
     tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
     if not tb_path.exists():
@@ -475,39 +480,52 @@ def get_insights(
     teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
     alias_fp = alias_fingerprint(load_aliases(cfg.data_root, map_name))
 
-    cache_path = tb_path.parent / "insights.json"
+    all_ids = list(teambook.generated_from)
+    if matches:
+        wanted = [m.strip() for m in matches.split(",") if m.strip()]
+        missing = [m for m in wanted if m not in all_ids]
+        if missing:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Match(es) {', '.join(missing)} have no rounds for {team_key} on {map_name}",
+            )
+        scope_ids = sorted(set(wanted))
+    else:
+        scope_ids = sorted(all_ids)
+    scope = scope_hash(team_key, map_name, scope_ids)
+
+    cache_path = tb_path.parent / "insights" / f"{scope}.json"
     if cache_path.exists():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
-            fresh = (
-                cached.get("generated_from") == list(teambook.generated_from)
-                and cached.get("alias_fp", alias_fingerprint({})) == alias_fp
-            )
-            if fresh and generate != "1":
+            if cached.get("alias_fp", alias_fingerprint({})) == alias_fp:
                 return cached
         except Exception as exc:  # noqa: BLE001 - a torn cache regenerates below
             logger.warning("Unreadable insights cache %s: %s", cache_path, exc)
     if generate != "1":
         raise HTTPException(
             status_code=404,
-            detail="No AI First Read generated yet for this data; call with generate=1",
+            detail="No AI First Read generated yet for this selection; call with generate=1",
         )
 
     key = cfg.anthropic_api_key if cfg.provider == "anthropic" else cfg.gemini_api_key
     if not key and mock == "1":
         from counterstrat.llm.insights import default_game_labels
 
-        labels = default_game_labels(list(teambook.generated_from))
+        labels = default_game_labels(scope_ids)
         payload: dict[str, Any] = {
             "team_key": team_key,
             "map_name": map_name,
+            "scope": scope,
+            "match_ids": scope_ids,
             "text": _MOCK_INSIGHTS,
             "warnings": [],
-            "generated_from": list(teambook.generated_from),
-            "games": [{"label": labels[mid], "match_id": mid} for mid in teambook.generated_from],
+            "generated_from": scope_ids,
+            "games": [{"label": labels[mid], "match_id": mid} for mid in scope_ids],
             "model": "mock",
             "alias_fp": alias_fp,
         }
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return payload
     if not key:
@@ -517,6 +535,13 @@ def get_insights(
         )
 
     card, teambook, scripts, lex = _load_team_bundle(cfg, team_key, map_name)
+    if set(scope_ids) != set(teambook.generated_from):
+        # Subset scope: re-mine the book from just those matches so the read
+        # describes THESE games only (same rule as chat sessions).
+        from counterstrat.mining.tendencies import build_teambook
+
+        scripts = [s for s in scripts if s.match_id in set(scope_ids)]
+        teambook = build_teambook(scripts, team_key)
     try:
         from counterstrat.llm.base import make_client
         from counterstrat.llm.insights import generate_insights
@@ -546,6 +571,8 @@ def get_insights(
     payload = {
         "team_key": team_key,
         "map_name": map_name,
+        "scope": scope,
+        "match_ids": scope_ids,
         "text": insights.text,
         "warnings": insights.warnings,
         "generated_from": insights.generated_from,
@@ -553,6 +580,7 @@ def get_insights(
         "model": insights.usage.model,
         "alias_fp": alias_fp,
     }
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
 

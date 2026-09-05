@@ -1,5 +1,6 @@
 """Corpus maintenance: demo deletion, zone rebuilds, derived-artifact rebuild."""
 
+import json
 import logging
 import os
 import shutil
@@ -356,8 +357,37 @@ def delete_demos(cfg: AppConfig, match_ids: list[str]) -> list[DemoRecord]:
     lines = [manifest[mid].model_dump_json() for mid in manifest]
     manifest_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
+    _purge_scopes_touching(cfg, set(ordered))
     rebuild_artifacts(cfg)
     return recs
+
+
+def _purge_scopes_touching(cfg: AppConfig, deleted: set[str]) -> None:
+    """Invalidate every analysis scope that used a deleted match: its chat
+    transcript and its scoped First Read cache are removed together."""
+    chats_dir = cfg.data_root / "chats"
+    if chats_dir.exists():
+        for transcript in chats_dir.glob("*.jsonl"):
+            try:
+                first = transcript.read_text(encoding="utf-8").splitlines()[0]
+                meta = json.loads(first)
+                ids = set(
+                    meta.get("match_ids") or ([meta["match_id"]] if meta.get("match_id") else [])
+                )
+            except Exception:  # noqa: BLE001 - unreadable meta: purge conservatively
+                ids = deleted
+            if ids & deleted:
+                transcript.unlink(missing_ok=True)
+
+    tb_root = cfg.data_root / "teambooks"
+    if tb_root.exists():
+        for cache in tb_root.glob("*/*/insights/*.json"):
+            try:
+                ids = set(json.loads(cache.read_text(encoding="utf-8")).get("match_ids") or [])
+            except Exception:  # noqa: BLE001
+                ids = deleted
+            if ids & deleted:
+                cache.unlink(missing_ok=True)
 
 
 def delete_demo(cfg: AppConfig, match_id: str) -> DemoRecord:

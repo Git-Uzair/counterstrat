@@ -244,6 +244,65 @@ def test_chat_session_subset_scope(chat_cfg: AppConfig):
     assert "ghost" in missing.json()["detail"]
 
 
+def test_chat_scope_hash_identity_and_reuse(chat_cfg: AppConfig):
+    """The scope IS the session: same selection -> same id and transcript;
+    different selection -> different id. The scoped First Read, when cached,
+    reaches the system prompt."""
+    import json as _json
+
+    from counterstrat.web.scope import scope_hash
+
+    scripts = build_synthetic_scripts()
+    for s in scripts:
+        s2 = s.model_copy(update={"match_id": "m2"})
+        p = chat_cfg.data_root / "scripts" / "m2" / f"round_{s2.round_num}.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(s2.to_json(), encoding="utf-8")
+    all_scripts = scripts + [s.model_copy(update={"match_id": "m2"}) for s in scripts]
+    tb_path = chat_cfg.data_root / "teambooks" / SYNTHETIC_TEAM / MAP / "teambook.json"
+    tb_path.write_text(
+        build_teambook(all_scripts, SYNTHETIC_TEAM).model_dump_json(), encoding="utf-8"
+    )
+
+    scripted = _scripted()
+    client = _client(chat_cfg, scripted)
+
+    full = client.post("/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP})
+    sid_full = full.json()["session_id"]
+    assert sid_full == scope_hash(SYNTHETIC_TEAM, MAP, ["m1", "m2"])
+
+    sub = client.post(
+        "/api/chat/sessions",
+        json={"team_key": SYNTHETIC_TEAM, "map_name": MAP, "match_ids": ["m1"]},
+    )
+    sid_sub = sub.json()["session_id"]
+    assert sid_sub == scope_hash(SYNTHETIC_TEAM, MAP, ["m1"]) and sid_sub != sid_full
+
+    # A conversation in the subset scope...
+    client.post(f"/api/chat/sessions/{sid_sub}/messages", json={"text": "first question"})
+    # ...resurfaces when the same selection is analyzed again.
+    again = client.post(
+        "/api/chat/sessions",
+        json={"team_key": SYNTHETIC_TEAM, "map_name": MAP, "match_ids": ["m1"]},
+    )
+    assert again.json()["session_id"] == sid_sub
+    transcript = client.get(f"/api/chat/sessions/{sid_sub}").json()
+    texts = [m["text"] for m in transcript["messages"] if m["role"] == "user"]
+    assert "first question" in texts
+
+    # A scoped First Read cache reaches the system prompt of later messages.
+    fr_dir = chat_cfg.data_root / "teambooks" / SYNTHETIC_TEAM / MAP / "insights"
+    fr_dir.mkdir(parents=True, exist_ok=True)
+    (fr_dir / f"{sid_sub}.json").write_text(
+        _json.dumps({"text": "## T Pistol\nThey rush `BombsiteB` every pistol."}),
+        encoding="utf-8",
+    )
+    client.post(f"/api/chat/sessions/{sid_sub}/messages", json={"text": "expand on pistols"})
+    system = scripted.calls[-1]["system"]
+    assert "<first_read>" in system
+    assert "They rush `BombsiteB` every pistol." in system
+
+
 def test_chat_message_503_without_api_key(chat_cfg: AppConfig):
     client = _client(chat_cfg)  # no client_factory -> real make_client, no keys configured
     sid = client.post(

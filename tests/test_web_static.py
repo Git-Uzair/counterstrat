@@ -173,35 +173,37 @@ def test_insights_endpoint_mock_flow(chat_client: TestClient) -> None:
     assert r.status_code == 404
     assert "generate=1" in r.json()["detail"]
 
-    # 2. Unknown team -> 404 regardless.
+    # 2. Unknown team -> 404 regardless; so does a match outside the teambook.
     assert chat_client.get("/api/teams/ghost/de_anubis/insights").status_code == 404
+    assert chat_client.get(f"{url}?matches=ghost_match").status_code == 404
 
-    # 3. Mock generation (no API key configured) writes the cache.
+    # 3. Mock generation (no API key configured) writes the scoped cache.
     r = chat_client.get(f"{url}?generate=1&mock=1")
     assert r.status_code == 200
     body = r.json()
     assert body["text"].startswith("## 1. Offline mock read")
     assert body["generated_from"] == ["m1"]
+    scope = body["scope"]
+    assert body["match_ids"] == ["m1"]
 
-    # 4. The cache now serves without the generate flag.
+    # 4. The cache now serves without the generate flag, keyed by scope.
     r = chat_client.get(url)
     assert r.status_code == 200
-    assert r.json()["model"] == "mock"
+    assert r.json()["model"] == "mock" and r.json()["scope"] == scope
+    # Explicitly selecting the same matches is the same scope.
+    assert chat_client.get(f"{url}?matches=m1").json()["scope"] == scope
 
-    # 5. generate=1 always regenerates; with no key and no mock that is a 503.
-    assert chat_client.get(f"{url}?generate=1").status_code == 503
-
-    # 6. A cache built from different demos is stale and must not be served.
-    import json as _json
+    # 5. The cache file lives under the scope hash.
     from pathlib import Path as _Path
 
     cache = _Path(str(chat_client.app.state.cfg.data_root)) / (
-        f"teambooks/{SYNTHETIC_TEAM}/de_anubis/insights.json"
+        f"teambooks/{SYNTHETIC_TEAM}/de_anubis/insights/{scope}.json"
     )
-    stale = _json.loads(cache.read_text(encoding="utf-8"))
-    stale["generated_from"] = ["old_match"]
-    cache.write_text(_json.dumps(stale), encoding="utf-8")
-    assert chat_client.get(url).status_code == 404
+    assert cache.exists()
+
+    # 6. No key and no mock -> 503 when generation is required.
+    cache.unlink()
+    assert chat_client.get(f"{url}?generate=1").status_code == 503
 
 
 def test_mock_chat_flow(chat_client: TestClient) -> None:

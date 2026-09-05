@@ -117,6 +117,35 @@ def test_batch_delete_removes_all_and_rebuilds_once(populated: AppConfig, monkey
     assert not list(cfg.data_root.glob("teambooks/*/*/teambook.json"))
 
 
+def test_delete_purges_scopes_touching_deleted_matches(populated: AppConfig):
+    """Chat transcripts and scoped First Read caches die with any match they
+    used; unrelated scopes survive."""
+    import json as _json
+
+    cfg = populated
+    chats = cfg.data_root / "chats"
+    chats.mkdir(parents=True, exist_ok=True)
+    (chats / "scope_hit.jsonl").write_text(
+        _json.dumps({"type": "meta", "match_ids": ["m_one", "m_two"]}) + "\n", encoding="utf-8"
+    )
+    (chats / "scope_safe.jsonl").write_text(
+        _json.dumps({"type": "meta", "match_ids": ["m_two"]}) + "\n", encoding="utf-8"
+    )
+    fr = cfg.data_root / "teambooks" / "team1" / "de_anubis" / "insights"
+    fr.mkdir(parents=True, exist_ok=True)
+    (fr / "aaa.json").write_text(_json.dumps({"match_ids": ["m_one"]}), encoding="utf-8")
+    (fr / "bbb.json").write_text(_json.dumps({"match_ids": ["m_two"]}), encoding="utf-8")
+
+    client = TestClient(create_app(cfg))
+    r = client.delete("/api/demos", params={"matches": "m_one"})
+    assert r.status_code == 200
+
+    assert not (chats / "scope_hit.jsonl").exists()
+    assert (chats / "scope_safe.jsonl").exists()
+    assert not (fr / "aaa.json").exists()
+    assert (fr / "bbb.json").exists()
+
+
 def test_batch_delete_unknown_id_rejects_whole_batch(populated: AppConfig):
     cfg = populated
     client = TestClient(create_app(cfg))

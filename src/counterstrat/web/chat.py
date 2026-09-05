@@ -2,7 +2,6 @@
 
 import json
 import logging
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -398,8 +397,33 @@ def _get_session(request: Request, cfg: AppConfig, sid: str) -> ChatSession:
 def create_session(
     req: CreateSessionRequest, request: Request, cfg: ConfigDep
 ) -> CreateSessionResponse:
-    session_id = uuid.uuid4().hex[:12]
+    """One session per analysis scope: the scope hash IS the session id.
+
+    Re-selecting the same matches resurfaces the same conversation; a
+    different selection is a different session. Meta always stores the
+    RESOLVED match ids so deletion can invalidate full-scope sessions too.
+    """
+    from counterstrat.mining.tendencies import TeamBook
+    from counterstrat.web.routes import resolve_team_id
+    from counterstrat.web.scope import scope_hash
+
+    team_id = resolve_team_id(cfg.data_root, req.team_key)
+    tb_path = cfg.data_root / "teambooks" / team_id / req.map_name / "teambook.json"
+    if not tb_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"TeamBook for {req.team_key} on {req.map_name} not found"
+        )
+    teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
+
     match_ids = req.match_ids or ([req.match_id] if req.match_id else None)
+    resolved = sorted(set(match_ids)) if match_ids else sorted(teambook.generated_from)
+    session_id = scope_hash(team_id, req.map_name, resolved)
+
+    if _transcript_path(cfg, session_id).exists():
+        # Known scope: reuse the stored conversation (rebuilt lazily on the
+        # next message); no duplicate meta record.
+        return CreateSessionResponse(session_id=session_id)
+
     session = _build_session(cfg, session_id, req.team_key, req.map_name, match_ids)
     _sessions(request)[session_id] = session
     _append_record(
@@ -409,10 +433,36 @@ def create_session(
             "session_id": session_id,
             "team_key": session.ctx.team_key,
             "map_name": req.map_name,
-            "match_ids": match_ids,
+            "match_ids": resolved,
         },
     )
     return CreateSessionResponse(session_id=session_id)
+
+
+def _first_read_block(cfg: AppConfig, session: ChatSession) -> str:
+    """The scope's AI First Read, when one was generated: the user has already
+    seen it, so the analyst must build on it instead of repeating it."""
+    path = (
+        cfg.data_root
+        / "teambooks"
+        / session.ctx.team_key
+        / session.map_name
+        / "insights"
+        / f"{session.session_id}.json"
+    )
+    if not path.exists():
+        return ""
+    try:
+        text = str(json.loads(path.read_text(encoding="utf-8")).get("text") or "")
+    except Exception:  # noqa: BLE001 - a torn cache just means no block
+        return ""
+    if not text:
+        return ""
+    return (
+        "\n\n<first_read>\nThe analyst brief below was already generated for this exact "
+        "selection and is on the user's screen. Do not repeat it wholesale; reference and "
+        "build on it.\n" + text + "\n</first_read>\n"
+    )
 
 
 @router.post("/sessions/{sid}/messages", response_model=AgentReply)
@@ -476,7 +526,8 @@ def post_message(sid: str, req: MessageRequest, request: Request, cfg: ConfigDep
     _append_record(path, {"role": "user", "text": req.text})
 
     try:
-        reply = run_agent(client, system=session.system, history=session.history, ctx=session.ctx)
+        system = session.system + _first_read_block(cfg, session)
+        reply = run_agent(client, system=system, history=session.history, ctx=session.ctx)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Chat completion failed: {exc}") from exc
 
