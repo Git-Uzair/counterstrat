@@ -125,6 +125,15 @@ def test_timeline_renders_hold_and_move_annotations():
     # unannotated stints render exactly as before
     assert "HOLD p2" not in text
 
+    # The First Read budget mode: every resolved gaze survives as a HOLD line
+    # (even mid-round stints that would be MOVEs), plain traffic drops.
+    lite = rs.to_timeline_text(lite=True, include_holds=True)
+    assert "t=0s HOLD p1 (T) in `Hold` watching `Watched` (locked, nearest mate 127m)" in lite
+    assert "t=20s HOLD p1 (T) in `Middle` watching `BombsiteA` (scanning, nearest mate 8m)" in lite
+    assert "MOVE" not in lite and "SPAWNS" not in lite and "HOLD p2" not in lite
+    # Plain lite stays gaze-free for callers that want the old shape.
+    assert "watching" not in rs.to_timeline_text(lite=True)
+
 
 @pytest.mark.demo
 def test_yaw_convention_and_annotation_rate_on_real_match(anubis_lake):

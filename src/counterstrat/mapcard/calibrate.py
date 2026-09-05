@@ -35,6 +35,7 @@ from counterstrat.mapcard.anchors import (
     compute_tick_anchors,
     compute_zone_bounds,
     save_shipped_anchors,
+    shipped_kills_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +105,54 @@ def _occupancy_frame(dem_path: Path) -> tuple[str, pl.DataFrame]:
         & (pl.col("last_place_name") != "")
     ).drop_nulls(["X", "Y", "Z"])
     return map_name, df.select(["X", "Y", "Z", "last_place_name"])
+
+
+def _kills_frame(dem_path: Path) -> pl.DataFrame:
+    """Kill endpoints (places + positions + distance + clean-shot flags).
+
+    Positions ship so sightlines can be re-derived under any future custom
+    callout vocabulary: an endpoint inside a user's rect re-labels to it.
+    """
+    from demoparser2 import DemoParser
+
+    from counterstrat.constants import UNITS_PER_METER
+
+    parser = DemoParser(str(dem_path))
+    df = pl.from_pandas(
+        parser.parse_event("player_death", player=["last_place_name", "X", "Y", "Z"])
+    )
+    needed = {
+        "attacker_last_place_name",
+        "user_last_place_name",
+        "attacker_X",
+        "attacker_Y",
+        "attacker_Z",
+        "user_X",
+        "user_Y",
+        "user_Z",
+    }
+    if df.is_empty() or not needed <= set(df.columns):
+        return pl.DataFrame()
+
+    euclid_m = (
+        (pl.col("attacker_X") - pl.col("user_X")) ** 2
+        + (pl.col("attacker_Y") - pl.col("user_Y")) ** 2
+        + (pl.col("attacker_Z") - pl.col("user_Z")) ** 2
+    ).sqrt() / UNITS_PER_METER
+    distance = pl.col("distance").fill_null(euclid_m) if "distance" in df.columns else euclid_m
+    out = df.select(
+        pl.col("attacker_last_place_name").alias("attacker_place"),
+        pl.col("user_last_place_name").alias("victim_place"),
+        pl.col("attacker_X").alias("attacker_x"),
+        pl.col("attacker_Y").alias("attacker_y"),
+        pl.col("attacker_Z").alias("attacker_z"),
+        pl.col("user_X").alias("victim_x"),
+        pl.col("user_Y").alias("victim_y"),
+        pl.col("user_Z").alias("victim_z"),
+        distance.cast(pl.Float64).alias("distance"),
+        *(pl.col(c) for c in ("thrusmoke", "penetrated") if c in df.columns),
+    )
+    return out.drop_nulls(["attacker_x", "victim_x", "distance"])
 
 
 def _load_index(cache_dir: Path) -> dict:
@@ -181,17 +230,39 @@ def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None
         try:
             dem = _decompress(arc, work_dir)
             map_name, frame = _occupancy_frame(dem)
+            kills = _kills_frame(dem)
             cache_dir.mkdir(parents=True, exist_ok=True)
             frame.write_parquet(cache_dir / f"{sha}.parquet")
+            kills.write_parquet(cache_dir / f"{sha}.kills.parquet")
             index[sha] = {"file": arc.name, "map": map_name, "rows": frame.height}
             _save_index(cache_dir, index)
             print(
                 f"  [{i}/{len(todo)}] {arc.name} -> {map_name} "
-                f"({frame.height} ticks, {time.time() - t0:.0f}s)"
+                f"({frame.height} ticks, {kills.height} kills, {time.time() - t0:.0f}s)"
             )
         except Exception as exc:
             print(f"  [{i}/{len(todo)}] {arc.name} FAILED: {exc}")
             logger.exception("Calibration parse failed for %s", arc)
+        finally:
+            if dem is not None and dem != arc and dem.exists():
+                dem.unlink()
+
+    # Backfill: demos cached before kill extraction existed get one more pass.
+    backfill = [
+        (sha, demo_dir / meta["file"])
+        for sha, meta in index.items()
+        if not (cache_dir / f"{sha}.kills.parquet").exists() and (demo_dir / meta["file"]).exists()
+    ]
+    for i, (sha, arc) in enumerate(backfill, 1):
+        dem = None
+        try:
+            dem = _decompress(arc, work_dir)
+            kills = _kills_frame(dem)
+            kills.write_parquet(cache_dir / f"{sha}.kills.parquet")
+            print(f"  [kills {i}/{len(backfill)}] {arc.name}: {kills.height} kills")
+        except Exception as exc:
+            print(f"  [kills {i}/{len(backfill)}] {arc.name} FAILED: {exc}")
+            logger.exception("Kill extraction failed for %s", arc)
         finally:
             if dem is not None and dem != arc and dem.exists():
                 dem.unlink()
@@ -231,10 +302,23 @@ def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None
             bounds=compute_zone_bounds(pooled, cal),
             root=out_dir,
         )
+        # Ship the raw kill endpoints beside the anchors: sightlines derive
+        # from them at serve time under the user's live callout vocabulary.
+        kill_frames = [
+            pl.read_parquet(cache_dir / f"{sha}.kills.parquet")
+            for sha in shas
+            if (cache_dir / f"{sha}.kills.parquet").exists()
+        ]
+        kill_frames = [k for k in kill_frames if not k.is_empty()]
+        n_kills = 0
+        if kill_frames:
+            pooled_kills = pl.concat(kill_frames, how="vertical_relaxed")
+            pooled_kills.write_parquet(shipped_kills_path(map_name, out_dir))
+            n_kills = pooled_kills.height
         written[map_name] = len(anchors)
         print(
             f"{map_name}: {len(anchors)} zone anchors from {len(shas)} demo(s) "
-            f"({pooled.height} pooled ticks) -> {path}"
+            f"({pooled.height} pooled ticks, {n_kills} kills) -> {path}"
         )
 
     supported = _supported_maps()

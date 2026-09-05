@@ -447,6 +447,14 @@ def _game_labels(cfg: AppConfig, team_key: str, teambook: TeamBook, scripts) -> 
     return labels
 
 
+def _shipped_sightlines_or_none(cfg: AppConfig, map_name: str) -> list[dict] | None:
+    """Calibration sightlines under the current custom-zone vocabulary, or
+    None so the scene graph falls back to the card's own (uncalibrated maps)."""
+    from counterstrat.mapcard.anchors import shipped_sightlines
+
+    return shipped_sightlines(cfg.data_root, map_name) or None
+
+
 _MOCK_INSIGHTS = (
     "## 1. Offline mock read\nThey favor `BombsiteA` executes on full buys - "
     "stack utility there (mock insight for UI tests).\n"
@@ -562,6 +570,7 @@ def get_insights(
             game_labels=_game_labels(cfg, team_key, teambook, scripts),
             renamer=load_renamer(cfg.data_root, map_name),
             anchors=map_zone_anchors(cfg, map_name),
+            sightlines=_shipped_sightlines_or_none(cfg, map_name),
         )
     except HTTPException:
         raise

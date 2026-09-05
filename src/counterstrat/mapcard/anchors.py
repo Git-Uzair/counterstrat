@@ -128,6 +128,61 @@ def compute_zone_bounds(df: pl.DataFrame, cal) -> dict[str, Bounds]:
     return out
 
 
+def shipped_kills_path(map_name: str, root: Path | None = None) -> Path:
+    return (root or SHIPPED_ANCHORS_DIR) / f"{map_name}.kills.parquet"
+
+
+def load_calibration_kills(map_name: str, root: Path | None = None) -> pl.DataFrame:
+    """Pooled kill endpoints from the calibration demos (positions + places)."""
+    path = shipped_kills_path(map_name, root)
+    if not path.exists():
+        return pl.DataFrame()
+    try:
+        return pl.read_parquet(path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Unreadable shipped kills for %s: %s", map_name, exc)
+        return pl.DataFrame()
+
+
+def shipped_sightlines(data_root: Path, map_name: str, root: Path | None = None) -> list[dict]:
+    """Kill-evidenced zone-pair sightlines under the user's CURRENT vocabulary.
+
+    The shipped evidence is raw kill endpoints (positions + engine places),
+    so the matrix is derived on demand: each endpoint inside one of the
+    user's custom rect zones is re-labeled to that zone (the exact tick-bake
+    membership), then pairs aggregate. A custom callout carved out of
+    `Middle` therefore gets its own sightline rows with real evidence counts,
+    and renames flow through the prompt renamer as usual.
+    """
+    from counterstrat.customzones import load_custom_zones, rezone_ticks
+    from counterstrat.mapcard.visibility import build_sightlines
+
+    kills = load_calibration_kills(map_name, root)
+    needed = {"attacker_place", "victim_place", "distance"}
+    if kills.is_empty() or not needed <= set(kills.columns):
+        return []
+
+    zones = load_custom_zones(data_root, map_name)
+    if zones:
+        for side, px, py, pz, place in (
+            ("attacker", "attacker_x", "attacker_y", "attacker_z", "attacker_place"),
+            ("victim", "victim_x", "victim_y", "victim_z", "victim_place"),
+        ):
+            if not {px, py, pz} <= set(kills.columns):
+                continue  # positions missing: engine names stay authoritative
+            endpoint = kills.select(
+                pl.col(px).alias("X"),
+                pl.col(py).alias("Y"),
+                pl.col(pz).alias("Z"),
+                pl.col(place).alias("last_place_name"),
+            )
+            relabeled = rezone_ticks(endpoint, zones)
+            kills = kills.with_columns(relabeled["last_place_name"].alias(place))
+            _ = side
+
+    return build_sightlines(kills, valid_zones=None)
+
+
 def load_shipped_zone_bounds(map_name: str, root: Path | None = None) -> dict[str, Bounds]:
     """Occupancy boxes for a map's calibrated zones; {} when not shipped."""
     out: dict[str, Bounds] = {}

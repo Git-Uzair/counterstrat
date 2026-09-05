@@ -282,9 +282,14 @@ def _run_ingest_locked(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
         # the freshest matrix, and it grows with the corpus.
         sightlines: list[dict] = []
         try:
+            from counterstrat.mapcard.anchors import shipped_sightlines
             from counterstrat.mapcard.visibility import refresh_card_sightlines
 
-            sightlines = refresh_card_sightlines(cfg.data_root, rec.map_name)
+            # Calibration evidence first (vocabulary-aware, dense); the user's
+            # own lake kills only ground sightlines on uncalibrated maps.
+            sightlines = shipped_sightlines(cfg.data_root, rec.map_name)
+            if not sightlines:
+                sightlines = refresh_card_sightlines(cfg.data_root, rec.map_name)
         except Exception as exc:  # noqa: BLE001 - sightlines must never fail an ingest
             logger.warning("Sightline refresh failed for %s: %s", rec.map_name, exc)
 

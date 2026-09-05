@@ -81,7 +81,9 @@ def _bearing(anchors: dict[str, tuple], a: str, b: str) -> str | None:
     return SECTORS[int(((ang + 22.5) % 360) // 45)]
 
 
-def format_map_scene_graph(card: "MapCard", anchors: dict[str, tuple]) -> str:
+def format_map_scene_graph(
+    card: "MapCard", anchors: dict[str, tuple], sightlines: list[dict] | None = None
+) -> str:
     """The measured spatial representation: topology backbone with labeled units.
 
     Per zone: radar anchor (u, v) plus tags; per undirected edge: move seconds
@@ -149,12 +151,13 @@ def format_map_scene_graph(card: "MapCard", anchors: dict[str, tuple]) -> str:
     if timing_lines:
         lines.append("earliest_reach:  # seconds from spawn each side first reaches the zone")
         lines.extend(timing_lines)
-    if card.sightlines:
+    effective_sightlines = sightlines if sightlines is not None else card.sightlines
+    if effective_sightlines:
         lines.append(
             "sightlines:  # zone pairs that SEE each other (observed kills; "
             "bidirectional; n = evidence count)"
         )
-        for sl in card.sightlines:
+        for sl in effective_sightlines:
             lines.append(
                 f"- `{sl['from']}` <-> `{sl['to']}`: {sl['range']} "
                 f"(~{sl['median_dist']:.0f}m, n={sl['n']})"

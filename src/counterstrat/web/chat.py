@@ -17,6 +17,7 @@ from counterstrat.llm.agent import AgentReply, run_agent
 from counterstrat.llm.base import ChatTurn, make_client
 from counterstrat.llm.prompts import build_chat_system, format_map_scene_graph
 from counterstrat.llm.tools import SessionContext
+from counterstrat.mapcard.anchors import shipped_sightlines
 from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
 from counterstrat.mapcard.transitions import zone_graph
@@ -128,10 +129,13 @@ def _system_prompt(
     teambook: TeamBook,
     anchors: dict | None = None,
     range_profile: RangeProfile | None = None,
+    sightlines: list[dict] | None = None,
 ) -> str:
     """Doctrine + spatial scene graph + signal-filtered teambook, cacheable."""
     return build_chat_system(
-        format_map_scene_graph(card, anchors or {}), teambook, range_profile=range_profile
+        format_map_scene_graph(card, anchors or {}, sightlines=sightlines),
+        teambook,
+        range_profile=range_profile,
     )
 
 
@@ -363,6 +367,11 @@ def _build_session(
                 teambook,
                 map_zone_anchors(cfg, map_name),
                 range_profile=build_range_profile(script_list, team_key),
+                # Calibration sightlines, derived under the user's current
+                # custom-zone vocabulary; denser than any single corpus and
+                # present even on a fresh clone. Card sightlines are the
+                # fallback for uncalibrated maps.
+                sightlines=shipped_sightlines(cfg.data_root, map_name) or None,
             )
         ),
         ctx=ctx,

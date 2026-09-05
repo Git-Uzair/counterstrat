@@ -10,6 +10,8 @@ maps/
 .env
 __pycache__/
 *.parquet
+# Shipped calibration evidence (kill endpoints for sightline derivation)
+!src/counterstrat/mapcard/anchors/*.parquet
 *.egg-info/
 dist/
 build/

@@ -151,6 +151,7 @@ def test_calibrate_run_dedupes_resumes_and_writes(tmp_path: Path, monkeypatch):
         return "de_test", frames[dem_path.name]
 
     monkeypatch.setattr(calibrate, "_occupancy_frame", fake_frame)
+    monkeypatch.setattr(calibrate, "_kills_frame", lambda _dem: pl.DataFrame())
     monkeypatch.setattr(
         calibrate,
         "_radar_calibration",
@@ -236,6 +237,61 @@ def test_shipped_bounds_roundtrip(tmp_path: Path):
     save_shipped_anchors("de_old", anchors, generated_from=["a.dem"], root=tmp_path)
     assert load_shipped_zone_bounds("de_old", root=tmp_path) == {}
     assert load_shipped_anchors("de_old", root=tmp_path)["Mid"] == (0.5, 0.5, "default")
+
+
+def _kills_fixture() -> pl.DataFrame:
+    # 4 clean kills Middle->Connector (two from inside the future custom rect
+    # at (100+-50, 100+-50)), 2 kills Ramp->Site, plus one through-smoke kill
+    # that must never count.
+    return pl.DataFrame(
+        {
+            "attacker_place": ["Middle", "Middle", "Middle", "Middle", "Ramp", "Ramp", "Middle"],
+            "victim_place": ["Connector"] * 4 + ["Site", "Site", "Connector"],
+            "attacker_x": [100.0, 110.0, 400.0, 420.0, 900.0, 910.0, 105.0],
+            "attacker_y": [100.0, 90.0, 400.0, 420.0, 900.0, 890.0, 95.0],
+            "attacker_z": [0.0] * 7,
+            "victim_x": [600.0, 610.0, 620.0, 630.0, 1200.0, 1210.0, 605.0],
+            "victim_y": [600.0, 590.0, 610.0, 615.0, 1200.0, 1190.0, 595.0],
+            "victim_z": [0.0] * 7,
+            "distance": [18.0, 18.5, 20.0, 19.0, 11.0, 11.5, 18.2],
+            "thrusmoke": [False, False, False, False, False, False, True],
+            "penetrated": [0] * 7,
+        }
+    )
+
+
+def test_shipped_sightlines_respect_custom_vocabulary(tmp_path: Path):
+    """The shipped evidence is raw endpoints: a custom rect carved out of
+    `Middle` re-labels the kills fired from inside it, so the LLM's sightline
+    block speaks the user's callout."""
+    from counterstrat.customzones import CustomZone, save_custom_zones
+    from counterstrat.mapcard.anchors import shipped_kills_path, shipped_sightlines
+
+    shipped = tmp_path / "shipped"
+    shipped.mkdir()
+    _kills_fixture().write_parquet(shipped_kills_path("de_test", shipped))
+    data_root = tmp_path / "data"
+
+    # No custom zones: engine vocabulary, smoke kill excluded (n=4 not 5).
+    plain = {(s["from"], s["to"]): s for s in shipped_sightlines(data_root, "de_test", shipped)}
+    assert plain[("Connector", "Middle")]["n"] == 4
+    assert plain[("Ramp", "Site")]["n"] == 2
+
+    # Carve "headshot" out of Middle around (100, 100): the two kills fired
+    # from inside it move to the custom name, the other two stay Middle.
+    save_custom_zones(
+        data_root,
+        "de_test",
+        [CustomZone(name="headshot", x=100.0, y=100.0, z=0.0, half_x=50.0, half_y=50.0)],
+        reserved=set(),
+    )
+    custom = {(s["from"], s["to"]): s for s in shipped_sightlines(data_root, "de_test", shipped)}
+    assert custom[("Connector", "headshot")]["n"] == 2
+    assert custom[("Connector", "Middle")]["n"] == 2
+    assert custom[("Ramp", "Site")]["n"] == 2
+
+    # Unshipped map: no evidence, no crash.
+    assert shipped_sightlines(data_root, "de_ghost", shipped) == []
 
 
 def test_shipped_anchor_roundtrip(tmp_path: Path):

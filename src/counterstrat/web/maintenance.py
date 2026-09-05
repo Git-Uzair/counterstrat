@@ -170,14 +170,18 @@ def rebuild_map_zones(cfg: AppConfig, map_name: str) -> dict[str, Any]:
                 card_path.parent.mkdir(parents=True, exist_ok=True)
                 card_path.write_text(card.to_yaml(), encoding="utf-8")
 
-    # 3. Sightlines from the full lake, before scripts so stint gaze sees the
-    # matrix (re-zoned kills places stay engine names, which remain in the
-    # card vocabulary alongside custom zones).
+    # 3. Sightlines before scripts so stint gaze sees the matrix. Calibration
+    # evidence first, re-derived under the JUST-SAVED custom vocabulary (a
+    # rect carved from `Middle` gets its own rows); user lake kills remain
+    # the fallback for uncalibrated maps.
     sightlines: list[dict] = []
     try:
+        from counterstrat.mapcard.anchors import shipped_sightlines
         from counterstrat.mapcard.visibility import refresh_card_sightlines
 
-        sightlines = refresh_card_sightlines(cfg.data_root, map_name)
+        sightlines = shipped_sightlines(cfg.data_root, map_name)
+        if not sightlines:
+            sightlines = refresh_card_sightlines(cfg.data_root, map_name)
     except Exception as exc:  # noqa: BLE001 - sightlines must never fail a rebuild
         logger.warning("Sightline refresh failed for %s: %s", map_name, exc)
 

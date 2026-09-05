@@ -147,7 +147,7 @@ class RoundScript(BaseModel):
     def _side_of(self, player: str) -> str:
         return self.sides.get(player, "?")
 
-    def to_timeline_text(self, lite: bool = False) -> str:
+    def to_timeline_text(self, lite: bool = False, include_holds: bool = False) -> str:
         """The complete chronological round timeline (2026-09-04 plan Task 3).
 
         Everything that happened with absolute seconds: anchors header
@@ -157,6 +157,11 @@ class RoundScript(BaseModel):
         EVERY kill (``to_text`` renders only first contact), uncapped utility,
         PLANT with timestamp and alive counts. The lab measured today's text
         at 83%/62% (easy/hard) vs 100%/96% for this stream.
+
+        ``lite`` + ``include_holds``: the budget mode keeps the gaze - HOLD
+        lines for every stint with a resolved watch (who held which angle)
+        stay in, only the plain MOVE/SPAWNS traffic is dropped. This is what
+        the First Read embeds so it can tell an info lurk from a duel lurk.
         """
         lines = [self._header_line()]
 
@@ -185,10 +190,7 @@ class RoundScript(BaseModel):
             lines.append(f"state@{beat.t:.0f}s: T[{t_zones}] CT[{ct_zones}]")
 
         events: list[tuple[float, int, str]] = []  # (t, tiebreak, line)
-        if not lite and self.tracks:
-            spawn = ", ".join(f"{p}:`{st[0].zone}`" for p, st in sorted(self.tracks.items()) if st)
-            if spawn:
-                lines.append(f"t=0s SPAWNS {spawn}")
+        if self.tracks and (not lite or include_holds):
 
             def _gaze(st: ZoneStint) -> str:
                 if not st.watched:
@@ -198,9 +200,28 @@ class RoundScript(BaseModel):
                     parts.append(f"nearest mate {st.support_m:.0f}m")
                 return f" watching `{st.watched}` ({', '.join(parts)})"
 
+            if not lite:
+                spawn = ", ".join(
+                    f"{p}:`{st[0].zone}`" for p, st in sorted(self.tracks.items()) if st
+                )
+                if spawn:
+                    lines.append(f"t=0s SPAWNS {spawn}")
+
             for player, stints in sorted(self.tracks.items()):
                 for i, st in enumerate(stints):
                     gaze = _gaze(st)
+                    if lite:
+                        # Budget mode: only the tactically loaded lines - a
+                        # stint whose view direction resolved to a zone.
+                        if gaze:
+                            events.append(
+                                (
+                                    float(st.t0),
+                                    0,
+                                    f"HOLD {player} ({self._side_of(player)}) in `{st.zone}`{gaze}",
+                                )
+                            )
+                        continue
                     if i == 0:
                         # spawn stint: only noteworthy when a watch resolved
                         if gaze:

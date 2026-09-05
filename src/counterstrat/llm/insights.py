@@ -172,9 +172,10 @@ def build_insights_user(
         sections.append(
             f"### {labels.get(s.match_id, s.match_id[:8])}, round {s.round_num}{pistol}"
         )
-        # lite: full kill/utility/plant timestamps without per-player MOVE
-        # lines - the corpus-wide prompt embeds every round (budget).
-        sections.append(s.to_timeline_text(lite=True))
+        # lite + holds: full kill/utility/plant timestamps plus every resolved
+        # gaze HOLD (who held which angle) - but no plain MOVE traffic, so the
+        # prompt can embed every round of the scope within budget.
+        sections.append(s.to_timeline_text(lite=True, include_holds=True))
         sections.append("")
     return "\n".join(sections)
 
@@ -223,10 +224,13 @@ def generate_insights(
     renamer=None,  # counterstrat.aliases.Renamer; applies the user's callout vocabulary
     max_tokens: int | None = None,  # None = the model's own maximum: never cut analysis short
     anchors: dict | None = None,  # web.routes.map_zone_anchors output for this map
+    sightlines: list[dict] | None = None,  # calibration sightlines (vocabulary-aware)
 ) -> Insights:
     """One LLM call over the full corpus; fabrications surface as soft warnings."""
     labels = game_labels or default_game_labels(teambook.generated_from)
-    system = build_insights_system(format_map_scene_graph(card, anchors or {}))
+    system = build_insights_system(
+        format_map_scene_graph(card, anchors or {}, sightlines=sightlines)
+    )
     user = build_insights_user(
         teambook=teambook,
         utility_book=utility_book,
