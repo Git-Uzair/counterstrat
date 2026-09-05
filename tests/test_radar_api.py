@@ -95,9 +95,14 @@ def test_image_lower_level_present_is_served(tmp_path: Path) -> None:
 
 
 def test_uncached_map_without_cs2_path_is_503(radar_client: TestClient) -> None:
-    r = radar_client.get("/api/radar/de_mirage/info")
+    # No user cache, no shipped assets, no CS2 install: nothing can serve it.
+    r = radar_client.get("/api/radar/de_ghostmap/info")
     assert r.status_code == 503
     assert "cs2" in r.json()["detail"].lower()
+    # A calibrated map serves straight from the shipped package assets.
+    assert radar_client.get("/api/radar/de_mirage/info").status_code == 200
+    img = radar_client.get("/api/radar/de_mirage/image")
+    assert img.status_code == 200 and img.content[:4] == b"\x89PNG"
 
 
 def test_invalid_map_name_is_400(radar_client: TestClient) -> None:

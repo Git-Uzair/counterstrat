@@ -117,25 +117,35 @@ def _run_vrf(
     subprocess.run(args, check=True, capture_output=True, timeout=timeout)
 
 
+# Radar art + calibration shipped with the app for the calibrated map pool,
+# so a fresh clone renders the callout editor without a CS2 install. A user's
+# own extraction (data_root/radar) always wins over the shipped copy.
+SHIPPED_RADAR_DIR = Path(__file__).resolve().parent / "assets"
+
+
 def load_cached_assets(data_root: Path, map_name: str) -> RadarAssets | None:
-    """Returns the cached bundle for ``map_name``, or ``None`` when not extracted."""
-    cache = radar_cache_dir(data_root, map_name)
-    image, overview = cache / "radar.png", cache / "overview.txt"
-    if not (image.exists() and overview.exists()):
-        return None
-    cal_json = cache / "calibration.json"
-    if cal_json.exists():
-        cal = RadarCalibration.model_validate_json(cal_json.read_text(encoding="utf-8"))
-    else:
-        cal = parse_calibration(overview.read_text(encoding="utf-8", errors="replace"), map_name)
-    lower = cache / "radar_lower.png"
-    return RadarAssets(
-        map_name=map_name,
-        image=image,
-        lower_image=lower if lower.exists() else None,
-        overview=overview,
-        calibration=cal,
-    )
+    """The cached bundle for ``map_name`` - the user's extraction first, the
+    shipped package assets second - or ``None`` when neither exists."""
+    for cache in (radar_cache_dir(data_root, map_name), SHIPPED_RADAR_DIR / map_name):
+        image, overview = cache / "radar.png", cache / "overview.txt"
+        if not (image.exists() and overview.exists()):
+            continue
+        cal_json = cache / "calibration.json"
+        if cal_json.exists():
+            cal = RadarCalibration.model_validate_json(cal_json.read_text(encoding="utf-8"))
+        else:
+            cal = parse_calibration(
+                overview.read_text(encoding="utf-8", errors="replace"), map_name
+            )
+        lower = cache / "radar_lower.png"
+        return RadarAssets(
+            map_name=map_name,
+            image=image,
+            lower_image=lower if lower.exists() else None,
+            overview=overview,
+            calibration=cal,
+        )
+    return None
 
 
 def extract_radar_assets(

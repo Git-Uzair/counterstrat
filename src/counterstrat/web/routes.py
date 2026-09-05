@@ -573,12 +573,14 @@ def _vpk_map_names() -> set[str]:
 
 @router.get("/maps")
 def list_maps(cfg: ConfigDep) -> list[str]:
-    """Every editable map: compiled cards plus VPKs that can supply zone names."""
+    """Every editable map: compiled cards, VPKs, and shipped-calibration maps
+    (a fresh clone edits calibrated maps before ingesting anything)."""
     from counterstrat.constants import RETIRED_MAPS
+    from counterstrat.mapcard.anchors import shipped_anchor_maps
 
     root = cfg.data_root / "mapcards"
     card_maps = {p.parent.name for p in root.glob("*/card.yaml")} if root.exists() else set()
-    return sorted((card_maps | _vpk_map_names()) - RETIRED_MAPS)
+    return sorted((card_maps | _vpk_map_names() | shipped_anchor_maps()) - RETIRED_MAPS)
 
 
 def _map_places(cfg: AppConfig, map_name: str) -> list:
@@ -629,6 +631,8 @@ def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str
     """Card zones when compiled (the mined vocabulary), else VPK place names;
     the user's custom zones always join the list. An empty or torn card file
     counts as no card."""
+    from counterstrat.mapcard.anchors import load_shipped_anchors
+
     custom = {z.name for z in load_custom_zones(cfg.data_root, map_name)}
     card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
     if card_path.exists():
@@ -639,8 +643,11 @@ def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str
         card_zones = (card_data or {}).get("zones") or {}
         if card_zones:
             return sorted(set(card_zones.keys()) | custom)
-    if places or custom:
+    if places:
         return sorted({p.place_name for p in places} | custom)
+    shipped = set(load_shipped_anchors(map_name))
+    if shipped or custom:
+        return sorted(shipped | custom)
     return None
 
 

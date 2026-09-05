@@ -1,6 +1,8 @@
 .venv/
-data/*
-!data/mapcards/
+# The whole data dir is personal: demos, lakes, custom callouts, aliases,
+# compiled cards, chat transcripts. Nothing under it ever ships - calibrated
+# product data lives in src/counterstrat/{mapcard/anchors,radar/assets}.
+data/
 tools/
 scratch/
 demos/

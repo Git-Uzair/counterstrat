@@ -85,6 +85,14 @@ def shipped_anchor_path(map_name: str, root: Path | None = None) -> Path:
     return (root or SHIPPED_ANCHORS_DIR) / f"{map_name}.json"
 
 
+def shipped_anchor_maps(root: Path | None = None) -> set[str]:
+    """Every map with shipped calibration - usable straight from a clone."""
+    base = root or SHIPPED_ANCHORS_DIR
+    if not base.exists():
+        return set()
+    return {p.stem for p in base.glob("*.json")}
+
+
 def _read_anchor_file(map_name: str, root: Path | None) -> dict:
     path = shipped_anchor_path(map_name, root)
     if not path.exists():

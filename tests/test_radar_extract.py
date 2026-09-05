@@ -103,7 +103,28 @@ def test_radar_cache_dir_layout(tmp_path: Path) -> None:
 def test_load_cached_assets_missing_returns_none(tmp_path: Path) -> None:
     from counterstrat.radar.extract import load_cached_assets
 
-    assert load_cached_assets(tmp_path, "de_anubis") is None
+    # A map with no user cache AND no shipped package assets: truly missing.
+    assert load_cached_assets(tmp_path, "de_ghostmap") is None
+
+
+def test_load_cached_assets_falls_back_to_shipped_package(tmp_path: Path) -> None:
+    """Calibrated maps render from the packaged radar assets on a fresh clone;
+    a user's own extraction under data_root always wins over the shipped copy."""
+    from counterstrat.radar.extract import SHIPPED_RADAR_DIR, load_cached_assets
+
+    shipped = load_cached_assets(tmp_path, "de_anubis")
+    assert shipped is not None
+    assert SHIPPED_RADAR_DIR in shipped.image.parents
+
+    user_cache = tmp_path / "radar" / "de_anubis"
+    user_cache.mkdir(parents=True)
+    (user_cache / "radar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (user_cache / "overview.txt").write_text("x", encoding="utf-8")
+    (user_cache / "calibration.json").write_text(
+        shipped.calibration.model_dump_json(), encoding="utf-8"
+    )
+    mine = load_cached_assets(tmp_path, "de_anubis")
+    assert mine is not None and mine.image == user_cache / "radar.png"
 
 
 @pytest.mark.demo
