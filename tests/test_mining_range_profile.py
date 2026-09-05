@@ -146,7 +146,7 @@ def test_range_profile_prompt_lines_render():
 
 def test_range_profile_surfaces_in_prompts():
     from counterstrat.llm.insights import build_insights_user
-    from counterstrat.llm.prompts import build_chat_system, build_user
+    from counterstrat.llm.prompts import build_chat_system
     from counterstrat.mining.econ_policy import build_econ_policy
     from counterstrat.mining.gaps import build_gap_report
     from counterstrat.mining.tendencies import build_teambook
@@ -162,9 +162,6 @@ def test_range_profile_surfaces_in_prompts():
     chat = build_chat_system("map block", tb, range_profile=prof)
     assert "<engagement_range>" in chat and "median" in chat
 
-    dossier_user = build_user(tb, scripts, range_profile=prof)
-    assert "## Engagement Range Profile" in dossier_user
-
     insights_user = build_insights_user(
         teambook=tb,
         utility_book=build_utility_book(scripts, TEAM),
@@ -176,7 +173,6 @@ def test_range_profile_surfaces_in_prompts():
 
     # no profile -> no empty section headers
     assert "<engagement_range>" not in build_chat_system("map block", tb)
-    assert "## Engagement Range Profile" not in build_user(tb, scripts)
 
 
 @pytest.mark.demo

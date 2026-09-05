@@ -73,9 +73,14 @@ def test_static_app_js(client_app: TestClient) -> None:
     # The deterministic First Look panel is retired: no brief fetch, no renderer.
     assert "/brief" not in resp.text
     assert "renderScoutBrief" not in resp.text
-    # Feedback round: the AI First Read panel (keeps the shared panel classes).
+    # Scoped AI First Read: cards in the pinned panel, per-selection scope,
+    # generated instantly on Analyze, transcript replay per scope session.
     assert "/insights" in resp.text
-    assert "ai-first-read" in resp.text
+    assert "renderFirstRead" in resp.text
+    assert "first-read-card" in resp.text
+    assert "replayTranscript" in resp.text
+    assert 'params.set("matches"' in resp.text
+    assert "clearFirstRead" in resp.text
     # Multi-upload queue: every file gets its own polled row; duplicates are
     # terminal; finished rows dismiss themselves.
     assert "uploadDemoFiles" in resp.text
@@ -145,10 +150,13 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     assert ".zone-area" in css
 
 
-def test_static_style_has_first_look_panel(client_app: TestClient) -> None:
+def test_static_style_has_first_read_panel(client_app: TestClient) -> None:
     resp = client_app.get("/static/style.css")
     assert resp.status_code == 200
-    assert ".first-look-panel" in resp.text
+    assert ".first-read-panel" in resp.text
+    assert ".first-read-card" in resp.text
+    html = client_app.get("/").text
+    assert 'id="first-read-panel"' in html
 
 
 def test_static_style_css(client_app: TestClient) -> None:

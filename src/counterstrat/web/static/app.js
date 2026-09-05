@@ -39,6 +39,7 @@
     targetMeta: document.getElementById("target-meta"),
 
     messagesContainer: document.getElementById("messages-container"),
+    firstReadPanel: document.getElementById("first-read-panel"),
     chatWelcome: document.getElementById("chat-welcome"),
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
@@ -511,9 +512,15 @@
         return res.json();
       })
       .then(function () {
-        // Deletion reclusters teams (ids can change): reset the selection.
+        // Deletion invalidates scopes server-side; mirror it in the view.
         state.currentSessionId = null;
         state.currentMatchIds = null;
+        clearFirstRead();
+        el.messagesContainer.innerHTML = "";
+        el.targetTitle.textContent = "No Team Selected";
+        el.targetMeta.textContent = "Pick a target from the catalog on the left to start";
+        el.chatInput.disabled = true;
+        el.sendBtn.disabled = true;
         loadTeams();
       })
       .catch(function (err) {
@@ -583,23 +590,16 @@
         return res.json();
       })
       .then(function (data) {
+        // The session id IS the scope hash: same selection -> same session.
+        const sameScope = state.currentSessionId === data.session_id;
         state.currentSessionId = data.session_id;
 
-        // Reset and show initial welcome in message stream
-        el.messagesContainer.innerHTML = "";
-        const scopeNote = (matchIds && matchIds.length > 0)
-          ? (matchIds.length === 1
-            ? `\n\n**Scope: 1 match only** - every answer describes this one game.`
-            : `\n\n**Scope: ${matchIds.length} selected matches** - answers describe these games only.`)
-          : "";
-        appendAssistantMessage({
-          text: `Active session started for **${displayName}** on \`${mapName}\`.${scopeNote}\n\nYou can ask about buy-round tendencies, utility setups, opening duels, or cite specific rounds.`,
-          tool_trace: [],
-          warnings: [],
-        });
-        if (!matchIds || matchIds.length === 0) {
-          // The AI First Read is a corpus-wide artifact: merged mode only.
-          renderInsights(teamKey, mapName, false);
+        // The First Read renders for EVERY scope, instantly on Analyze.
+        renderFirstRead(teamKey, mapName, matchIds);
+
+        if (!sameScope) {
+          el.messagesContainer.innerHTML = "";
+          replayTranscript(data.session_id, displayName, mapName, matchIds);
         }
 
         el.chatInput.disabled = false;
@@ -611,41 +611,61 @@
       });
   }
 
-  // AI First Read: LLM-generated dynamic insights over the full corpus.
-  // Cached reads render automatically; generation is analyst-triggered.
-  function renderInsights(teamKey, mapName, generate) {
-    const existing = document.getElementById("ai-first-read");
-    if (existing) existing.remove();
+  // Prior conversation for this exact selection, or a fresh welcome.
+  function replayTranscript(sessionId, displayName, mapName, matchIds) {
+    fetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}`)
+      .then(function (res) { return res.ok ? res.json() : { messages: [] }; })
+      .then(function (data) {
+        el.messagesContainer.innerHTML = "";
+        const messages = data.messages || [];
+        if (messages.length === 0) {
+          const scopeNote = (matchIds && matchIds.length > 0)
+            ? (matchIds.length === 1
+              ? `\n\n**Scope: 1 match only** - every answer describes this one game.`
+              : `\n\n**Scope: ${matchIds.length} selected matches** - answers describe these games only.`)
+            : "";
+          appendAssistantMessage({
+            text: `Active session started for **${displayName}** on \`${mapName}\`.${scopeNote}\n\nYou can ask about buy-round tendencies, utility setups, opening duels, or cite specific rounds.`,
+            tool_trace: [],
+            warnings: [],
+          });
+          return;
+        }
+        messages.forEach(function (m) {
+          if (m.role === "user") appendUserMessage(m.text);
+          else appendAssistantMessage({ text: m.text, tool_trace: [], warnings: [] });
+        });
+      })
+      .catch(function () { /* a fresh pane is fine */ });
+  }
 
-    const panel = document.createElement("div");
-    panel.className = "first-look-panel insights-panel";
-    panel.id = "ai-first-read";
-    panel.innerHTML =
-      '<div class="first-look-header insights-header">' +
-      '<span class="insights-title"><span class="insights-chevron">▾</span> AI First Read</span>' +
-      '<button type="button" id="insights-generate" class="btn btn-sm btn-outline fl-generate">' +
-      (generate ? "Generating..." : "Generate") +
-      "</button></div>" +
-      '<div id="insights-body" class="insights-body">' +
-      (generate
-        ? '<p class="insights-hint">Reading every round of every game...</p>'
-        : '<p class="insights-hint">No AI read generated for this data yet.</p>') +
+  // AI First Read: generated for the exact selection, rendered as cards in
+  // the pinned panel above the chat. Cached scopes are instant; new scopes
+  // show loading cards while the model reads the selected games.
+  function renderFirstRead(teamKey, mapName, matchIds) {
+    el.firstReadPanel.classList.remove("hidden", "collapsed");
+    el.firstReadPanel.innerHTML =
+      '<div class="first-read-header">' +
+      '<span class="first-read-title"><span class="insights-chevron">\u25be</span> AI First Read</span>' +
+      '<span class="first-read-meta"></span>' +
+      "</div>" +
+      '<div class="first-read-cards">' +
+      '<div class="first-read-card is-loading">Reading the selected games\u2026</div>' +
       "</div>";
-    panel.querySelector(".insights-title").addEventListener("click", function () {
-      panel.classList.toggle("collapsed");
-    });
-    el.messagesContainer.insertBefore(panel, el.messagesContainer.firstChild);
-
-    const genBtn = panel.querySelector("#insights-generate");
-    genBtn.disabled = !!generate;
-    genBtn.addEventListener("click", function () {
-      renderInsights(teamKey, mapName, true);
-    });
+    el.firstReadPanel
+      .querySelector(".first-read-title")
+      .addEventListener("click", function () {
+        el.firstReadPanel.classList.toggle("collapsed");
+      });
 
     const isMock = window.location.search.includes("mock=1");
-    const params = generate ? `?generate=1${isMock ? "&mock=1" : ""}` : "";
+    const params = new URLSearchParams();
+    params.set("generate", "1");
+    if (isMock) params.set("mock", "1");
+    if (matchIds && matchIds.length) params.set("matches", matchIds.join(","));
     fetch(
-      `/api/teams/${encodeURIComponent(teamKey)}/${encodeURIComponent(mapName)}/insights${params}`
+      `/api/teams/${encodeURIComponent(teamKey)}/${encodeURIComponent(mapName)}/insights?` +
+        params.toString()
     )
       .then(function (res) {
         if (res.ok) return res.json();
@@ -653,49 +673,61 @@
           throw { status: res.status, detail: (body && body.detail) || "" };
         });
       })
-      .then(function (data) {
-        const body = panel.querySelector("#insights-body");
-        const demoCount = (data.generated_from || []).length || 1;
-        let html = "";
-        if (data.games && data.games.length) {
-          html +=
-            '<div class="insights-games">' +
-            data.games.map(function (g) { return escapeHtml(g.label); }).join(" · ") +
-            "</div>";
-        }
-        html += formatMessageText(data.text);
-        if (data.warnings && data.warnings.length) {
-          html +=
-            '<div class="insights-warnings">Verification warnings: ' +
-            escapeHtml(data.warnings.join("; ")) +
-            "</div>";
-        }
-        body.innerHTML = html;
-        genBtn.textContent = "Regenerate";
-        genBtn.disabled = false;
-        genBtn.title = `Generated from ${demoCount} demo${demoCount === 1 ? "" : "s"} (${
-          data.model || "?"
-        })`;
-      })
+      .then(function (data) { renderFirstReadCards(data); })
       .catch(function (err) {
-        const body = panel.querySelector("#insights-body");
-        genBtn.disabled = false;
-        genBtn.textContent = "Generate";
-        if (err && err.status === 404 && !generate) {
-          body.innerHTML =
-            '<p class="insights-hint">No AI read yet - click Generate to have the model ' +
-            "study every round of every demo and write its first read.</p>";
-        } else if (err && err.status === 503) {
-          body.innerHTML =
-            '<p class="insights-hint">No API key configured - set one in Settings to ' +
-            "generate the AI read.</p>";
+        const cards = el.firstReadPanel.querySelector(".first-read-cards");
+        if (err && err.status === 503) {
+          cards.innerHTML =
+            '<div class="first-read-card is-hint">No API key configured - set one in ' +
+            "Settings to generate the AI First Read for this selection.</div>";
         } else {
-          body.innerHTML =
-            '<p class="insights-hint">AI read failed: ' +
+          cards.innerHTML =
+            '<div class="first-read-card is-hint">First Read failed: ' +
             escapeHtml((err && err.detail) || "unknown error") +
-            "</p>";
+            "</div>";
         }
       });
+  }
+
+  function renderFirstReadCards(data) {
+    const meta = el.firstReadPanel.querySelector(".first-read-meta");
+    const games = (data.games || []).map(function (g) { return g.label; });
+    meta.textContent =
+      `${games.join(" \u00b7 ")}${games.length ? " \u00b7 " : ""}${data.model || ""}`;
+
+    // The prompt mandates six "## " sections: each becomes a card.
+    const chunks = String(data.text || "").split(/\n(?=## )/);
+    let html = "";
+    chunks.forEach(function (chunk) {
+      const trimmed = chunk.trim();
+      if (!trimmed) return;
+      const lines = trimmed.split("\n");
+      let title = "";
+      let body = trimmed;
+      if (lines[0].startsWith("## ")) {
+        title = lines[0].slice(3).trim();
+        body = lines.slice(1).join("\n").trim();
+      }
+      html +=
+        '<div class="first-read-card">' +
+        (title ? `<div class="first-read-card-title">${escapeHtml(title)}</div>` : "") +
+        `<div class="first-read-card-body">${formatMessageText(body)}</div>` +
+        "</div>";
+    });
+    if (data.warnings && data.warnings.length) {
+      html +=
+        '<div class="first-read-card is-warnings"><div class="first-read-card-title">' +
+        "Verification warnings</div><div class=\"first-read-card-body\">" +
+        escapeHtml(data.warnings.join("; ")) +
+        "</div></div>";
+    }
+    el.firstReadPanel.querySelector(".first-read-cards").innerHTML =
+      html || '<div class="first-read-card is-hint">The model returned nothing readable.</div>';
+  }
+
+  function clearFirstRead() {
+    el.firstReadPanel.classList.add("hidden");
+    el.firstReadPanel.innerHTML = "";
   }
 
   function sendMessage() {

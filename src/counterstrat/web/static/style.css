@@ -625,6 +625,106 @@ code, pre {
   justify-content: flex-end;
 }
 
+/* AI First Read: pinned above the chat, cards per section, own scroll */
+
+.first-read-panel {
+  flex-shrink: 0;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  padding: 8px 16px;
+}
+
+.first-read-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 2px 0 6px;
+  flex-shrink: 0;
+}
+
+.first-read-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-orange);
+  cursor: pointer;
+  user-select: none;
+}
+
+.first-read-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.first-read-cards {
+  overflow-y: auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.first-read-panel.collapsed .first-read-cards {
+  display: none;
+}
+
+.first-read-panel.collapsed {
+  max-height: none;
+}
+
+.first-read-panel.collapsed .insights-chevron {
+  display: inline-block;
+  transform: rotate(-90deg);
+}
+
+.first-read-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: break-word;
+}
+
+.first-read-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.first-read-card.is-loading,
+.first-read-card.is-hint {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.first-read-card.is-warnings {
+  border-color: var(--color-warning-border);
+  background-color: var(--color-warning-bg);
+}
+
+.first-read-card-body code {
+  background-color: var(--bg-tertiary);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 /* ==========================================================================
    Chat & Analysis Pane
    ========================================================================== */

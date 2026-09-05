@@ -38,6 +38,7 @@
     el.tableBody = document.querySelector("#callouts-table tbody");
     el.messages = document.getElementById("messages-container");
     el.inputBar = document.getElementById("chat-input-bar");
+    el.firstRead = document.getElementById("first-read-panel");
     el.zoomBox = document.getElementById("callouts-zoom");
     el.areasBtn = document.getElementById("callouts-areas");
   }
@@ -562,6 +563,10 @@
     el.view.classList.remove("hidden");
     el.messages.classList.add("hidden");
     el.inputBar.classList.add("hidden");
+    if (el.firstRead) {
+      state.firstReadWasVisible = !el.firstRead.classList.contains("hidden");
+      el.firstRead.classList.add("hidden");
+    }
     el.tabCallouts.classList.add("active");
     el.tabChat.classList.remove("active");
     loadMaps();
@@ -571,6 +576,9 @@
     el.view.classList.add("hidden");
     el.messages.classList.remove("hidden");
     el.inputBar.classList.remove("hidden");
+    if (el.firstRead && state.firstReadWasVisible) {
+      el.firstRead.classList.remove("hidden");
+    }
     el.tabCallouts.classList.remove("active");
     el.tabChat.classList.add("active");
   }
