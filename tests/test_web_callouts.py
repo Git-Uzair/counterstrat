@@ -250,6 +250,18 @@ def test_user_lake_ticks_never_move_labels(cfg: AppConfig, client: TestClient):
     assert zones["Middle"]["u"] is None
 
 
+def _seed_calibration_cache(cfg: AppConfig, map_name: str, ticks: pl.DataFrame) -> None:
+    """Operator calibration tick cache: the ONLY dense grounding source for
+    custom-zone placement (user lakes deliberately play no part)."""
+    cache = cfg.data_root / "calibration" / ".cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    ticks.write_parquet(cache / "calseed.parquet")
+    (cache / "index.json").write_text(
+        json.dumps({"calseed": {"file": "cal.dem", "map": map_name, "rows": ticks.height}}),
+        encoding="utf-8",
+    )
+
+
 def _seed_empty_tables(cfg: AppConfig, match_id: str = "m1") -> None:
     # No rosters.parquet: build_team_clusters skips missing files but would
     # crash on a schemaless one. serialize_match needs rounds.round_num.
@@ -264,8 +276,21 @@ def test_put_zones_places_zone_rebuilds_and_anchors_at_user_point(
     cfg: AppConfig, client: TestClient
 ):
     """Pointing at the radar creates a zone; the rebuild bakes it into the
-    lake; its label anchors exactly where the user clicked."""
+    lake; its label anchors exactly where the user clicked. Grounding comes
+    from calibration data - the user's lake is only the bake target."""
     _seed_calibration(cfg, MAP)
+    _seed_calibration_cache(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [190.0, 200.0, 210.0],
+                "Y": [-310.0, -300.0, -290.0],
+                "Z": [0.0] * 3,
+                "last_place_name": ["Middle"] * 3,
+            }
+        ),
+    )
     _seed_match(
         cfg,
         MAP,
@@ -332,6 +357,18 @@ def test_put_zones_rect_drag_bakes_and_reports_extents(cfg: AppConfig, client: T
     """A dragged rectangle: corners -> world box, ticks inside rename, the
     callouts payload carries the shape and normalized extents for drawing."""
     _seed_calibration(cfg, MAP)
+    _seed_calibration_cache(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [200.0, 210.0],
+                "Y": [-300.0, -290.0],
+                "Z": [0.0] * 2,
+                "last_place_name": ["Middle"] * 2,
+            }
+        ),
+    )
     _seed_match(
         cfg,
         MAP,
@@ -422,6 +459,30 @@ def test_put_zones_grounds_from_shipped_anchor_z(
     assert r.status_code == 400 and "position data" in r.json()["detail"]
 
 
+def test_user_lake_never_grounds_placement(cfg: AppConfig, client: TestClient):
+    """The contract: user-uploaded demos play NO part in callouts. A lake full
+    of ticks at the exact spot still cannot ground a placement."""
+    _seed_calibration(cfg, MAP)
+    _seed_match(
+        cfg,
+        MAP,
+        pl.DataFrame(
+            {
+                "X": [200.0, 210.0],
+                "Y": [-300.0, -290.0],
+                "Z": [0.0] * 2,
+                "last_place_name": ["Middle"] * 2,
+                "is_alive": [True] * 2,
+            }
+        ),
+    )
+    r = client.put(
+        f"/api/maps/{MAP}/zones",
+        json={"zones": [{"name": "Bagsy", "u": 0.6, "v": 0.65, "radius": 100.0}]},
+    )
+    assert r.status_code == 400 and "position data" in r.json()["detail"]
+
+
 def test_put_zones_grounds_from_calibration_cache(cfg: AppConfig, client: TestClient):
     """Operator machines: the calibration tick caches ground placements when
     the corpus is empty."""
@@ -457,6 +518,11 @@ def test_put_zones_validation(cfg: AppConfig, client: TestClient):
     assert r.status_code == 400 and "calibration" in r.json()["detail"]
 
     _seed_calibration(cfg, MAP)
+    _seed_calibration_cache(
+        cfg,
+        MAP,
+        pl.DataFrame({"X": [200.0], "Y": [-300.0], "Z": [0.0], "last_place_name": ["Middle"]}),
+    )
     _seed_match(
         cfg,
         MAP,
@@ -476,7 +542,7 @@ def test_put_zones_validation(cfg: AppConfig, client: TestClient):
         ),
     )
     _seed_empty_tables(cfg)
-    # Far from any player data -> rejected (cannot ground the zone).
+    # Far from any calibration data -> rejected (cannot ground the zone).
     r = client.put(
         f"/api/maps/{MAP}/zones",
         json={"zones": [{"name": "A", "u": 0.01, "v": 0.01, "radius": 100.0}]},

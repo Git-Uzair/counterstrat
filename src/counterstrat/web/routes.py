@@ -772,30 +772,14 @@ def _nearby_z(df: pl.DataFrame, x: float, y: float, level: str, cal) -> float | 
 def _infer_world_z(
     cfg: AppConfig, map_name: str, x: float, y: float, level: str, cal
 ) -> float | None:
-    """Ground Z for a custom-zone placement, from the best available source:
-    the user's lake ticks, then the operator's calibration tick caches, then
-    the shipped anchors' ground Z (nearest same-level anchor within 600u)."""
-    # 1. The user's own lake (most current geometry).
-    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
-    for match_id, rec in sorted(manifest.items()):
-        if rec.map_name != map_name:
-            continue
-        ticks_path = cfg.data_root / "lake" / match_id / "ticks.parquet"
-        if not ticks_path.exists():
-            continue
-        try:
-            df = (
-                pl.read_parquet(ticks_path, columns=["X", "Y", "Z", "is_alive"])
-                .filter(pl.col("is_alive"))
-                .drop_nulls(["X", "Y", "Z"])
-            )
-            z = _nearby_z(df, x, y, level, cal)
-            if z is not None:
-                return z
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Z inference unavailable from %s: %s", ticks_path, exc)
+    """Ground Z for a custom-zone placement, from CALIBRATION data only.
 
-    # 2. Calibration tick caches (operator machines): dense pooled occupancy.
+    User-uploaded demos deliberately play no part in callouts (same contract
+    as the shipped label anchors): the operator's calibration tick caches are
+    the primary source, and the shipped anchors' ground Z (nearest same-level
+    anchor within 600u) covers machines without the caches.
+    """
+    # 1. Calibration tick caches (operator machines): dense pooled occupancy.
     cache_dir = cfg.data_root / "calibration" / ".cache"
     index_path = cache_dir / "index.json"
     if index_path.exists():
@@ -813,7 +797,7 @@ def _infer_world_z(
         except Exception as exc:  # noqa: BLE001
             logger.warning("Calibration cache unusable for %s: %s", map_name, exc)
 
-    # 3. Shipped anchor ground Z: nearest same-level anchor within 600 units.
+    # 2. Shipped anchor ground Z: nearest same-level anchor within 600 units.
     from counterstrat.mapcard.anchors import load_shipped_anchor_points
     from counterstrat.radar.coords import pixel_to_game
 
