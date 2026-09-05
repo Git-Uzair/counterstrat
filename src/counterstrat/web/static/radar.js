@@ -45,7 +45,7 @@
     teamKey: null,
     mapName: null,
     displayName: null,
-    matchId: null, // non-null = single-match scope
+    matchIds: null, // non-null array = subset scope (1..N selected matches)
     info: null,
     payload: null,
     loading: false,
@@ -119,7 +119,7 @@
 
   function layersUrl() {
     const params = new URLSearchParams();
-    if (state.matchId) params.set("matches", state.matchId);
+    if (state.matchIds && state.matchIds.length) params.set("matches", state.matchIds.join(","));
     if (el.side.value) params.set("side", el.side.value);
     if (el.round.value) params.set("rounds", el.round.value);
     if (selectionFilterActive()) {
@@ -642,11 +642,11 @@
     load();
   }
 
-  function onTargetSelected(teamKey, mapName, displayName, matchId) {
+  function onTargetSelected(teamKey, mapName, displayName, matchIds) {
     state.teamKey = teamKey;
     state.mapName = mapName;
     state.displayName = displayName;
-    state.matchId = matchId || null;
+    state.matchIds = (matchIds && matchIds.length) ? matchIds : null;
     state.payload = null;
     state.info = null;
     state.level = "default";
@@ -654,8 +654,8 @@
     state.selected = null;
     state.view = { k: 1, tx: 0, ty: 0 };
     el.tabRadar.disabled = false;
-    el.tabRadar.title = state.matchId
-      ? `Radar overlay for ${displayName} on ${mapName} (match ${state.matchId})`
+    el.tabRadar.title = state.matchIds
+      ? `Radar overlay for ${displayName} on ${mapName} (${state.matchIds.length} selected match(es))`
       : `Radar overlay for ${displayName} on ${mapName}`;
     el.round.value = "";
     renderPlayerPanel();
@@ -702,9 +702,9 @@
   }
 
   window.CounterStratRadar = {
-    onTargetSelected: function (teamKey, mapName, displayName, matchId) {
+    onTargetSelected: function (teamKey, mapName, displayName, matchIds) {
       if (!el.radarView) return;
-      onTargetSelected(teamKey, mapName, displayName, matchId);
+      onTargetSelected(teamKey, mapName, displayName, matchIds);
     },
   };
 

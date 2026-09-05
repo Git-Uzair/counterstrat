@@ -12,8 +12,9 @@
     currentTeamKey: null,
     currentMapName: null,
     currentTeamData: null,
+    currentMatchIds: null, // null = full corpus scope; array = subset
     isProcessing: false,
-    pollTimer: null,
+    pollTimers: {}, // jobId -> interval handle (one per queued ingest)
     settings: null,
   };
 
@@ -26,10 +27,7 @@
     dropZone: document.getElementById("drop-zone"),
     fileInput: document.getElementById("file-input"),
     browseBtn: document.getElementById("browse-btn"),
-    jobStatus: document.getElementById("job-status"),
-    jobStage: document.getElementById("job-stage"),
-    jobDetail: document.getElementById("job-detail"),
-    jobProgressBar: document.getElementById("job-progress-bar"),
+    ingestQueue: document.getElementById("ingest-queue"),
 
     // Catalog
     teamsList: document.getElementById("teams-list"),
@@ -133,10 +131,7 @@
     });
 
     el.dropZone.addEventListener("drop", function (e) {
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        uploadDemoFile(files[0]);
-      }
+      uploadDemoFiles(e.dataTransfer.files);
     });
 
     el.browseBtn.addEventListener("click", function () {
@@ -144,31 +139,51 @@
     });
 
     el.fileInput.addEventListener("change", function () {
-      if (el.fileInput.files.length > 0) {
-        uploadDemoFile(el.fileInput.files[0]);
-        el.fileInput.value = "";
-      }
+      uploadDemoFiles(el.fileInput.files);
+      el.fileInput.value = "";
     });
   }
 
-  function uploadDemoFile(file) {
-    if (state.pollTimer) {
-      clearInterval(state.pollTimer);
-      state.pollTimer = null;
-    }
+  // Multi-file ingestion: one queue row per file, uploads run one at a time,
+  // each accepted job polls independently. Server serializes the pipelines.
+  function uploadDemoFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+    el.ingestQueue.classList.remove("hidden");
+    let chain = Promise.resolve();
+    files.forEach(function (file) {
+      const row = addQueueRow(file.name);
+      chain = chain.then(function () {
+        return uploadOneDemo(file, row);
+      });
+    });
+  }
 
-    el.jobStatus.classList.remove("hidden", "status-error", "status-done");
-    el.jobStage.textContent = "uploading";
-    el.jobDetail.textContent = `Uploading ${file.name}...`;
-    el.jobProgressBar.classList.add("progress-indeterminate");
+  function addQueueRow(name) {
+    const row = document.createElement("div");
+    row.className = "queue-item";
+    row.innerHTML =
+      '<div class="queue-item-head">' +
+      `<span class="queue-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>` +
+      '<span class="badge badge-stage">waiting</span>' +
+      "</div>" +
+      '<div class="queue-detail"></div>';
+    el.ingestQueue.appendChild(row);
+    return row;
+  }
 
+  function setQueueRow(row, stage, detail, statusClass) {
+    row.querySelector(".badge").textContent = stage;
+    row.querySelector(".queue-detail").textContent = detail || "";
+    row.classList.remove("status-error", "status-done", "status-duplicate", "status-running");
+    if (statusClass) row.classList.add(statusClass);
+  }
+
+  function uploadOneDemo(file, row) {
+    setQueueRow(row, "uploading", `Uploading ${file.name}...`, "status-running");
     const formData = new FormData();
     formData.append("demo", file);
-
-    fetch("/api/demos", {
-      method: "POST",
-      body: formData,
-    })
+    return fetch("/api/demos", { method: "POST", body: formData })
       .then(function (res) {
         if (!res.ok) {
           return res.json().then(function (err) {
@@ -178,20 +193,16 @@
         return res.json();
       })
       .then(function (data) {
-        el.jobStage.textContent = "queued";
-        el.jobDetail.textContent = `Job ID: ${data.job_id}. Ingestion pipeline starting...`;
-        pollJobStatus(data.job_id);
+        setQueueRow(row, "queued", "Waiting for the ingest pipeline...", "status-running");
+        pollJobStatus(data.job_id, row);
       })
       .catch(function (err) {
-        el.jobStatus.classList.add("status-error");
-        el.jobStage.textContent = "error";
-        el.jobDetail.textContent = err.message;
-        el.jobProgressBar.classList.remove("progress-indeterminate");
+        setQueueRow(row, "error", err.message, "status-error");
       });
   }
 
-  function pollJobStatus(jobId) {
-    state.pollTimer = setInterval(function () {
+  function pollJobStatus(jobId, row) {
+    state.pollTimers[jobId] = setInterval(function () {
       fetch(`/api/jobs/${jobId}`)
         .then(function (res) {
           if (!res.ok) {
@@ -200,31 +211,29 @@
           return res.json();
         })
         .then(function (job) {
-          el.jobStage.textContent = job.stage;
           if (job.stage === "done") {
-            clearInterval(state.pollTimer);
-            state.pollTimer = null;
-            el.jobStatus.classList.add("status-done");
-            el.jobDetail.textContent = `Ingested match ${job.match_id || ""} successfully!`;
-            el.jobProgressBar.classList.remove("progress-indeterminate");
+            clearInterval(state.pollTimers[jobId]);
+            delete state.pollTimers[jobId];
+            setQueueRow(row, "done", `Ingested match ${job.match_id || ""}`, "status-done");
             loadTeams();
+          } else if (job.stage === "duplicate") {
+            clearInterval(state.pollTimers[jobId]);
+            delete state.pollTimers[jobId];
+            setQueueRow(row, "duplicate", job.detail || "Already ingested", "status-duplicate");
           } else if (job.stage === "error") {
-            clearInterval(state.pollTimer);
-            state.pollTimer = null;
-            el.jobStatus.classList.add("status-error");
-            el.jobDetail.textContent = job.detail || "Ingestion pipeline encountered an error";
-            el.jobProgressBar.classList.remove("progress-indeterminate");
+            clearInterval(state.pollTimers[jobId]);
+            delete state.pollTimers[jobId];
+            setQueueRow(
+              row, "error", job.detail || "Ingestion pipeline encountered an error", "status-error"
+            );
           } else {
-            el.jobDetail.textContent = job.detail || `Running stage: ${job.stage}...`;
+            setQueueRow(row, job.stage, job.detail || `Running stage: ${job.stage}...`, "status-running");
           }
         })
         .catch(function (err) {
-          clearInterval(state.pollTimer);
-          state.pollTimer = null;
-          el.jobStatus.classList.add("status-error");
-          el.jobStage.textContent = "error";
-          el.jobDetail.textContent = err.message;
-          el.jobProgressBar.classList.remove("progress-indeterminate");
+          clearInterval(state.pollTimers[jobId]);
+          delete state.pollTimers[jobId];
+          setQueueRow(row, "error", err.message, "status-error");
         });
     }, 2000);
   }
@@ -247,98 +256,210 @@
       });
   }
 
+  function teamDisplay(team) {
+    return (team.names && team.names.length > 0) ? team.names.join(" / ") : team.team_key;
+  }
+
+  function fmtAdded(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function matchLine(m) {
+    const opp = m.opponent_name ? `vs ${m.opponent_name}` : "vs unknown";
+    const score = (m.score_won !== null && m.score_won !== undefined)
+      ? `${m.score_won}\u2013${m.score_lost}`
+      : "";
+    return { opp: opp, score: score, added: fmtAdded(m.added_at) };
+  }
+
   function renderTeams(teams) {
     el.teamsList.innerHTML = "";
     if (!teams || teams.length === 0) {
       el.teamsEmpty.classList.remove("hidden");
-      el.catalogCount.textContent = "0 targets";
+      el.catalogCount.textContent = "0 teams";
       return;
     }
 
     el.teamsEmpty.classList.add("hidden");
-    let totalPairs = 0;
+    let totalMatches = 0;
 
     teams.forEach(function (team) {
-      const teamDisplayName = (team.names && team.names.length > 0)
-        ? team.names.join(" / ")
-        : team.team_key;
+      const displayName = teamDisplay(team);
+      const maps = (team.maps && team.maps.length > 0) ? team.maps : [];
+      const group = document.createElement("div");
+      group.className = "team-group";
 
-      const maps = (team.maps && team.maps.length > 0) ? team.maps : ["unknown_map"];
-
-      maps.forEach(function (mapName) {
-        totalPairs++;
-        const mStats = (team.map_stats && team.map_stats[mapName]) || { rounds: team.rounds, demos: team.demos };
-        const card = document.createElement("div");
-        card.className = "team-card";
-        card.dataset.teamKey = team.team_key;
-        card.dataset.mapName = mapName;
-
-        card.innerHTML = `
-          <div class="team-card-title">
-            <span>${escapeHtml(teamDisplayName)}</span>
-            <span class="team-card-map">${escapeHtml(mapName)}</span>
-          </div>
-          <div class="team-card-stats">
-            <span class="stat-tag"><strong class="stat-n">n=${mStats.rounds}</strong> rounds</span>
-            <span class="stat-tag">${mStats.demos} demo${mStats.demos === 1 ? "" : "s"}</span>
-          </div>
-        `;
-
-        card.addEventListener("click", function () {
-          selectTarget(team, teamDisplayName, mapName, card, null);
-        });
-
-        // Per-demo chips: drill into one game, or delete a demo outright.
-        const matches = mStats.matches || [];
-        if (matches.length >= 1) {
-          const demosEl = document.createElement("div");
-          demosEl.className = "team-card-demos";
-          matches.forEach(function (m) {
-            const chip = document.createElement("span");
-            chip.className = "demo-chip";
-            chip.title = `Analyze only match ${m.match_id} (${m.rounds} rounds)`;
-
-            const label = document.createElement("button");
-            label.type = "button";
-            label.className = "demo-chip-label";
-            label.textContent = `${m.match_id.slice(0, 8)} · ${m.rounds}r`;
-            label.addEventListener("click", function (ev) {
-              ev.stopPropagation();
-              selectTarget(team, teamDisplayName, mapName, card, m.match_id);
-            });
-
-            const del = document.createElement("button");
-            del.type = "button";
-            del.className = "demo-chip-delete";
-            del.textContent = "×";
-            del.title = `Delete demo ${m.match_id} and everything mined from it`;
-            del.addEventListener("click", function (ev) {
-              ev.stopPropagation();
-              deleteDemo(m.match_id, teamDisplayName, mapName);
-            });
-
-            chip.appendChild(label);
-            chip.appendChild(del);
-            demosEl.appendChild(chip);
-          });
-          card.appendChild(demosEl);
-        }
-
-        el.teamsList.appendChild(card);
+      const header = document.createElement("button");
+      header.type = "button";
+      header.className = "team-group-header";
+      header.innerHTML =
+        `<span class="team-group-chevron">\u25be</span>` +
+        `<span class="team-group-name">${escapeHtml(displayName)}</span>` +
+        `<span class="team-group-meta">${maps.length} map${maps.length === 1 ? "" : "s"} \u00b7 ` +
+        `${team.demos} match${team.demos === 1 ? "" : "es"}</span>`;
+      header.addEventListener("click", function () {
+        group.classList.toggle("collapsed");
       });
+      group.appendChild(header);
+
+      const body = document.createElement("div");
+      body.className = "team-group-body";
+      maps.forEach(function (mapName) {
+        const mStats = (team.map_stats && team.map_stats[mapName]) ||
+          { rounds: team.rounds, demos: team.demos, matches: [] };
+        totalMatches += (mStats.matches || []).length;
+        body.appendChild(buildMapCard(team, displayName, mapName, mStats));
+      });
+      group.appendChild(body);
+      el.teamsList.appendChild(group);
     });
 
-    el.catalogCount.textContent = `${totalPairs} target${totalPairs === 1 ? "" : "s"}`;
+    // Every match is listed under both teams: show the team count instead.
+    el.catalogCount.textContent = `${teams.length} team${teams.length === 1 ? "" : "s"}`;
   }
 
-  function deleteDemo(matchId, displayName, mapName) {
+  function buildMapCard(team, displayName, mapName, mStats) {
+    const matches = mStats.matches || [];
+    const card = document.createElement("div");
+    card.className = "team-card map-card";
+    card.dataset.teamKey = team.team_key;
+    card.dataset.mapName = mapName;
+
+    const head = document.createElement("div");
+    head.className = "team-card-title";
+    head.innerHTML =
+      `<span class="team-card-map">${escapeHtml(mapName)}</span>` +
+      `<span class="map-card-meta"><strong class="stat-n">n=${mStats.rounds}</strong> \u00b7 ` +
+      `${matches.length} match${matches.length === 1 ? "" : "es"}</span>`;
+    const delAll = document.createElement("button");
+    delAll.type = "button";
+    delAll.className = "map-delete";
+    delAll.textContent = "\u00d7";
+    delAll.title = `Delete all ${matches.length} ${mapName} match(es) of ${displayName}`;
+    delAll.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      deleteMatches(matches.map(function (m) { return m.match_id; }), displayName, mapName);
+    });
+    head.appendChild(delAll);
+    card.appendChild(head);
+
+    const list = document.createElement("div");
+    list.className = "match-list";
+    matches.forEach(function (m) {
+      list.appendChild(buildMatchRow(team, displayName, mapName, card, m));
+    });
+    card.appendChild(list);
+
+    const footer = document.createElement("div");
+    footer.className = "match-actions";
+    const analyze = document.createElement("button");
+    analyze.type = "button";
+    analyze.className = "btn btn-sm btn-primary analyze-btn";
+    footer.appendChild(analyze);
+    card.appendChild(footer);
+
+    function selection() {
+      const checks = Array.from(card.querySelectorAll(".match-check"));
+      const picked = checks.filter(function (c) { return c.checked; });
+      return {
+        ids: picked.map(function (c) { return c.dataset.matchId; }),
+        rounds: picked.reduce(function (acc, c) { return acc + Number(c.dataset.rounds || 0); }, 0),
+        all: picked.length === checks.length && checks.length > 0,
+      };
+    }
+
+    function refreshAnalyzeLabel() {
+      const sel = selection();
+      analyze.disabled = sel.ids.length === 0;
+      if (sel.all) {
+        analyze.textContent = `Analyze all ${sel.ids.length} \u00b7 n=${mStats.rounds}`;
+      } else {
+        analyze.textContent =
+          `Analyze ${sel.ids.length} of ${matches.length} \u00b7 n=${sel.rounds}`;
+      }
+    }
+    card.addEventListener("change", function (ev) {
+      if (ev.target.classList.contains("match-check")) refreshAnalyzeLabel();
+    });
+    refreshAnalyzeLabel();
+
+    analyze.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      const sel = selection();
+      if (sel.ids.length === 0) return;
+      selectTarget(team, displayName, mapName, card, sel.all ? null : sel.ids);
+    });
+
+    return card;
+  }
+
+  function buildMatchRow(team, displayName, mapName, card, m) {
+    const line = matchLine(m);
+    const row = document.createElement("div");
+    row.className = "match-row";
+    row.title = `Match ${m.match_id} \u00b7 ${m.rounds} rounds`;
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = true;
+    check.className = "match-check";
+    check.dataset.matchId = m.match_id;
+    check.dataset.rounds = m.rounds;
+    row.appendChild(check);
+
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "match-label";
+    label.title = `Analyze only this match (${m.match_id})`;
+    label.innerHTML =
+      `<span class="match-opp">${escapeHtml(line.opp)}</span>` +
+      (line.score ? `<span class="match-score">${escapeHtml(line.score)}</span>` : "") +
+      `<span class="match-rounds">${m.rounds}r</span>` +
+      (line.added ? `<span class="match-added">added ${escapeHtml(line.added)}</span>` : "");
+    label.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      selectTarget(team, displayName, mapName, card, [m.match_id]);
+    });
+    row.appendChild(label);
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "match-delete";
+    del.textContent = "\u00d7";
+    del.title = `Delete this match (${line.opp} ${line.score}) and everything mined from it`;
+    del.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      deleteMatches([m.match_id], displayName, mapName);
+    });
+    row.appendChild(del);
+
+    // Clicking the row background toggles the checkbox.
+    row.addEventListener("click", function (ev) {
+      if (ev.target === row) {
+        check.checked = !check.checked;
+        check.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+
+    return row;
+  }
+
+  function deleteMatches(matchIds, displayName, mapName) {
+    if (!matchIds || matchIds.length === 0) return;
+    const many = matchIds.length > 1;
     const ok = window.confirm(
-      `Delete demo ${matchId} (${displayName} on ${mapName})?\n\n` +
-        "The demo file, its parsed data, and everything mined from it are removed. " +
+      (many
+        ? `Delete all ${matchIds.length} ${mapName} matches of ${displayName}?`
+        : `Delete this ${mapName} match of ${displayName}?`) +
+        "\n\nEach demo file, its parsed data, and everything mined from it are removed - " +
+        "including from the opposing team's card (a demo belongs to both teams). " +
         "Team profiles are rebuilt from the remaining demos."
     );
     if (!ok) return;
-    fetch(`/api/demos/${encodeURIComponent(matchId)}`, { method: "DELETE" })
+    fetch(`/api/demos?matches=${encodeURIComponent(matchIds.join(","))}`, { method: "DELETE" })
       .then(function (res) {
         if (!res.ok) {
           return res.json().then(function (body) {
@@ -349,9 +470,13 @@
       })
       .then(function () {
         // Selection may reference deleted data: reset the workspace state.
-        if (state.currentMatchId === matchId || state.currentMapName === mapName) {
+        const current = state.currentMatchIds;
+        const hitsCurrent =
+          state.currentMapName === mapName ||
+          (current && current.some(function (id) { return matchIds.indexOf(id) !== -1; }));
+        if (hitsCurrent) {
           state.currentSessionId = null;
-          state.currentMatchId = null;
+          state.currentMatchIds = null;
         }
         loadTeams();
       })
@@ -360,7 +485,7 @@
       });
   }
 
-  function selectTarget(team, displayName, mapName, cardEl, matchId) {
+  function selectTarget(team, displayName, mapName, cardEl, matchIds) {
     // Update active highlight
     document.querySelectorAll(".team-card").forEach(function (c) {
       c.classList.remove("selected");
@@ -370,18 +495,23 @@
     state.currentTeamKey = team.team_key;
     state.currentMapName = mapName;
     state.currentTeamData = team;
-    state.currentMatchId = matchId || null;
+    state.currentMatchIds = matchIds || null;
 
     const mStats = (team.map_stats && team.map_stats[mapName]) || { rounds: team.rounds, demos: team.demos };
+    const matches = mStats.matches || [];
 
     // Update Header
     el.targetTitle.textContent = `${displayName} - ${mapName}`;
-    if (matchId) {
-      const m = (mStats.matches || []).find(function (x) { return x.match_id === matchId; });
+    if (matchIds && matchIds.length > 0) {
+      const picked = matches.filter(function (m) { return matchIds.indexOf(m.match_id) !== -1; });
+      const rounds = picked.reduce(function (acc, m) { return acc + m.rounds; }, 0);
+      const names = picked.map(function (m) {
+        const line = matchLine(m);
+        return `${line.opp}${line.score ? " " + line.score : ""}`;
+      });
       el.targetMeta.innerHTML =
-        `Single match scope: <strong class="stat-n">${escapeHtml(matchId)}</strong>` +
-        (m ? ` (n = ${m.rounds} rounds)` : "") +
-        ` — <em>this game only</em>`;
+        `Scope: <strong class="stat-n">${matchIds.length} of ${matches.length}</strong> matches ` +
+        `(n = ${rounds} rounds) \u2014 ${escapeHtml(names.join(", "))}`;
     } else {
       el.targetMeta.innerHTML = `Sample size: <strong class="stat-n">n = ${mStats.rounds} rounds</strong> across ${mStats.demos} demo${mStats.demos === 1 ? "" : "s"} (${escapeHtml(team.team_key)})`;
     }
@@ -392,25 +522,25 @@
 
     // Hand the selection to the radar viewer (static/radar.js), if present.
     if (window.CounterStratRadar) {
-      window.CounterStratRadar.onTargetSelected(team.team_key, mapName, displayName, matchId || null);
+      window.CounterStratRadar.onTargetSelected(team.team_key, mapName, displayName, matchIds || null);
     }
 
     // Create session
-    createChatSession(team.team_key, mapName, displayName, matchId || null);
+    createChatSession(team.team_key, mapName, displayName, matchIds || null);
   }
 
   // =========================================================================
   // 3. Chat Sessions & Messaging
   // =========================================================================
 
-  function createChatSession(teamKey, mapName, displayName, matchId) {
+  function createChatSession(teamKey, mapName, displayName, matchIds) {
     el.chatInput.disabled = true;
     el.sendBtn.disabled = true;
 
     fetch("/api/chat/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ team_key: teamKey, map_name: mapName, match_id: matchId || null }),
+      body: JSON.stringify({ team_key: teamKey, map_name: mapName, match_ids: matchIds || null }),
     })
       .then(function (res) {
         if (!res.ok) {
@@ -430,15 +560,17 @@
 
         // Reset and show initial welcome in message stream
         el.messagesContainer.innerHTML = "";
-        const scopeNote = matchId
-          ? `\n\n**Scope: match \`${matchId}\` only** - every answer describes this one game.`
+        const scopeNote = (matchIds && matchIds.length > 0)
+          ? (matchIds.length === 1
+            ? `\n\n**Scope: 1 match only** - every answer describes this one game.`
+            : `\n\n**Scope: ${matchIds.length} selected matches** - answers describe these games only.`)
           : "";
         appendAssistantMessage({
           text: `Active session started for **${displayName}** on \`${mapName}\`.${scopeNote}\n\nYou can ask about buy-round tendencies, utility setups, opening duels, or cite specific rounds.`,
           tool_trace: [],
           warnings: [],
         });
-        if (!matchId) {
+        if (!matchIds || matchIds.length === 0) {
           // The AI First Read is a corpus-wide artifact: merged mode only.
           renderInsights(teamKey, mapName, false);
         }

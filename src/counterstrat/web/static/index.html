@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css?v=6">
+  <link rel="stylesheet" href="/static/style.css?v=7">
 </head>
 <body>
   <div class="app-shell">
@@ -28,23 +28,14 @@
       <aside class="sidebar">
         <!-- Demo Ingestion Box -->
         <section class="panel-section upload-section">
-          <h2 class="section-title">Ingest Demo</h2>
+          <h2 class="section-title">Ingest Demos</h2>
           <div id="drop-zone" class="drop-zone">
-            <input type="file" id="file-input" accept=".dem,.dem.zst,.zst,.dem.gz,.gz,.dem.bz2,.bz2" class="file-input-hidden">
-            <p class="drop-prompt">Drop <code>.dem</code> or <code>.zst</code> demo here</p>
-            <button type="button" id="browse-btn" class="btn btn-sm btn-outline">Browse File</button>
+            <input type="file" id="file-input" multiple accept=".dem,.dem.zst,.zst,.dem.gz,.gz,.dem.bz2,.bz2" class="file-input-hidden">
+            <p class="drop-prompt">Drop <code>.dem</code> / <code>.zst</code> demos here (multiple OK)</p>
+            <button type="button" id="browse-btn" class="btn btn-sm btn-outline">Browse Files</button>
           </div>
 
-          <div id="job-status" class="job-status hidden">
-            <div class="job-header">
-              <span class="job-stage-label">Ingest Status:</span>
-              <span id="job-stage" class="badge badge-stage">queued</span>
-            </div>
-            <div id="job-detail" class="job-detail"></div>
-            <div class="progress-bar-container">
-              <div id="job-progress-bar" class="progress-bar-fill progress-indeterminate"></div>
-            </div>
-          </div>
+          <div id="ingest-queue" class="ingest-queue hidden"></div>
         </section>
 
         <!-- Catalog Box -->
@@ -53,7 +44,7 @@
             <h2 class="section-title">Catalog</h2>
             <span id="catalog-count" class="catalog-count">0 targets</span>
           </div>
-          <p class="catalog-help">Select a team and map to open analyst chat</p>
+          <p class="catalog-help">Pick a team's map, choose matches, and analyze</p>
           <div id="teams-list" class="teams-list"></div>
           <div id="teams-empty" class="empty-state">
             <p>No ingested matches yet.</p>
@@ -268,8 +259,8 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=4"></script>
-  <script src="/static/radar.js?v=3"></script>
+  <script src="/static/app.js?v=5"></script>
+  <script src="/static/radar.js?v=4"></script>
   <script src="/static/callouts.js?v=5"></script>
 </body>
 </html>

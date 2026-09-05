@@ -56,6 +56,9 @@ def test_index_page(client_app: TestClient) -> None:
     assert "messages-container" in resp.text
     assert "settings-modal" in resp.text
     assert "dossier-btn" in resp.text
+    # Multi-demo ingestion: multi-select input + the per-file queue panel.
+    assert "multiple" in resp.text
+    assert "ingest-queue" in resp.text
 
 
 def test_static_app_js(client_app: TestClient) -> None:
@@ -69,12 +72,24 @@ def test_static_app_js(client_app: TestClient) -> None:
     # Feedback round: the AI First Read panel (keeps the shared panel classes).
     assert "/insights" in resp.text
     assert "ai-first-read" in resp.text
-    # Team clustering round: single-match drill-down.
-    assert "match_id" in resp.text
-    assert "demo-chip" in resp.text
-    # Feature A: demo deletion from the sidebar.
-    assert "deleteDemo" in resp.text
+    # Multi-upload queue: every file gets its own polled row; duplicates are terminal.
+    assert "uploadDemoFiles" in resp.text
+    assert "duplicate" in resp.text
+    # Team-grouped catalog tree with per-match subset selection.
+    assert "team-group" in resp.text
+    assert "match-row" in resp.text and "match-check" in resp.text
+    assert "match_ids" in resp.text
+    assert "opponent_name" in resp.text and "score_won" in resp.text
+    # Deletion: single match rows and whole map cards, one DELETE call.
+    assert "deleteMatches" in resp.text
     assert 'method: "DELETE"' in resp.text
+    assert "/api/demos?matches=" in resp.text
+
+
+def test_static_style_has_catalog_tree(client_app: TestClient) -> None:
+    css = client_app.get("/static/style.css").text
+    for cls in [".team-group", ".match-row", ".queue-item", ".ingest-queue", ".match-score"]:
+        assert cls in css, f"missing {cls}"
 
 
 def test_callouts_view_static(client_app: TestClient) -> None:

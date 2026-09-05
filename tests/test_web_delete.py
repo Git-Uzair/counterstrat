@@ -96,7 +96,7 @@ def test_batch_delete_removes_all_and_rebuilds_once(populated: AppConfig, monkey
     client = TestClient(create_app(cfg))
 
     calls = []
-    import counterstrat.web.maintenance as maintenance
+    from counterstrat.web import maintenance
 
     real = maintenance.rebuild_artifacts
     monkeypatch.setattr(maintenance, "rebuild_artifacts", lambda c: (calls.append(1), real(c))[1])
