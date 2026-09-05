@@ -636,80 +636,25 @@ def _callout_zone_names(cfg: AppConfig, map_name: str, places: list) -> list[str
     return None
 
 
-def _tick_positions(cfg: AppConfig, map_name: str, zones: list[str], cal) -> dict[str, tuple]:
-    """Fallback anchors from lake ticks for zones the VPK volumes did not name."""
-    from counterstrat.radar.coords import game_to_norm, is_lower_level, level_expr
-
-    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
-    for match_id, rec in sorted(manifest.items()):
-        if rec.map_name != map_name:
-            continue
-        ticks_path = cfg.data_root / "lake" / match_id / "ticks.parquet"
-        if not ticks_path.exists():
-            continue
-        try:
-            df = pl.read_parquet(ticks_path, columns=["X", "Y", "Z", "last_place_name", "is_alive"])
-            occupied = df.filter(
-                pl.col("is_alive") & pl.col("last_place_name").is_in(zones)
-            ).drop_nulls(["X", "Y", "Z"])
-            # A zone straddling a two-level map (nuke Ramp/Secret) labels the
-            # lower radar only when clearly below - a strict majority flips a
-            # ~50% connector between images match to match - and its anchor
-            # comes from that level's ticks only, so the label never lands on
-            # the other image's geometry.
-            occupied = occupied.with_columns(level_expr(cal, "Z").alias("_lvl"))
-            dominant = occupied.group_by("last_place_name").agg(
-                pl.when((pl.col("_lvl") == "lower").mean() >= 0.6)
-                .then(pl.lit("lower"))
-                .otherwise(pl.lit("default"))
-                .alias("_dom")
-            )
-            occupied = occupied.join(dominant, on="last_place_name").filter(
-                pl.col("_lvl") == pl.col("_dom")
-            )
-            # Per-axis medians center on the occupancy mass (immune to the
-            # outliers that drag a mean off-zone); snapping to the closest real
-            # tick then keeps the label on walkable ground even for ring- and
-            # L-shaped zones whose geometric center nobody ever stands on.
-            medians = occupied.group_by("last_place_name").agg(
-                pl.col("X").median().alias("_mx"), pl.col("Y").median().alias("_my")
-            )
-            centroids = (
-                occupied.join(medians, on="last_place_name")
-                .with_columns(
-                    ((pl.col("X") - pl.col("_mx")) ** 2 + (pl.col("Y") - pl.col("_my")) ** 2).alias(
-                        "_d2"
-                    )
-                )
-                .group_by("last_place_name")
-                .agg(pl.col("X", "Y", "Z").sort_by(["_d2", "X", "Y", "Z"]).first())
-            )
-            out: dict[str, tuple] = {}
-            for row in centroids.iter_rows(named=True):
-                u, v = game_to_norm(cal, row["X"], row["Y"])
-                if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
-                    level = "lower" if is_lower_level(cal, row["Z"]) else "default"
-                    out[row["last_place_name"]] = (round(u, 4), round(v, 4), level)
-            if out:
-                return out
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Zone positions unavailable from %s: %s", ticks_path, exc)
-    return {}
-
-
 def _zone_anchors(cfg: AppConfig, map_name: str, zones: list[str], places: list) -> dict:
-    """(u, v, level) per zone: lake-tick centroids first, VPK volumes as fallback.
+    """(u, v, level) per zone: shipped calibration first, VPK volumes as fallback.
 
-    Tick centroids mark where players actually occupy a zone. Volume origins are
-    entity pivots - good enough to label a never-ingested map, but visibly off
-    on played maps, so they only fill the gaps.
+    Shipped anchors were computed once from operator-curated demos
+    (``counterstrat.mapcard.calibrate``) and never move with user uploads.
+    Volume origins are entity pivots - good enough to label an uncalibrated
+    map, but visibly off-center, so they only fill the gaps. The user's own
+    custom zones always anchor at their stored click point.
     """
+    from counterstrat.mapcard.anchors import load_shipped_anchors
     from counterstrat.radar.coords import game_to_norm, is_lower_level
 
+    wanted = set(zones)
+    anchors: dict[str, tuple] = {
+        z: a for z, a in load_shipped_anchors(map_name).items() if z in wanted
+    }
     cal = _radar_calibration(cfg, map_name)
     if cal is None:
-        return {}
-    anchors: dict[str, tuple] = dict(_tick_positions(cfg, map_name, zones, cal))
+        return anchors
     by_name: dict[str, list] = {}
     for p in places:
         by_name.setdefault(p.place_name, []).append(p.origin)

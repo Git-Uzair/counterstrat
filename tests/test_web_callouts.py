@@ -29,6 +29,17 @@ def isolated_repo_root(tmp_path: Path, monkeypatch):
     return fake_repo
 
 
+@pytest.fixture(autouse=True)
+def isolated_shipped_anchors(tmp_path: Path, monkeypatch) -> Path:
+    """Point shipped-anchor lookup at an empty per-test dir so the real
+    calibrated files for live maps never leak into fixtures."""
+    from counterstrat.mapcard import anchors as anchors_mod
+
+    shipped = tmp_path / "shipped_anchors"
+    monkeypatch.setattr(anchors_mod, "SHIPPED_ANCHORS_DIR", shipped)
+    return shipped
+
+
 @pytest.fixture
 def cfg(tmp_path: Path) -> AppConfig:
     cfg = AppConfig(data_root=tmp_path / "data")
@@ -126,83 +137,43 @@ def _seed_match(cfg: AppConfig, map_name: str, ticks: pl.DataFrame, match_id: st
     ticks.write_parquet(lake / "ticks.parquet")
 
 
-def test_tick_centroids_beat_volume_origins(cfg: AppConfig, client: TestClient):
-    """Played maps anchor labels where players stand, not at entity pivots."""
+def test_shipped_anchors_beat_volume_origins(
+    cfg: AppConfig, client: TestClient, isolated_shipped_anchors: Path
+):
+    """Calibrated maps anchor labels at the shipped position, not entity pivots."""
+    from counterstrat.mapcard.anchors import save_shipped_anchors
+
     _seed_vents(cfg, MAP, {"Middle": (500.0, -500.0, 0.0)})
     _seed_calibration(cfg, MAP)
-    _seed_match(
-        cfg,
+    save_shipped_anchors(
         MAP,
-        pl.DataFrame(
-            {
-                "X": [0.0, 10.0, 20.0],
-                "Y": [0.0, 10.0, 20.0],
-                "Z": [0.0, 0.0, 0.0],
-                "last_place_name": ["Middle", "Middle", "Middle"],
-                "is_alive": [True, True, True],
-            }
-        ),
+        {"Middle": (1034 / 2048, 1014 / 2048, "default")},
+        generated_from=["cal1.dem", "cal2.dem"],
+        root=isolated_shipped_anchors,
     )
 
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
-    # Tick median (10, 10), not the volume origin (500, -500).
+    # The shipped calibration, not the volume origin (500, -500).
     assert abs(zones["Middle"]["u"] - (1034 / 2048)) < 1e-3
     assert abs(zones["Middle"]["v"] - (1014 / 2048)) < 1e-3
 
 
-def test_anchor_sits_on_occupied_ground_not_ring_center(cfg: AppConfig, client: TestClient):
-    """Ring/L-shaped zones: a mean (or raw per-axis median) can land where nobody
-    ever stands; the anchor must snap to a real tick so the label is on-zone."""
-    _seed_calibration(cfg, MAP)
-    _seed_match(
-        cfg,
+def test_shipped_anchors_serve_without_radar_calibration(
+    client: TestClient, isolated_shipped_anchors: Path
+):
+    """Shipped (u, v) are radar-image coordinates already: no local radar
+    cache is needed to serve them."""
+    from counterstrat.mapcard.anchors import save_shipped_anchors
+
+    save_shipped_anchors(
         MAP,
-        pl.DataFrame(
-            {
-                "X": [100.0, -100.0, 0.0, 10.0, 80.0],
-                "Y": [0.0, 10.0, 120.0, -100.0, 80.0],
-                "Z": [0.0, 0.0, 0.0, 0.0, 0.0],
-                "last_place_name": ["Middle"] * 5,
-                "is_alive": [True] * 5,
-            }
-        ),
+        {"Middle": (0.25, 0.75, "default")},
+        generated_from=["cal.dem"],
+        root=isolated_shipped_anchors,
     )
-
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
-    # Per-axis median (10, 10) is the unoccupied ring center; the closest real
-    # tick is (100, 0) and that is where the label must sit.
-    assert abs(zones["Middle"]["u"] - (1124 / 2048)) < 1e-3
-    assert abs(zones["Middle"]["v"] - (1024 / 2048)) < 1e-3
-
-
-def test_anchor_follows_zones_dominant_level(cfg: AppConfig, client: TestClient):
-    """A zone straddling nuke's two levels labels the level most of its ticks
-    are on, and its anchor snaps to ground on THAT level - never to a stray
-    tick from the other radar image."""
-    _seed_calibration(cfg, MAP, lower_max=-450.0)
-    _seed_match(
-        cfg,
-        MAP,
-        pl.DataFrame(
-            {
-                # 6 lower-level ticks vs an upper cluster whose x is the
-                # whole-zone median: without the dominant-level filter the
-                # anchor snaps upper and the level flips.
-                "X": [0.0, 60.0, 90.0, 91.0, 320.0, 350.0, 200.0, 205.0, 210.0],
-                "Y": [0.0] * 9,
-                "Z": [-600.0] * 6 + [0.0] * 3,
-                "last_place_name": ["Middle"] * 9,
-                "is_alive": [True] * 9,
-            }
-        ),
-    )
-
-    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
-    mid = zones["Middle"]
-    assert mid["level"] == "lower"
-    # Median of the lower ticks' x is 90.5 -> snaps to the tick at (90, 0).
-    assert abs(mid["u"] - (1114 / 2048)) < 1e-3
-    assert abs(mid["v"] - (1024 / 2048)) < 1e-3
+    assert abs(zones["Middle"]["u"] - 0.25) < 1e-6
+    assert zones["Middle"]["level"] == "default"
 
 
 def test_callouts_levels_split_upper_and_lower(cfg: AppConfig, client: TestClient):
@@ -252,45 +223,27 @@ def test_put_aliases_roundtrip_and_validation(client: TestClient):
     )
 
 
-def test_callout_positions_from_lake(cfg: AppConfig, client: TestClient):
-    # Radar calibration cache + one lake match with ticks in two zones.
-    radar_dir = cfg.data_root / "radar" / MAP
-    radar_dir.mkdir(parents=True)
-    (radar_dir / "radar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-    (radar_dir / "overview.txt").write_text("x", encoding="utf-8")
-    (radar_dir / "calibration.json").write_text(
-        json.dumps(
-            {
-                "map_name": MAP,
-                "pos_x": -1024.0,
-                "pos_y": 1024.0,
-                "scale": 2.0,
-                "image_px": 1024,
-                "lower_altitude_max": None,
-            }
-        ),
-        encoding="utf-8",
-    )
+def test_user_lake_ticks_never_move_labels(cfg: AppConfig, client: TestClient):
+    """The core contract of shipped calibration: user-uploaded demos have no
+    effect on callout positions. With no shipped file and no VPK volumes, a
+    zone stays unanchored even when the lake is full of its ticks."""
+    _seed_calibration(cfg, MAP)
     _seed_match(
         cfg,
         MAP,
         pl.DataFrame(
             {
-                "X": [0.0, 10.0, 20.0, -500.0],
-                "Y": [0.0, 10.0, 20.0, 500.0],
-                "Z": [0.0, 0.0, 0.0, 0.0],
-                "last_place_name": ["Middle", "Middle", "Middle", "BombsiteA"],
-                "is_alive": [True, True, True, True],
+                "X": [0.0, 10.0, 20.0],
+                "Y": [0.0, 10.0, 20.0],
+                "Z": [0.0, 0.0, 0.0],
+                "last_place_name": ["Middle"] * 3,
+                "is_alive": [True] * 3,
             }
         ),
     )
 
     zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
-    mid = zones["Middle"]
-    # Median (10, 10) world -> u=(10+1024)/2048, v=(1024-10)/2048.
-    assert abs(mid["u"] - (1034 / 2048)) < 1e-3
-    assert abs(mid["v"] - (1014 / 2048)) < 1e-3
-    assert zones["BombsiteA"]["u"] is not None
+    assert zones["Middle"]["u"] is None
 
 
 def _seed_empty_tables(cfg: AppConfig, match_id: str = "m1") -> None:
@@ -427,12 +380,13 @@ def test_put_zones_validation(cfg: AppConfig, client: TestClient):
     assert r.status_code == 400
 
 
-def test_chat_session_speaks_user_callouts(cfg: AppConfig):
+def test_chat_session_speaks_user_callouts(cfg: AppConfig, isolated_shipped_anchors: Path):
     """The model sees one vocabulary: user names, defaults only where unnamed -
     and the zone map hands it the editor's exact label coordinates."""
     from conftest import ScriptedToolClient
 
     from counterstrat.llm.base import ChatTurn, ToolCall
+    from counterstrat.mapcard.anchors import save_shipped_anchors
 
     scripts = build_synthetic_scripts()
     tb_path = cfg.data_root / "teambooks" / SYNTHETIC_TEAM / MAP / "teambook.json"
@@ -445,21 +399,13 @@ def test_chat_session_speaks_user_callouts(cfg: AppConfig):
     (cfg.data_root / "mapcards" / MAP / "aliases.json").write_text(
         json.dumps({"Middle": "Mid"}), encoding="utf-8"
     )
-    # Anchors for the zone map: median tick (200, -300) -> (0.60, 0.65).
+    # Anchors for the zone map come from the shipped calibration: (0.60, 0.65).
     _seed_calibration(cfg, MAP)
-    _seed_match(
-        cfg,
+    save_shipped_anchors(
         MAP,
-        pl.DataFrame(
-            {
-                "X": [190.0, 200.0, 210.0],
-                "Y": [-310.0, -300.0, -290.0],
-                "Z": [0.0, 0.0, 0.0],
-                "last_place_name": ["Middle"] * 3,
-                "is_alive": [True] * 3,
-            }
-        ),
-        match_id="anchor_match",
+        {"Middle": (0.6, 0.65, "default")},
+        generated_from=["cal.dem"],
+        root=isolated_shipped_anchors,
     )
 
     scripted = ScriptedToolClient(
