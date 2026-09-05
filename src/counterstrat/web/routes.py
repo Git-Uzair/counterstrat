@@ -257,21 +257,79 @@ def remove_demo(match_id: str, request: Request, cfg: ConfigDep) -> dict[str, An
     return {"deleted": match_id, "map_name": rec.map_name}
 
 
+def _match_score(
+    lake_dir: Path, match_id: str, team_keys: set[str], cache: dict[str, Any]
+) -> tuple[int | None, int | None]:
+    """(rounds won, rounds lost) for the lineup keys in one match, or (None, None)."""
+    if match_id not in cache:
+        p = lake_dir / match_id / "rounds.parquet"
+        df = None
+        if p.exists():
+            try:
+                df = pl.read_parquet(p, columns=["winner", "t_team_key", "ct_team_key"])
+            except Exception as exc:  # noqa: BLE001 - score is decoration, never a 500
+                logger.warning("Unreadable rounds for %s: %s", match_id, exc)
+        cache[match_id] = df
+    df = cache[match_id]
+    if df is None or df.is_empty():
+        return None, None
+    won = lost = 0
+    for row in df.iter_rows(named=True):
+        w = str(row.get("winner") or "").lower()
+        if w not in ("t", "ct"):
+            continue
+        winner_key = row.get("t_team_key") if w == "t" else row.get("ct_team_key")
+        if str(winner_key) in team_keys:
+            won += 1
+        else:
+            lost += 1
+    return won, lost
+
+
 @router.get("/teams")
 def list_teams(cfg: ConfigDep) -> list[dict[str, Any]]:
-    """One entry per team CLUSTER: stand-in lineups merge, demos accumulate."""
+    """One entry per team CLUSTER: stand-in lineups merge, demos accumulate.
+
+    Match entries carry who-vs-who at first look: opponent cluster, the score
+    from this team's perspective, and the upload date.
+    """
     clusters = load_or_build_clusters(cfg.data_root)
     unique = {c.team_id: c for c in clusters.values()}
+
+    manifest = load_manifest(cfg.data_root / "corpus.jsonl")
+    match_teams: dict[str, list[Any]] = {}
+    for c in unique.values():
+        for mid in c.matches:
+            match_teams.setdefault(mid, []).append(c)
+    score_cache: dict[str, Any] = {}
 
     result = []
     for team_id in sorted(unique):
         c = unique[team_id]
+        keys = c.all_keys()
         map_stats: dict[str, dict[str, Any]] = {}
         for match_id, tm in sorted(c.matches.items()):
             st = map_stats.setdefault(tm.map_name, {"demos": 0, "rounds": 0, "matches": []})
             st["demos"] += 1
             st["rounds"] += tm.rounds
-            st["matches"].append({"match_id": match_id, "rounds": tm.rounds})
+            opponent = next(
+                (o for o in match_teams.get(match_id, []) if o.team_id != team_id), None
+            )
+            rec = manifest.get(match_id)
+            won, lost = _match_score(cfg.data_root / "lake", match_id, keys, score_cache)
+            st["matches"].append(
+                {
+                    "match_id": match_id,
+                    "rounds": tm.rounds,
+                    "added_at": rec.registered_at if rec else None,
+                    "opponent_id": opponent.team_id if opponent else None,
+                    "opponent_name": (opponent.name or opponent.team_id) if opponent else None,
+                    "score_won": won,
+                    "score_lost": lost,
+                }
+            )
+        for st in map_stats.values():
+            st["matches"].sort(key=lambda m: m["added_at"] or "", reverse=True)
         result.append(
             {
                 "team_key": team_id,

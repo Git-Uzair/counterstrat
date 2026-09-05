@@ -67,6 +67,51 @@ def test_teams_catalog_merges_stand_in_lineups(client_app: TestClient, test_cfg:
     assert all(m["rounds"] == 4 for m in ancient["matches"])
 
 
+def test_teams_catalog_matches_carry_opponent_score_and_date(
+    client_app: TestClient, test_cfg: AppConfig
+):
+    """Match entries answer who-vs-who at first look: opponent, score, added."""
+    from test_teams_clusters import SQUAD_A, SQUAD_C, _lineup_key, _write_match
+
+    key_a, key_c = _lineup_key(SQUAD_A), _lineup_key(SQUAD_C)
+    _write_match(
+        test_cfg.data_root, "m_one", "de_ancient", [(SQUAD_A, "alpha"), (SQUAD_C, "bravo")]
+    )
+    # alpha played CT and won 3 of 4 rounds (winner values are lowercase in the lake).
+    pl.DataFrame(
+        {
+            "round_num": [1, 2, 3, 4],
+            "winner": ["ct", "ct", "t", "ct"],
+            "t_team_key": [key_c] * 4,
+            "ct_team_key": [key_a] * 4,
+        }
+    ).write_parquet(test_cfg.data_root / "lake" / "m_one" / "rounds.parquet")
+    # A second match with NO rounds.parquet: scores must be None, not a crash.
+    _write_match(
+        test_cfg.data_root, "m_two", "de_ancient", [(SQUAD_A, "alpha"), (SQUAD_C, "bravo")]
+    )
+
+    teams = client_app.get("/api/teams").json()
+    alpha = next(t for t in teams if t["names"] == ["alpha"])
+    matches = {m["match_id"]: m for m in alpha["map_stats"]["de_ancient"]["matches"]}
+
+    m1 = matches["m_one"]
+    assert m1["opponent_name"] == "bravo"
+    assert m1["opponent_id"] == key_c
+    assert m1["score_won"] == 3 and m1["score_lost"] == 1
+    assert m1["added_at"] == "2026-09-03T00:00:00+00:00"
+
+    m2 = matches["m_two"]
+    assert m2["score_won"] is None and m2["score_lost"] is None
+    assert m2["opponent_name"] == "bravo"
+
+    # The opponent's view mirrors the score.
+    bravo = next(t for t in teams if t["names"] == ["bravo"])
+    b1 = {m["match_id"]: m for m in bravo["map_stats"]["de_ancient"]["matches"]}["m_one"]
+    assert b1["score_won"] == 1 and b1["score_lost"] == 3
+    assert b1["opponent_name"] == "alpha"
+
+
 def test_scout_brief_endpoint(client_app: TestClient, test_cfg: AppConfig):
     assert client_app.get("/api/teams/ghost/de_anubis/brief").status_code == 404
 
