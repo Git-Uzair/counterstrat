@@ -177,4 +177,31 @@ commits per task, remind user to restart the dev server.
 - `_build_session` re-mining for subsets uses only that subset's scripts -
   identical semantics to today's single-match path, just N>1.
 
+## Execution record (2026-09-05, all tasks DONE)
+
+| Task | Commit |
+|---|---|
+| 0 (pre-req) NaN ingest crash fix (orphan molly, dust2) | 118831e |
+| 1 Ingest lock + duplicate stage + filename collisions | 889d4eb |
+| 2 Catalog enrichment (opponent/score/added_at) | 5b6711d |
+| 3 Chat subset scope (match_ids) | 41d5fbb |
+| 4 Batch delete, one rebuild | a2ee9ff |
+| 5-7 Frontend: queue panel, catalog tree, deletion UX | 97cc980 |
+
+Suite at completion: 389 passed / 6 live-deselected; ruff clean; both JS
+files pass `node --check`. Radar subset scope reuses the pre-existing
+`matches` csv param (`radar_api.py:145`) - no backend change needed there.
+
+Operator actions owed: RESTART the dev server (old code stays loaded
+otherwise), then re-upload the dust2 demo that crashed
+(`1-bb7908c0-...-1-1.dem`) - its earlier failure left it registered but
+script-less, and the duplicate check deliberately re-runs such matches.
+
+Notes:
+- Dossier + AI First Read stay corpus-wide artifacts; First Read renders
+  only when the full match set is selected (same rule as the old
+  single-match behavior).
+- `test_upload_incomplete_prior_ingest_reruns` pins the crash-recovery
+  path the dust2 demo needs.
+
 PLAN COMPLETE
