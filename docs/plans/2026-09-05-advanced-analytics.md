@@ -1,7 +1,7 @@
 # Advanced analytics: rotation latency, utility ROI, death contexts, retake trees, matchup diff
 
 Date: 2026-09-05
-Status: PROPOSED
+Status: EXECUTED (2026-09-05, all five tasks; see Outcome at the end)
 
 ## Context
 
@@ -233,3 +233,39 @@ land sequentially, one commit each.
   "what's their B retake conversion?" - answers cite the new tools.
 
 PLAN COMPLETE
+
+## Outcome (recorded 2026-09-05)
+
+All five tasks landed, one commit each, on master. 449 tests pass
+(404 at baseline), ruff clean. Deviations from the plan text, all verified
+in-session:
+
+- `extract.py` needed NO change: the tick prop is `active_weapon_name` and
+  has been in TICK_PROPS since the first lake commit (60259a6), already
+  proven by movement.py's C4-holder detection. Victim weapon therefore
+  works on OLD lakes too, not just new ingests.
+- `utility_near` triggers on ANY enemy detonation (nearest-in-time claims
+  the response) rather than a spatial adjacency test: the plan's own
+  fixture ("flash detonates two zones away") and the over-rotation read
+  ("B anchor breaks on A-side utility") both require cross-map triggers.
+  Documented in the model, the tool text, and both prompts.
+- Utility ROI dollar verdicts gate on the MEASURED sub-sample (not raw
+  throw count): five throws with one measured effect are one data point.
+- Death-context speed uses 16 Hz position deltas as planned; the lake's
+  `velocity` prop was probed and rejected (median 281 u/s, max 220k -
+  not a usable speed scalar).
+- Budget check: the four First Read sections add ~5.3k chars (~1.3k
+  tokens) on a real single-match corpus and are hard-capped at 15 rows
+  each, so the delta stays constant as the corpus grows: ~1% of the 226k
+  baseline, within the ~2% bound. (The live countTokens script was not
+  run - it spends API budget; measured in characters instead.)
+- Real-lake probe of the full enrichment (match 7d3100eb84266589,
+  de_ancient, 14 rounds): 156 rotations (utility_near 123 / first_blood
+  27 / plant 6, median latency 0.6s), 81 flashes with blind splits,
+  80 HEs and 82 mollies with damage, 3 smoke kills-through, and death
+  contexts on all 98 kills (70 with a held weapon; the rest degrade to
+  None as designed).
+- Rebuild path verified by reading maintenance.py:204 (it calls
+  serialize_match on the stored lake, which now emits the enrichment) and
+  by the probe above running that exact call against a pre-upgrade lake.
+  Operator note added to docs/NEEDS-FROM-YOU.md.

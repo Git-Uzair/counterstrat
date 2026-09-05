@@ -115,6 +115,18 @@ fixtures. Two honesty notes instead:
    prediction benchmark (≥300 held-out rounds). They run on whatever has
    been uploaded; none gates a product feature.
 
+## Operator note — advanced analytics on existing corpora (2026-09-05)
+
+Rotation responses, utility ROI, death contexts and retake trees are folded
+into round scripts at serialize time. Demos ingested **after** this update
+carry them automatically. For corpora ingested **before** it, click
+**Rebuild** on each map in the web UI (or re-upload the demos) — the rebuild
+re-serializes every script from the stored lake, which already contains all
+the data these analytics need — then restart the server so open chat
+sessions reload the enriched scripts. Nothing needs re-downloading; old
+scripts keep working untouched (the new fields are optional), they just
+answer the new questions with "not measured" until rebuilt.
+
 ## Decisions directed by you (locked)
 
 - **Dev-time LLM policy:** any development/live-test call uses the latest
