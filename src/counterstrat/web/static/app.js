@@ -434,7 +434,8 @@
       ev.stopPropagation();
       const sel = selection();
       if (sel.ids.length === 0) return;
-      selectTarget(team, displayName, mapName, card, sel.all ? null : sel.ids);
+      // Analyze is the explicit ask: generate the First Read for this scope.
+      selectTarget(team, displayName, mapName, card, sel.all ? null : sel.ids, true);
     });
 
     return card;
@@ -530,7 +531,7 @@
       });
   }
 
-  function selectTarget(team, displayName, mapName, cardEl, matchIds) {
+  function selectTarget(team, displayName, mapName, cardEl, matchIds, autoGenerate) {
     // Update active highlight
     document.querySelectorAll(".team-card").forEach(function (c) {
       c.classList.remove("selected");
@@ -563,14 +564,14 @@
     }
 
     // Create session
-    createChatSession(team.team_key, mapName, displayName, matchIds || null);
+    createChatSession(team.team_key, mapName, displayName, matchIds || null, autoGenerate);
   }
 
   // =========================================================================
   // 3. Chat Sessions & Messaging
   // =========================================================================
 
-  function createChatSession(teamKey, mapName, displayName, matchIds) {
+  function createChatSession(teamKey, mapName, displayName, matchIds, autoGenerate) {
     el.chatInput.disabled = true;
     el.sendBtn.disabled = true;
 
@@ -597,8 +598,10 @@
         const sameScope = state.currentSessionId === data.session_id;
         state.currentSessionId = data.session_id;
 
-        // The First Read renders for EVERY scope, instantly on Analyze.
-        renderFirstRead(teamKey, mapName, matchIds);
+        // The First Read panel renders for EVERY scope, but only an explicit
+        // Analyze click spends an LLM call; picking a match title just probes
+        // the cache and otherwise waits for Generate/Regenerate.
+        renderFirstRead(teamKey, mapName, matchIds, autoGenerate ? "generate" : "probe");
 
         if (!sameScope) {
           el.messagesContainer.innerHTML = "";
@@ -674,10 +677,13 @@
   }
 
   // AI First Read: generated for the exact selection, rendered as cards in
-  // the pinned panel above the chat. Cached scopes are instant; new scopes
-  // show loading cards while the model reads the selected games. Passing
-  // force=true skips the cache and re-runs the read (one LLM call).
-  function renderFirstRead(teamKey, mapName, matchIds, force) {
+  // the pinned panel above the chat. Cached scopes are instant. mode:
+  //   "probe"    - serve the cached read if one exists; otherwise show a
+  //                Generate button and make NO LLM call (match title click).
+  //   "generate" - serve the cache or generate the read (Analyze / Generate).
+  //   "force"    - skip the cache and re-run the read (Regenerate).
+  function renderFirstRead(teamKey, mapName, matchIds, mode) {
+    mode = mode || "probe";
     el.firstReadPanel.classList.remove("hidden", "collapsed");
     el.firstReadPanel.innerHTML =
       '<div class="first-read-header">' +
@@ -690,7 +696,11 @@
       "</div>" +
       '<div class="first-read-cards">' +
       '<div class="first-read-card is-loading">' +
-      (force ? "Re-reading the selected games\u2026" : "Reading the selected games\u2026") +
+      (mode === "force"
+        ? "Re-reading the selected games\u2026"
+        : mode === "generate"
+          ? "Reading the selected games\u2026"
+          : "Checking for a saved read\u2026") +
       "</div>" +
       "</div>";
     el.firstReadPanel
@@ -699,16 +709,17 @@
         el.firstReadPanel.classList.toggle("collapsed");
       });
     const regenBtn = el.firstReadPanel.querySelector(".first-read-regen");
+    let nextMode = "force"; // Regenerate - unless the probe finds nothing yet
     regenBtn.disabled = true; // no double-generate while a fetch is in flight
     regenBtn.addEventListener("click", function (ev) {
       ev.stopPropagation();
-      renderFirstRead(teamKey, mapName, matchIds, true);
+      renderFirstRead(teamKey, mapName, matchIds, nextMode);
     });
 
     const isMock = window.location.search.includes("mock=1");
     const params = new URLSearchParams();
-    params.set("generate", "1");
-    if (force) params.set("force", "1");
+    if (mode !== "probe") params.set("generate", "1");
+    if (mode === "force") params.set("force", "1");
     if (isMock) params.set("mock", "1");
     if (matchIds && matchIds.length) params.set("matches", matchIds.join(","));
     fetch(
@@ -724,7 +735,16 @@
       .then(function (data) { renderFirstReadCards(data); })
       .catch(function (err) {
         const cards = el.firstReadPanel.querySelector(".first-read-cards");
-        if (err && err.status === 503) {
+        if (mode === "probe" && err && err.status === 404) {
+          // Nothing cached for this scope: wait for an explicit click.
+          nextMode = "generate";
+          regenBtn.textContent = "Generate";
+          regenBtn.title =
+            "Generate the AI First Read for this selection (one LLM call)";
+          cards.innerHTML =
+            '<div class="first-read-card is-hint">No AI First Read for this selection yet - ' +
+            "click Generate to run it (one LLM call).</div>";
+        } else if (err && err.status === 503) {
           cards.innerHTML =
             '<div class="first-read-card is-hint">No API key configured - set one in ' +
             "Settings to generate the AI First Read for this selection.</div>";

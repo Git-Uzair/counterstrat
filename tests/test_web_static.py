@@ -81,6 +81,11 @@ def test_static_app_js(client_app: TestClient) -> None:
     assert "replayTranscript" in resp.text
     assert 'params.set("matches"' in resp.text
     assert "clearFirstRead" in resp.text
+    # Picking a scope (match title click) never auto-generates: it probes the
+    # cache only, and the LLM call waits for Analyze or the panel's
+    # Generate/Regenerate button.
+    assert '"probe"' in resp.text
+    assert "No AI First Read for this selection yet" in resp.text
     # Multi-upload queue: every file gets its own polled row; duplicates are
     # terminal; finished rows dismiss themselves.
     assert "uploadDemoFiles" in resp.text
