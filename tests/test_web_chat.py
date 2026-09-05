@@ -134,6 +134,28 @@ def test_chat_session_survives_process_restart(chat_cfg: AppConfig):
     assert replayed[-1].text == "follow up"
 
 
+def test_delete_session_clears_transcript_and_memory(chat_cfg: AppConfig):
+    client = _client(chat_cfg, _scripted())
+    sid = client.post(
+        "/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP}
+    ).json()["session_id"]
+    client.post(f"/api/chat/sessions/{sid}/messages", json={"text": "hello?"})
+    transcript = chat_cfg.data_root / "chats" / f"{sid}.jsonl"
+    assert transcript.exists()
+
+    deleted = client.delete(f"/api/chat/sessions/{sid}")
+    assert deleted.status_code == 200
+    assert deleted.json() == {"session_id": sid, "status": "deleted"}
+    assert not transcript.exists()
+    assert client.get(f"/api/chat/sessions/{sid}").status_code == 404
+    assert client.delete(f"/api/chat/sessions/{sid}").status_code == 404
+
+    # Re-selecting the same scope starts a fresh conversation under the same id.
+    again = client.post("/api/chat/sessions", json={"team_key": SYNTHETIC_TEAM, "map_name": MAP})
+    assert again.json()["session_id"] == sid
+    assert client.get(f"/api/chat/sessions/{sid}").json()["messages"] == []
+
+
 def test_create_session_unknown_team_404(chat_cfg: AppConfig):
     client = _client(chat_cfg, _scripted())
     r = client.post("/api/chat/sessions", json={"team_key": "ghost", "map_name": MAP})

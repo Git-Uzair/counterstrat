@@ -663,6 +663,50 @@ code, pre {
   white-space: nowrap;
 }
 
+.first-read-actions {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.first-read-regen {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.first-read-regen:hover:not(:disabled) {
+  color: var(--accent-orange);
+  border-color: var(--accent-orange);
+}
+
+.first-read-regen:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.delete-chat-btn {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.delete-chat-btn:hover {
+  color: var(--color-error-text);
+  border-color: var(--color-error-text);
+}
+
 .first-read-cards {
   overflow-y: auto;
   min-height: 0;

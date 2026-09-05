@@ -37,6 +37,7 @@
     // Chat
     targetTitle: document.getElementById("target-title"),
     targetMeta: document.getElementById("target-meta"),
+    deleteChatBtn: document.getElementById("delete-chat-btn"),
 
     messagesContainer: document.getElementById("messages-container"),
     firstReadPanel: document.getElementById("first-read-panel"),
@@ -521,6 +522,7 @@
         el.targetMeta.textContent = "Pick a target from the catalog on the left to start";
         el.chatInput.disabled = true;
         el.sendBtn.disabled = true;
+        el.deleteChatBtn.classList.add("hidden");
         loadTeams();
       })
       .catch(function (err) {
@@ -539,6 +541,7 @@
     state.currentMapName = mapName;
     state.currentTeamData = team;
     state.currentMatchIds = matchIds || null;
+    state.currentDisplayName = displayName;
 
     const mStats = (team.map_stats && team.map_stats[mapName]) || { rounds: team.rounds, demos: team.demos };
     const matches = mStats.matches || [];
@@ -604,10 +607,41 @@
 
         el.chatInput.disabled = false;
         el.sendBtn.disabled = false;
+        el.deleteChatBtn.classList.remove("hidden");
         el.chatInput.focus();
       })
       .catch(function (err) {
         alert("Failed to initialize session: " + err.message);
+      });
+  }
+
+  // Delete the current conversation's history; the scope (and its First Read)
+  // survives, so a fresh chat starts immediately for the same selection.
+  function deleteCurrentChat() {
+    if (!state.currentSessionId || state.isProcessing) return;
+    const ok = window.confirm(
+      "Delete this conversation's history?\n\nThe AI First Read and mined data are kept; " +
+        "a fresh chat starts for the same selection."
+    );
+    if (!ok) return;
+    const sid = state.currentSessionId;
+    fetch(`/api/chat/sessions/${encodeURIComponent(sid)}`, { method: "DELETE" })
+      .then(function (res) {
+        if (!res.ok && res.status !== 404) {
+          throw new Error(`Server returned ${res.status}`);
+        }
+        // Same scope, fresh conversation: null the id so the welcome replays.
+        state.currentSessionId = null;
+        el.messagesContainer.innerHTML = "";
+        createChatSession(
+          state.currentTeamKey,
+          state.currentMapName,
+          state.currentDisplayName || "team",
+          state.currentMatchIds
+        );
+      })
+      .catch(function (err) {
+        alert("Delete chat failed: " + err.message);
       });
   }
 
@@ -641,26 +675,40 @@
 
   // AI First Read: generated for the exact selection, rendered as cards in
   // the pinned panel above the chat. Cached scopes are instant; new scopes
-  // show loading cards while the model reads the selected games.
-  function renderFirstRead(teamKey, mapName, matchIds) {
+  // show loading cards while the model reads the selected games. Passing
+  // force=true skips the cache and re-runs the read (one LLM call).
+  function renderFirstRead(teamKey, mapName, matchIds, force) {
     el.firstReadPanel.classList.remove("hidden", "collapsed");
     el.firstReadPanel.innerHTML =
       '<div class="first-read-header">' +
       '<span class="first-read-title"><span class="insights-chevron">\u25be</span> AI First Read</span>' +
+      '<span class="first-read-actions">' +
+      '<button type="button" class="first-read-regen" ' +
+      'title="Re-run the AI First Read for this selection (one LLM call)">Regenerate</button>' +
       '<span class="first-read-meta"></span>' +
+      "</span>" +
       "</div>" +
       '<div class="first-read-cards">' +
-      '<div class="first-read-card is-loading">Reading the selected games\u2026</div>' +
+      '<div class="first-read-card is-loading">' +
+      (force ? "Re-reading the selected games\u2026" : "Reading the selected games\u2026") +
+      "</div>" +
       "</div>";
     el.firstReadPanel
       .querySelector(".first-read-title")
       .addEventListener("click", function () {
         el.firstReadPanel.classList.toggle("collapsed");
       });
+    const regenBtn = el.firstReadPanel.querySelector(".first-read-regen");
+    regenBtn.disabled = true; // no double-generate while a fetch is in flight
+    regenBtn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      renderFirstRead(teamKey, mapName, matchIds, true);
+    });
 
     const isMock = window.location.search.includes("mock=1");
     const params = new URLSearchParams();
     params.set("generate", "1");
+    if (force) params.set("force", "1");
     if (isMock) params.set("mock", "1");
     if (matchIds && matchIds.length) params.set("matches", matchIds.join(","));
     fetch(
@@ -686,6 +734,9 @@
             escapeHtml((err && err.detail) || "unknown error") +
             "</div>";
         }
+      })
+      .finally(function () {
+        regenBtn.disabled = false;
       });
   }
 
@@ -1003,6 +1054,7 @@
       }
     });
 
+    el.deleteChatBtn.addEventListener("click", deleteCurrentChat);
 
     // Settings Modal
     el.settingsBtn.addEventListener("click", openSettings);

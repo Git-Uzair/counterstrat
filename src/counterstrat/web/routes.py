@@ -469,13 +469,16 @@ def get_insights(
     matches: str | None = None,
     generate: str | None = None,
     mock: str | None = None,
+    force: str | None = None,
 ) -> dict[str, Any]:
     """LLM First Read for an analysis scope (any subset of the team's matches).
 
     The scope hash of (team, map, exact match ids) keys the cache - the same
     key the chat session uses - so every selection gets its own read, reused
     forever until a demo in it is deleted. Without ``generate=1`` this only
-    serves a cache (404 otherwise), so the UI can probe cheaply.
+    serves a cache (404 otherwise), so the UI can probe cheaply. ``force=1``
+    skips the cache read and regenerates (implies ``generate=1``); the old
+    cache survives until the new read lands, so a failed run loses nothing.
     """
     from counterstrat.web.scope import scope_hash
 
@@ -502,8 +505,10 @@ def get_insights(
         scope_ids = sorted(all_ids)
     scope = scope_hash(team_key, map_name, scope_ids)
 
+    if force == "1":
+        generate = "1"
     cache_path = tb_path.parent / "insights" / f"{scope}.json"
-    if cache_path.exists():
+    if force != "1" and cache_path.exists():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             if cached.get("alias_fp", alias_fingerprint({})) == alias_fp:

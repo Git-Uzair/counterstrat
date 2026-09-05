@@ -554,6 +554,22 @@ def post_message(sid: str, req: MessageRequest, request: Request, cfg: ConfigDep
     return reply
 
 
+@router.delete("/sessions/{sid}")
+def delete_session(sid: str, request: Request, cfg: ConfigDep) -> dict[str, str]:
+    """Delete one conversation outright: its transcript file and live session.
+
+    Only the chat dies - the scope's First Read cache and mined artifacts are
+    untouched. Re-selecting the same scope starts a fresh conversation under
+    the same id (the scope hash IS the session id).
+    """
+    in_memory = _sessions(request).pop(sid, None)
+    path = _transcript_path(cfg, sid)
+    if in_memory is None and not path.exists():
+        raise HTTPException(status_code=404, detail=f"Chat session '{sid}' not found")
+    path.unlink(missing_ok=True)
+    return {"session_id": sid, "status": "deleted"}
+
+
 @router.get("/sessions/{sid}", response_model=TranscriptResponse)
 def get_session(sid: str, request: Request, cfg: ConfigDep) -> TranscriptResponse:
     session = _sessions(request).get(sid)

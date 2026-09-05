@@ -214,6 +214,43 @@ def test_insights_endpoint_mock_flow(chat_client: TestClient) -> None:
     assert chat_client.get(f"{url}?generate=1").status_code == 503
 
 
+def test_insights_force_regenerates_over_cache(chat_client: TestClient) -> None:
+    import json as _json
+
+    url = f"/api/teams/{SYNTHETIC_TEAM}/de_anubis/insights"
+    first = chat_client.get(f"{url}?generate=1&mock=1")
+    assert first.status_code == 200
+    scope = first.json()["scope"]
+    cache = Path(str(chat_client.app.state.cfg.data_root)) / (
+        f"teambooks/{SYNTHETIC_TEAM}/de_anubis/insights/{scope}.json"
+    )
+    # Tamper the cache so the serving path is provable.
+    blob = _json.loads(cache.read_text(encoding="utf-8"))
+    blob["text"] = "## stale sentinel"
+    cache.write_text(_json.dumps(blob), encoding="utf-8")
+
+    # generate=1 still serves the cache; force=1 regenerates (and implies generate).
+    assert chat_client.get(f"{url}?generate=1&mock=1").json()["text"] == "## stale sentinel"
+    fresh = chat_client.get(f"{url}?force=1&mock=1")
+    assert fresh.status_code == 200
+    assert fresh.json()["text"].startswith("## 1. Offline mock read")
+    # The cache was overwritten: a plain cache read now serves the fresh text.
+    assert chat_client.get(url).json()["text"].startswith("## 1. Offline mock read")
+
+
+def test_static_chat_controls(client_app: TestClient) -> None:
+    """Delete-chat and First Read regenerate controls ship in the bundle."""
+    html = client_app.get("/").text
+    assert 'id="delete-chat-btn"' in html
+    js = client_app.get("/static/app.js").text
+    assert "first-read-regen" in js
+    assert '"force"' in js
+    assert "deleteCurrentChat" in js
+    css = client_app.get("/static/style.css").text
+    assert ".first-read-regen" in css
+    assert ".delete-chat-btn" in css
+
+
 def test_mock_chat_flow(chat_client: TestClient) -> None:
     # 1. Create chat session
     created = chat_client.post(
