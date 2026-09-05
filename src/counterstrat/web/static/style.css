@@ -1638,6 +1638,21 @@ textarea#chat-input:disabled {
   pointer-events: none;
 }
 
+/* Occupancy bounds of the game's own zones (Areas toggle) */
+
+.zone-area {
+  position: absolute;
+  border: 1px dashed var(--border-highlight);
+  background-color: rgba(88, 166, 255, 0.05);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+#callouts-areas.active {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
 .callout-zone-dims {
   font-size: 0.75rem;
   font-family: var(--font-mono);

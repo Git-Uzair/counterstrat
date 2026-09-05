@@ -14,6 +14,7 @@
     level: "default", // which radar level is on screen (nuke upper/lower)
     view: { k: 1, tx: 0, ty: 0 }, // zoom/pan transform of the map frame
     pan: null,
+    showAreas: false, // dashed occupancy boxes of the game's own zones
     dirty: false,
     placing: false, // add-callout mode: next map click names a new zone
   };
@@ -38,6 +39,7 @@
     el.messages = document.getElementById("messages-container");
     el.inputBar = document.getElementById("chat-input-bar");
     el.zoomBox = document.getElementById("callouts-zoom");
+    el.areasBtn = document.getElementById("callouts-areas");
   }
 
   // ------------------------------------------------------------ zoom & pan
@@ -321,13 +323,13 @@
     ev.stopPropagation();
     const start = state.dragStart;
     const cur = pointerUV(ev);
-    clearGhost();
     const frame = el.labels.getBoundingClientRect();
     const draggedPx = Math.max(
       Math.abs(cur.u - start.u) * frame.width,
       Math.abs(cur.v - start.v) * frame.height
     );
     if (draggedPx < 8) {
+      clearGhost();
       setStatus("Drag a rectangle (press and move) to size the zone. Esc cancels.", false);
       return;
     }
@@ -337,6 +339,11 @@
       u2: Math.max(start.u, cur.u),
       v2: Math.max(start.v, cur.v),
     };
+    // The drawn rectangle stays on screen while the zone is named; the next
+    // render (cancel, or the post-save reload) replaces it with the real
+    // footprint.
+    state.dragGhost = null;
+    state.dragStart = null;
     setPlacing(false);
     nameNewZone(corners);
   }
@@ -445,6 +452,21 @@
     // Map labels for zones with a known anchor.
     el.labels.innerHTML = "";
     const multiLevel = state.levels.length > 1;
+    // Occupancy boxes of the game's own zones (toggle): where the engine's
+    // vocabulary actually lives, from the shipped calibration.
+    if (state.showAreas) {
+      state.zones.forEach(function (zone) {
+        if (zone.custom || !zone.bounds) return;
+        if (multiLevel && zone.level && zone.level !== state.level) return;
+        const box = document.createElement("div");
+        box.className = "zone-area";
+        box.style.left = `${zone.bounds[0] * 100}%`;
+        box.style.top = `${zone.bounds[1] * 100}%`;
+        box.style.width = `${(zone.bounds[2] - zone.bounds[0]) * 100}%`;
+        box.style.height = `${(zone.bounds[3] - zone.bounds[1]) * 100}%`;
+        el.labels.appendChild(box);
+      });
+    }
     // The user's zone footprints render under the labels: rectangles as
     // boxes, legacy spheres as circles - placement is no longer blind.
     state.zones.forEach(function (zone) {
@@ -588,6 +610,11 @@
     el.levelLower.addEventListener("click", function () { setLevel("lower"); });
     el.resetAll.addEventListener("click", resetAll);
     el.addBtn.addEventListener("click", function () { setPlacing(!state.placing); });
+    el.areasBtn.addEventListener("click", function () {
+      state.showAreas = !state.showAreas;
+      el.areasBtn.classList.toggle("active", state.showAreas);
+      render();
+    });
     // Capture phase: while placing, the drag wins over label buttons.
     el.labels.addEventListener("pointerdown", dragStart, true);
     el.labels.addEventListener("pointermove", dragMove, true);

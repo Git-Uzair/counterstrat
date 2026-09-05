@@ -133,9 +133,12 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     # Zoom/pan for precision placement.
     assert "callouts-zoom" in js
     assert "onWheel" in js and "resetView" in js
+    # Game-zone occupancy overlay (Areas toggle).
+    assert "showAreas" in js and "zone-area" in js
     css = client_app.get("/static/style.css").text
     assert ".zone-footprint" in css and ".zone-ghost" in css
     assert ".callouts-zoom" in css
+    assert ".zone-area" in css
 
 
 def test_static_style_has_first_look_panel(client_app: TestClient) -> None:

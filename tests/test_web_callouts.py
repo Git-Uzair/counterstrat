@@ -162,6 +162,23 @@ def test_shipped_anchors_beat_volume_origins(
     assert abs(zones["Middle"]["v"] - (1014 / 2048)) < 1e-3
 
 
+def test_callouts_carry_shipped_zone_bounds(client: TestClient, isolated_shipped_anchors: Path):
+    """Default zones expose their calibrated occupancy box; custom zones
+    never do (their footprint comes from their own extents)."""
+    from counterstrat.mapcard.anchors import save_shipped_anchors
+
+    save_shipped_anchors(
+        MAP,
+        {"Middle": (0.5, 0.5, "default", 0.0)},
+        generated_from=["cal.dem"],
+        bounds={"Middle": (0.42, 0.44, 0.58, 0.56)},
+        root=isolated_shipped_anchors,
+    )
+    zones = {z["name"]: z for z in client.get(f"/api/maps/{MAP}/callouts").json()["zones"]}
+    assert zones["Middle"]["bounds"] == [0.42, 0.44, 0.58, 0.56]
+    assert zones["BombsiteA"]["bounds"] is None  # not calibrated in this fixture
+
+
 def test_shipped_anchors_serve_without_radar_calibration(
     client: TestClient, isolated_shipped_anchors: Path
 ):

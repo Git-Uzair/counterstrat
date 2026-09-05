@@ -94,9 +94,16 @@ def test_rect_validation(tmp_path: Path):
         save_custom_zones(
             tmp_path,
             "m",
-            [CustomZone(name="A", shape="rect", half_x=10.0, half_y=100.0, **ok)],
+            [CustomZone(name="A", shape="rect", half_x=2.0, half_y=100.0, **ok)],
             reserved=set(),
         )
+    # Tiny hide-spot rects are legal down to a 5-unit half-extent.
+    save_custom_zones(
+        tmp_path,
+        "hide",
+        [CustomZone(name="A", shape="rect", half_x=5.0, half_y=5.0, **ok)],
+        reserved=set(),
+    )
     # A valid rect saves and round-trips with its shape.
     saved = save_custom_zones(tmp_path, "m", [_rect()], reserved=set())
     assert saved[0].shape == "rect" and saved[0].half_x == 80.0

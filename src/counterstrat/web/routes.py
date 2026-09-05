@@ -711,9 +711,12 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
     zones = _callout_zone_names(cfg, map_name, places)
     if zones is None:
         raise HTTPException(status_code=404, detail=f"No map card or VPK zone data for {map_name}")
+    from counterstrat.mapcard.anchors import load_shipped_zone_bounds
+
     aliases = load_aliases(cfg.data_root, map_name)
     custom = {z.name: z for z in load_custom_zones(cfg.data_root, map_name)}
     anchors = _zone_anchors(cfg, map_name, zones, places)
+    zone_bounds = load_shipped_zone_bounds(map_name)
     levels = sorted({a[2] for a in anchors.values()}) or ["default"]
     cal = _radar_calibration(cfg, map_name)
     world_per_norm = (cal.scale * cal.image_px) if cal is not None else None
@@ -730,6 +733,7 @@ def get_callouts(map_name: str, cfg: ConfigDep) -> dict[str, Any]:
             "radius": custom[z].radius if z in custom else None,
             "half_x": custom[z].half_x if z in custom else None,
             "half_y": custom[z].half_y if z in custom else None,
+            "bounds": list(zone_bounds[z]) if z not in custom and z in zone_bounds else None,
         }
         # Normalized footprint extents so the editor can draw the region.
         cz = custom.get(z)

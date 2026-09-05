@@ -20,8 +20,11 @@ from pydantic import BaseModel
 from counterstrat.aliases import _ALIAS_RE
 
 Z_SCALE = 2.0  # verticality weight, mirrors ZoneMapper.z_scale
-MIN_RADIUS = 64.0  # also the min/max for rect half-extents
+MIN_RADIUS = 64.0  # spheres: below this, transit ticks slip through
 MAX_RADIUS = 600.0
+# Rects may be tiny: hide spots and one-way angles are held positions, which
+# the 4 Hz ticks capture densely no matter how small the footprint is.
+MIN_RECT_HALF = 5.0
 RECT_Z_BAND = 200.0  # rect vertical half-extent: covers ramps, excludes nuke's other level
 _LEVELS = {"default", "lower"}
 
@@ -96,9 +99,9 @@ def save_custom_zones(
             if z.half_x is None or z.half_y is None:
                 raise ValueError(f"Rect zone {z.name!r} needs half_x and half_y")
             for half in (z.half_x, z.half_y):
-                if not (MIN_RADIUS <= half <= MAX_RADIUS):
+                if not (MIN_RECT_HALF <= half <= MAX_RADIUS):
                     raise ValueError(
-                        f"rect half-extents must be {MIN_RADIUS:.0f}-{MAX_RADIUS:.0f} units"
+                        f"rect half-extents must be {MIN_RECT_HALF:.0f}-{MAX_RADIUS:.0f} units"
                     )
         elif not (MIN_RADIUS <= z.radius <= MAX_RADIUS):
             raise ValueError(f"radius must be {MIN_RADIUS:.0f}-{MAX_RADIUS:.0f} units")

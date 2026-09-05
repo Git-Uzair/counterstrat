@@ -33,6 +33,7 @@ import zstandard
 from counterstrat.mapcard.anchors import (
     SHIPPED_ANCHORS_DIR,
     compute_tick_anchors,
+    compute_zone_bounds,
     save_shipped_anchors,
 )
 
@@ -227,6 +228,7 @@ def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None
             map_name,
             anchors,
             generated_from=[index[sha]["file"] for sha in shas],
+            bounds=compute_zone_bounds(pooled, cal),
             root=out_dir,
         )
         written[map_name] = len(anchors)

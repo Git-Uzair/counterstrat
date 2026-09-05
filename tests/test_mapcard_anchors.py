@@ -184,6 +184,60 @@ def test_calibrate_run_dedupes_resumes_and_writes(tmp_path: Path, monkeypatch):
     assert result2["written"] == {"de_test": 1}
 
 
+def test_compute_zone_bounds_boxes_the_occupancy():
+    from counterstrat.mapcard.anchors import compute_zone_bounds
+
+    df = _frame(
+        {
+            "X": [0.0, 25.0, 50.0, 75.0, 100.0],
+            "Y": [0.0, 50.0, 100.0, 150.0, 200.0],
+            "Z": [0.0] * 5,
+            "last_place_name": ["Middle"] * 5,
+        }
+    )
+    bounds = compute_zone_bounds(df, _cal())
+    u0, v0, u1, v1 = bounds["Middle"]
+    assert 0.0 <= u0 < u1 <= 1.0 and 0.0 <= v0 < v1 <= 1.0
+    # The box spans the data: x 0..100 -> u 0.5..~0.549, y 0..200 flips to v.
+    assert abs(u0 - 1024 / 2048) < 0.02 and abs(u1 - 1124 / 2048) < 0.02
+    assert abs(v0 - 824 / 2048) < 0.02 and abs(v1 - 1024 / 2048) < 0.02
+
+
+def test_compute_zone_bounds_ignores_other_level_ticks():
+    from counterstrat.mapcard.anchors import compute_zone_bounds
+
+    df = _frame(
+        {
+            "X": [0.0, 50.0, 100.0, 5000.0],
+            "Y": [0.0] * 4,
+            "Z": [-600.0, -600.0, -600.0, 0.0],  # one stray upper tick far away
+            "last_place_name": ["Ramp"] * 4,
+        }
+    )
+    bounds = compute_zone_bounds(df, _cal(lower_max=-450.0))
+    _u0, _v0, u1, _v1 = bounds["Ramp"]
+    # The dominant (lower) level's box must not stretch toward x=5000.
+    assert u1 < 0.6
+
+
+def test_shipped_bounds_roundtrip(tmp_path: Path):
+    from counterstrat.mapcard.anchors import load_shipped_zone_bounds
+
+    anchors = {"Mid": (0.5, 0.5, "default", 10.0)}
+    save_shipped_anchors(
+        "de_test",
+        anchors,
+        generated_from=["a.dem"],
+        bounds={"Mid": (0.4, 0.4, 0.6, 0.6)},
+        root=tmp_path,
+    )
+    assert load_shipped_zone_bounds("de_test", root=tmp_path) == {"Mid": (0.4, 0.4, 0.6, 0.6)}
+    # Files without bounds load as empty, and the anchor loaders still work.
+    save_shipped_anchors("de_old", anchors, generated_from=["a.dem"], root=tmp_path)
+    assert load_shipped_zone_bounds("de_old", root=tmp_path) == {}
+    assert load_shipped_anchors("de_old", root=tmp_path)["Mid"] == (0.5, 0.5, "default")
+
+
 def test_shipped_anchor_roundtrip(tmp_path: Path):
     anchors = {"BombsiteA": (0.25, 0.75, "default"), "Ramp": (0.5, 0.5, "lower")}
     path = save_shipped_anchors(

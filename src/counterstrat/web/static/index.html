@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css?v=10">
+  <link rel="stylesheet" href="/static/style.css?v=11">
 </head>
 <body>
   <div class="app-shell">
@@ -96,6 +96,8 @@
               <button type="button" id="callouts-level-lower" class="btn btn-sm btn-outline">Lower</button>
             </div>
             <button type="button" id="callouts-add" class="btn btn-sm btn-outline">+ Add callout</button>
+            <button type="button" id="callouts-areas" class="btn btn-sm btn-outline"
+                    title="Show where each game zone actually lives (occupancy bounds from calibration)">Areas</button>
             <button type="button" id="callouts-reset-all" class="btn btn-sm btn-outline">Reset all</button>
             <span id="callouts-status" class="callouts-status">
               Click a label on the map or edit the table. Your names are what the analyst uses;
@@ -190,6 +192,6 @@
   </div>
 
   <script src="/static/app.js?v=6"></script>
-  <script src="/static/callouts.js?v=8"></script>
+  <script src="/static/callouts.js?v=9"></script>
 </body>
 </html>

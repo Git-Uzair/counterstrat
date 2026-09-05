@@ -57,6 +57,8 @@ def test_fresh_clone_serves_callout_editor(clone: TestClient):
     assert len(zones) >= 20  # the full calibrated game vocabulary
     anchored = [z for z in zones.values() if z["u"] is not None]
     assert len(anchored) == len(zones)  # every zone label is positioned
+    boxed = [z for z in zones.values() if z["bounds"]]
+    assert len(boxed) == len(zones)  # every game zone ships its occupancy box
     # The radar image itself ships with the package.
     img = clone.get("/api/radar/de_anubis/image")
     assert img.status_code == 200

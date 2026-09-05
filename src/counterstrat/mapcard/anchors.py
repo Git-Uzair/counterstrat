@@ -81,6 +81,63 @@ def compute_tick_anchors(df: pl.DataFrame, cal) -> dict[str, AnchorPoint]:
     return out
 
 
+Bounds = tuple[float, float, float, float]  # (u0, v0, u1, v1) normalized box
+
+
+def compute_zone_bounds(df: pl.DataFrame, cal) -> dict[str, Bounds]:
+    """Per-zone occupancy footprint: the 2nd-98th percentile XY box of the
+    zone's dominant-level ticks, in radar-image coordinates. Shows editors
+    where the engine's zone actually lives."""
+    needed = {"X", "Y", "Z", "last_place_name", "is_alive"}
+    if df.is_empty() or not needed <= set(df.columns):
+        return {}
+    occupied = df.filter(
+        pl.col("is_alive")
+        & pl.col("last_place_name").is_not_null()
+        & (pl.col("last_place_name") != "")
+    ).drop_nulls(["X", "Y", "Z"])
+    if occupied.is_empty():
+        return {}
+    occupied = occupied.with_columns(level_expr(cal, "Z").alias("_lvl"))
+    dominant = occupied.group_by("last_place_name").agg(
+        pl.when((pl.col("_lvl") == "lower").mean() >= 0.6)
+        .then(pl.lit("lower"))
+        .otherwise(pl.lit("default"))
+        .alias("_dom")
+    )
+    occupied = occupied.join(dominant, on="last_place_name").filter(
+        pl.col("_lvl") == pl.col("_dom")
+    )
+    boxes = occupied.group_by("last_place_name").agg(
+        pl.col("X").quantile(0.02).alias("_x0"),
+        pl.col("X").quantile(0.98).alias("_x1"),
+        pl.col("Y").quantile(0.02).alias("_y0"),
+        pl.col("Y").quantile(0.98).alias("_y1"),
+    )
+    out: dict[str, Bounds] = {}
+    for row in boxes.iter_rows(named=True):
+        # game_to_norm flips Y: the box's top-left comes from (x_min, y_max).
+        u0, v0 = game_to_norm(cal, row["_x0"], row["_y1"])
+        u1, v1 = game_to_norm(cal, row["_x1"], row["_y0"])
+        out[str(row["last_place_name"])] = (
+            round(max(0.0, u0), 4),
+            round(max(0.0, v0), 4),
+            round(min(1.0, u1), 4),
+            round(min(1.0, v1), 4),
+        )
+    return out
+
+
+def load_shipped_zone_bounds(map_name: str, root: Path | None = None) -> dict[str, Bounds]:
+    """Occupancy boxes for a map's calibrated zones; {} when not shipped."""
+    out: dict[str, Bounds] = {}
+    for name, a in _read_anchor_file(map_name, root).items():
+        b = a.get("bounds")
+        if isinstance(b, list) and len(b) == 4:
+            out[str(name)] = (float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+    return out
+
+
 def shipped_anchor_path(map_name: str, root: Path | None = None) -> Path:
     return (root or SHIPPED_ANCHORS_DIR) / f"{map_name}.json"
 
@@ -136,15 +193,19 @@ def save_shipped_anchors(
     anchors: dict[str, AnchorPoint] | dict[str, Anchor],
     *,
     generated_from: list[str],
+    bounds: dict[str, Bounds] | None = None,
     root: Path | None = None,
 ) -> Path:
     path = shipped_anchor_path(map_name, root)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    def _entry(a) -> dict:
+    def _entry(name: str, a) -> dict:
         entry = {"u": a[0], "v": a[1], "level": a[2]}
         if len(a) > 3:
             entry["z"] = a[3]
+        box = (bounds or {}).get(name)
+        if box is not None:
+            entry["bounds"] = list(box)
         return entry
 
     payload = {
@@ -152,7 +213,7 @@ def save_shipped_anchors(
         "computed_at": datetime.now(UTC).isoformat(),
         "demos": len(generated_from),
         "generated_from": sorted(generated_from),
-        "anchors": {name: _entry(a) for name, a in sorted(anchors.items())},
+        "anchors": {name: _entry(name, a) for name, a in sorted(anchors.items())},
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
