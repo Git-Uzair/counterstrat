@@ -77,34 +77,106 @@ def _decompress(src: Path, work_dir: Path) -> Path:
     return dest
 
 
-def _occupancy_frame(dem_path: Path) -> tuple[str, pl.DataFrame]:
-    """(map_name, reduced occupancy ticks) for one demo."""
+def _rounds_frame(parser) -> pl.DataFrame:
+    """round_num/start/freeze_end/end from demoparser2 events (no awpy)."""
+
+    def _ticks_of(event: str) -> pl.Series:
+        try:
+            df = pl.from_pandas(parser.parse_event(event))
+        except Exception:  # noqa: BLE001 - event absent in this demo
+            return pl.Series("tick", [], dtype=pl.Int64)
+        if df.is_empty() or "tick" not in df.columns:
+            return pl.Series("tick", [], dtype=pl.Int64)
+        return df["tick"].cast(pl.Int64).unique().sort()
+
+    starts = _ticks_of("round_start")
+    ends = _ticks_of("round_end")
+    freezes = _ticks_of("round_freeze_end")
+    if starts.is_empty() or ends.is_empty():
+        return pl.DataFrame()
+    rounds = (
+        pl.DataFrame({"start": starts})
+        .sort("start")
+        .with_row_index("round_num", offset=1)
+        .join_asof(
+            pl.DataFrame({"end": ends}).sort("end"),
+            left_on="start",
+            right_on="end",
+            strategy="forward",
+        )
+        .join_asof(
+            pl.DataFrame({"freeze_end": freezes}).sort("freeze_end"),
+            left_on="start",
+            right_on="freeze_end",
+            strategy="forward",
+        )
+        .drop_nulls(["end"])
+        .with_columns(
+            pl.col("freeze_end").fill_null(pl.col("start")),
+            pl.col("round_num").cast(pl.Int64),
+        )
+        # A freeze_end that belongs to the next round must not leak in.
+        .filter(pl.col("freeze_end") <= pl.col("end"))
+    )
+    return rounds
+
+
+def _extract_frames(dem_path: Path) -> tuple[str, str, pl.DataFrame, pl.DataFrame]:
+    """(map_name, patch_version, occupancy ticks, movement ticks) - one parse.
+
+    Occupancy feeds the anchor math (positions only). Movement keeps the
+    trajectory keys (steamid/round_num/tick/clock_s) so shipped topologies can
+    be measured from the same curated demos (see mapcard.topologies).
+    """
     from demoparser2 import DemoParser
 
     parser = DemoParser(str(dem_path))
     header = parser.parse_header()
     map_name = str(header["map_name"])
+    patch = str(header.get("patch_version") or "")
 
+    rounds = _rounds_frame(parser)
     tick_args: dict = {}
-    try:
-        starts = parser.parse_event("round_start")
-        ends = parser.parse_event("round_end")
-        first = int(starts["tick"].min())
-        last = int(ends["tick"].max())
+    if not rounds.is_empty():
+        first = int(rounds["start"].min())
+        last = int(rounds["end"].max())
         if last > first:
             tick_args["ticks"] = list(range(first, last, TICK_STEP))
-    except Exception:  # noqa: BLE001 - no round events -> parse everything
+    if not tick_args:
         logger.warning("%s: no round events; sampling the whole demo", dem_path.name)
 
     df = pl.from_pandas(parser.parse_ticks(CALIBRATION_PROPS, **tick_args))
     if not tick_args and "tick" in df.columns:
         df = df.filter(pl.col("tick") % TICK_STEP == 0)
-    df = df.filter(
-        pl.col("is_alive")
-        & pl.col("last_place_name").is_not_null()
-        & (pl.col("last_place_name") != "")
-    ).drop_nulls(["X", "Y", "Z"])
-    return map_name, df.select(["X", "Y", "Z", "last_place_name"])
+
+    occupancy = (
+        df.filter(
+            pl.col("is_alive")
+            & pl.col("last_place_name").is_not_null()
+            & (pl.col("last_place_name") != "")
+        )
+        .drop_nulls(["X", "Y", "Z"])
+        .select(["X", "Y", "Z", "last_place_name"])
+    )
+
+    moves = pl.DataFrame()
+    if not rounds.is_empty() and {"tick", "steamid"} <= set(df.columns):
+        # Mirrors lake extraction: round via backward asof on start, clock_s
+        # anchored at freeze end (counterstrat.lake.extract._sample_ticks).
+        moves = (
+            df.sort("tick")
+            .join_asof(
+                rounds.select(["round_num", "start", "freeze_end", "end"]).sort("start"),
+                left_on="tick",
+                right_on="start",
+                strategy="backward",
+            )
+            .filter(pl.col("tick") <= pl.col("end"))
+            .with_columns(((pl.col("tick") - pl.col("freeze_end")) / 64.0).alias("clock_s"))
+            .select(["steamid", "round_num", "tick", "clock_s", "is_alive", "last_place_name"])
+            .drop_nulls(["round_num"])
+        )
+    return map_name, patch, occupancy, moves
 
 
 def _kills_frame(dem_path: Path) -> pl.DataFrame:
@@ -200,6 +272,49 @@ def _supported_maps() -> set[str]:
     } - RETIRED_MAPS
 
 
+def backfill_moves(demo_dir: Path) -> int:
+    """Movement caches for demos processed before topology extraction existed.
+
+    Reparses each cached demo once and writes ``<sha>.moves.parquet`` beside
+    its occupancy cache (plus the demo's patch_version into the index), so
+    ``mapcard.topologies.export_shipped_topologies`` can measure shipped
+    move-time graphs from the calibration set. Resumable and idempotent.
+    """
+    cache_dir = demo_dir / ".cache"
+    work_dir = demo_dir / ".tmp"
+    index = _load_index(cache_dir)
+    pending = [
+        (sha, demo_dir / meta["file"])
+        for sha, meta in sorted(index.items())
+        if not (cache_dir / f"{sha}.moves.parquet").exists() and (demo_dir / meta["file"]).exists()
+    ]
+    written = 0
+    for i, (sha, arc) in enumerate(pending, 1):
+        t0 = time.time()
+        dem = None
+        try:
+            dem = _decompress(arc, work_dir)
+            _, patch, _, moves = _extract_frames(dem)
+            if moves.is_empty():
+                print(f"  [moves {i}/{len(pending)}] {arc.name}: no round events, skipped")
+                continue
+            moves.write_parquet(cache_dir / f"{sha}.moves.parquet")
+            index[sha]["patch"] = patch
+            _save_index(cache_dir, index)
+            written += 1
+            print(
+                f"  [moves {i}/{len(pending)}] {arc.name}: {moves.height} rows "
+                f"({time.time() - t0:.0f}s)"
+            )
+        except Exception as exc:
+            print(f"  [moves {i}/{len(pending)}] {arc.name} FAILED: {exc}")
+            logger.exception("Movement extraction failed for %s", arc)
+        finally:
+            if dem is not None and dem != arc and dem.exists():
+                dem.unlink()
+    return written
+
+
 def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None) -> dict:
     """Process demos (resumable), then write anchors per fully-cached map."""
     cache_dir = demo_dir / ".cache"
@@ -229,16 +344,19 @@ def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None
         dem = None
         try:
             dem = _decompress(arc, work_dir)
-            map_name, frame = _occupancy_frame(dem)
+            map_name, patch, frame, moves = _extract_frames(dem)
             kills = _kills_frame(dem)
             cache_dir.mkdir(parents=True, exist_ok=True)
             frame.write_parquet(cache_dir / f"{sha}.parquet")
             kills.write_parquet(cache_dir / f"{sha}.kills.parquet")
-            index[sha] = {"file": arc.name, "map": map_name, "rows": frame.height}
+            if not moves.is_empty():
+                moves.write_parquet(cache_dir / f"{sha}.moves.parquet")
+            index[sha] = {"file": arc.name, "map": map_name, "rows": frame.height, "patch": patch}
             _save_index(cache_dir, index)
             print(
                 f"  [{i}/{len(todo)}] {arc.name} -> {map_name} "
-                f"({frame.height} ticks, {kills.height} kills, {time.time() - t0:.0f}s)"
+                f"({frame.height} ticks, {moves.height} moves, {kills.height} kills, "
+                f"{time.time() - t0:.0f}s)"
             )
         except Exception as exc:
             print(f"  [{i}/{len(todo)}] {arc.name} FAILED: {exc}")
@@ -266,6 +384,8 @@ def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None
         finally:
             if dem is not None and dem != arc and dem.exists():
                 dem.unlink()
+
+    backfill_moves(demo_dir)
 
     remaining = len(pending) - len(todo)
     if remaining > 0:
@@ -335,11 +455,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--data-root", default="data", type=Path)
     ap.add_argument("--out", default=SHIPPED_ANCHORS_DIR, type=Path)
     ap.add_argument("--limit", type=int, default=None, help="demos to process this run")
+    ap.add_argument(
+        "--moves-only",
+        action="store_true",
+        help="only backfill movement caches (leaves shipped anchors untouched)",
+    )
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
     if not args.demo_dir.exists():
         print(f"Demo directory {args.demo_dir} does not exist")
         return 1
+    if args.moves_only:
+        print(f"movement caches written: {backfill_moves(args.demo_dir)}")
+        return 0
     run(args.demo_dir, args.data_root, args.out, limit=args.limit)
     return 0
 

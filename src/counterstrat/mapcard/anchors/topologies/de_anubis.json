@@ -1,114 +1,123 @@
 {
   "map_name": "de_anubis",
-  "computed_at": "2026-09-06T06:05:09.490144+00:00",
+  "computed_at": "2026-09-06T06:24:47.249769+00:00",
   "game_version": "14178",
   "generated_from": [
     "07d1db1b3671d660",
+    "1-05c78726-748c-4687-af80-f2bab8256831-1-1.dem.zst",
+    "1-28496943-2238-412d-bac3-93156bdbd512-1-1.dem.zst",
+    "1-56ce4b3b-43b3-4b90-a91c-ff5a423763e1-1-1.dem.zst",
+    "1-7065ab7c-bc8f-4995-adf1-ac774327c5db-1-1.dem.zst",
+    "1-b0ec69d6-4d27-4ca6-89d4-cd71bdc10b86-1-1.dem.zst",
+    "1-bd33f3ae-8f77-4467-b9db-5932ec22f466-1-1.dem.zst",
     "1281f2494a9fac5a",
     "90e40f2f6df87520",
     "be751ef67ee4b96b",
+    "card:7e066895bfa3",
     "cb84b8825b369d3c",
     "dcb095290e369e53"
   ],
   "topology": {
     "Alley": {
       "BombsiteB": 2.2,
-      "LowerTunnel": 4.2,
-      "SnipersNest": 2.6
+      "LowerTunnel": 4.1,
+      "SnipersNest": 2.8
     },
     "BackofB": {
-      "BombsiteB": 4.9
+      "BombsiteB": 5.9
     },
     "BombsiteA": {
       "Fountain": 4.4,
-      "Heaven": 8.9,
-      "Main": 2.7,
-      "Walkway": 6.0
+      "Heaven": 6.4,
+      "Main": 3.2,
+      "Walkway": 4.9
     },
     "BombsiteB": {
-      "Alley": 4.2,
-      "BackofB": 4.3,
-      "Bricks": 4.4,
-      "Connector": 4.0,
-      "OutsideLong": 5.4
+      "Alley": 4.6,
+      "BackofB": 4.4,
+      "Bricks": 4.0,
+      "Connector": 3.8,
+      "OutsideLong": 6.1
     },
     "Bricks": {
-      "BombsiteB": 1.1,
+      "BombsiteB": 1.3,
       "PalaceInterior": 1.0
     },
     "Bridge": {
-      "MidDoors": 7.2,
-      "Middle": 9.9,
-      "Ruins": 7.4,
-      "Street": 5.8
+      "Canal": 0.9,
+      "MidDoors": 7.4,
+      "Middle": 10.4,
+      "Ruins": 7.6,
+      "Street": 5.9
     },
     "CTSideUpper": {
       "CTSpawn": 2.6,
       "LowerTunnel": 2.2,
       "PalaceInterior": 2.0,
-      "SnipersNest": 2.1
+      "SnipersNest": 2.3
     },
     "CTSpawn": {
-      "CTSideUpper": 4.4,
+      "CTSideUpper": 4.3,
       "Tunnel": 1.9,
-      "Water": 2.9
+      "Water": 3.0
     },
     "Canal": {
-      "Connector": 12.5,
-      "Main": 6.3,
-      "TSideUpper": 8.2,
-      "TStairs": 2.2
+      "Bridge": 8.2,
+      "Connector": 12.8,
+      "Main": 6.0,
+      "TSideUpper": 9.0,
+      "TStairs": 2.0
     },
     "Connector": {
-      "BombsiteB": 4.8,
-      "Canal": 4.1
+      "BombsiteB": 5.4,
+      "Canal": 4.2
     },
     "Fountain": {
       "BombsiteA": 2.7,
-      "Main": 1.6
+      "Main": 1.9
     },
     "Heaven": {
-      "BombsiteA": 2.1,
-      "TunnelStairs": 3.9,
-      "Walkway": 2.6
+      "BombsiteA": 1.9,
+      "TunnelStairs": 3.5,
+      "Walkway": 3.2
     },
     "LowerTunnel": {
       "Alley": 2.2,
       "CTSideUpper": 2.1
     },
     "Main": {
-      "BombsiteA": 4.3,
-      "Canal": 6.4,
+      "BombsiteA": 4.2,
+      "Canal": 6.9,
       "Fountain": 7.8
     },
     "MidDoors": {
-      "Bridge": 4.6,
-      "Canal": 2.2,
-      "Middle": 3.6
+      "Bridge": 4.9,
+      "Canal": 3.2,
+      "Middle": 3.8
     },
     "Middle": {
-      "Bridge": 11.2,
-      "MidDoors": 6.4,
-      "PalaceInterior": 6.2,
+      "Bridge": 9.1,
+      "MidDoors": 6.1,
+      "PalaceInterior": 6.3,
       "Walkway": 3.4
     },
     "OutsideLong": {
-      "BombsiteB": 10.1,
-      "Ruins": 8.2
+      "BombsiteB": 9.2,
+      "Ruins": 6.4
     },
     "PalaceInterior": {
-      "Bricks": 5.1,
-      "CTSideUpper": 2.6,
+      "Bricks": 5.2,
+      "CTSideUpper": 3.4,
       "Middle": 1.9
     },
     "Ruins": {
-      "Bridge": 4.6,
+      "Bridge": 4.8,
       "OutsideLong": 5.2,
-      "TSpawn": 7.7
+      "TSpawn": 5.9
     },
     "SnipersNest": {
       "Alley": 2.0,
-      "CTSideUpper": 4.3
+      "CTSideUpper": 3.9
     },
     "Street": {
       "Bridge": 3.5,
@@ -117,32 +126,32 @@
       "TStairs": 3.2
     },
     "TSideUpper": {
-      "Canal": 6.7,
-      "Street": 6.0
+      "Canal": 5.6,
+      "Street": 4.6
     },
     "TSpawn": {
-      "Ruins": 3.1,
+      "Ruins": 3.0,
       "Street": 4.9
     },
     "TStairs": {
-      "Canal": 1.7,
-      "Street": 2.1
+      "Canal": 1.5,
+      "Street": 1.7
     },
     "Tunnel": {
       "CTSpawn": 2.1,
       "TunnelStairs": 2.2
     },
     "TunnelStairs": {
-      "Heaven": 2.3,
+      "Heaven": 1.9,
       "Tunnel": 1.0
     },
     "Walkway": {
-      "BombsiteA": 1.7,
-      "Heaven": 1.9,
-      "Middle": 4.7
+      "BombsiteA": 1.8,
+      "Heaven": 2.3,
+      "Middle": 4.9
     },
     "Water": {
-      "CTSpawn": 5.2
+      "CTSpawn": 6.2
     }
   }
 }

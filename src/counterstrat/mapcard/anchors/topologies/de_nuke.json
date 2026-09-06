@@ -1,106 +1,153 @@
 {
   "map_name": "de_nuke",
-  "computed_at": "2026-09-06T06:05:09.625394+00:00",
-  "game_version": "14175",
+  "computed_at": "2026-09-06T06:24:48.165378+00:00",
+  "game_version": "14178",
   "generated_from": [
+    "1-0b04e5e0-e2e8-4430-a1bb-9839a917df4a-1-1.dem.zst",
+    "1-4efcf51a-163a-474a-b23a-d9d8f815e12c-1-1 (1).dem.zst",
+    "1-58a9e1e3-f70e-4fc7-aa89-f53ae36c68af-1-1 (1).dem.zst",
+    "1-740ba395-978a-4dc7-8256-2429c0c369ab-1-1.dem.zst",
+    "1-9d917176-c781-4644-9c98-dadd97551feb-1-1.dem.zst",
+    "1-e8c2e6de-47cb-47ea-ad20-8f8c00850c1b-1-1.dem.zst",
     "card:8e99fff1242e"
   ],
   "topology": {
     "Admin": {
-      "Hell": 2.1,
-      "Ramp": 1.7
+      "Hell": 2.2,
+      "Ramp": 1.8
     },
     "BombsiteA": {
-      "Hut": 7.8,
-      "Mini": 7.6,
-      "Squeaky": 5.4,
-      "Vents": 3.6
+      "Hut": 8.3,
+      "HutRoof": 7.5,
+      "Mini": 6.6,
+      "Squeaky": 6.0,
+      "Vents": 2.9
     },
     "BombsiteB": {
-      "Decon": 9.0
+      "Decon": 4.7,
+      "Observation": 2.5,
+      "Ramp": 11.2,
+      "Tunnels": 4.7
     },
     "CTSpawn": {
       "Outside": 2.4
     },
+    "Catwalk": {
+      "Heaven": 2.1,
+      "Outside": 5.2
+    },
     "Control": {
-      "Ramp": 2.3
+      "Ramp": 2.9,
+      "Trophy": 3.2
+    },
+    "Crane": {
+      "HutRoof": 0.9,
+      "Rafters": 2.2
     },
     "Decon": {
-      "BombsiteB": 5.0
+      "BombsiteB": 2.1,
+      "Tunnels": 2.3
     },
     "Garage": {
-      "Outside": 4.8
+      "Outside": 6.2
     },
     "Heaven": {
+      "Catwalk": 1.7,
+      "Hell": 2.3,
       "Rafters": 1.6
     },
     "Hell": {
       "Admin": 1.3,
       "Heaven": 1.8,
-      "Outside": 1.8
+      "LockerRoom": 1.9,
+      "Outside": 1.9
     },
     "Hut": {
-      "BombsiteA": 1.4,
-      "Lobby": 4.5
-    },
-    "Lobby": {
-      "Hut": 15.3,
-      "Squeaky": 3.1,
-      "Vending": 2.9
-    },
-    "Mini": {
-      "BombsiteA": 3.2,
-      "Outside": 4.9
-    },
-    "Outside": {
-      "Garage": 17.2,
-      "Hell": 2.8,
-      "Lobby": 2.8,
-      "Mini": 7.1,
-      "Roof": 3.3,
-      "Secret": 22.6
-    },
-    "Rafters": {
-      "BombsiteA": 2.3,
-      "Heaven": 3.2
-    },
-    "Ramp": {
-      "Admin": 13.1,
-      "BombsiteB": 8.8,
-      "Control": 8.1
-    },
-    "Roof": {
-      "Silo": 4.0
-    },
-    "Secret": {
-      "Outside": 6.5,
-      "Tunnels": 6.5
-    },
-    "Silo": {
-      "Outside": 5.1
-    },
-    "Squeaky": {
       "BombsiteA": 1.9,
       "Lobby": 3.9
+    },
+    "HutRoof": {
+      "BombsiteA": 7.3,
+      "Hut": 2.5
+    },
+    "Lobby": {
+      "Hut": 6.8,
+      "Outside": 5.2,
+      "Roof": 4.1,
+      "Squeaky": 4.2,
+      "Vending": 3.1
+    },
+    "LockerRoom": {
+      "Hell": 5.9,
+      "Outside": 5.1
+    },
+    "Mini": {
+      "BombsiteA": 3.0,
+      "Outside": 3.2
+    },
+    "Observation": {
+      "BombsiteB": 6.6,
+      "Tunnels": 3.3
+    },
+    "Outside": {
+      "Catwalk": 27.7,
+      "Garage": 8.1,
+      "Hell": 2.8,
+      "Lobby": 2.8,
+      "Mini": 8.4,
+      "Roof": 3.1,
+      "Secret": 16.1,
+      "TSpawn": 3.9
+    },
+    "Rafters": {
+      "BombsiteA": 2.4,
+      "Crane": 2.8,
+      "Heaven": 2.8,
+      "Hut": 2.9,
+      "HutRoof": 3.1
+    },
+    "Ramp": {
+      "Admin": 13.2,
+      "BombsiteB": 7.4,
+      "Control": 8.0
+    },
+    "Roof": {
+      "Outside": 3.4,
+      "Silo": 4.1
+    },
+    "Secret": {
+      "Outside": 6.1,
+      "Tunnels": 5.2
+    },
+    "Silo": {
+      "Outside": 10.2,
+      "Roof": 6.1
+    },
+    "Squeaky": {
+      "BombsiteA": 2.6,
+      "Lobby": 4.8
     },
     "TSpawn": {
       "Outside": 4.6
     },
     "Trophy": {
-      "Control": 2.8,
-      "Vending": 3.1
+      "Control": 1.8,
+      "Vending": 2.4
     },
     "Tunnels": {
-      "Decon": 2.3,
-      "Vents": 11.2
+      "BombsiteB": 9.8,
+      "Decon": 3.2,
+      "Observation": 13.6,
+      "Secret": 10.4,
+      "Vents": 7.2
     },
     "Vending": {
-      "Lobby": 3.2,
-      "Trophy": 2.0
+      "Lobby": 3.0,
+      "Trophy": 2.7
     },
     "Vents": {
-      "BombsiteA": 7.0,
-      "Tunnels": 3.9
+      "BombsiteA": 5.4,
+      "Tunnels": 3.1
     }
   }
 }

@@ -144,13 +144,23 @@ def test_calibrate_run_dedupes_resumes_and_writes(tmp_path: Path, monkeypatch):
         ),
         "two.dem": pl.DataFrame({"X": [20.0], "Y": [20.0], "Z": [0.0], "last_place_name": ["Mid"]}),
     }
+    moves = pl.DataFrame(
+        {
+            "steamid": [1],
+            "round_num": [1],
+            "tick": [64],
+            "clock_s": [1.0],
+            "is_alive": [True],
+            "last_place_name": ["Mid"],
+        }
+    )
     parsed: list[str] = []
 
     def fake_frame(dem_path: Path):
         parsed.append(dem_path.name)
-        return "de_test", frames[dem_path.name]
+        return "de_test", "14000", frames[dem_path.name], moves
 
-    monkeypatch.setattr(calibrate, "_occupancy_frame", fake_frame)
+    monkeypatch.setattr(calibrate, "_extract_frames", fake_frame)
     monkeypatch.setattr(calibrate, "_kills_frame", lambda _dem: pl.DataFrame())
     monkeypatch.setattr(
         calibrate,
@@ -171,6 +181,8 @@ def test_calibrate_run_dedupes_resumes_and_writes(tmp_path: Path, monkeypatch):
     assert sorted(parsed) == ["one.dem", "two.dem"]  # the copy never parsed
     assert result["written"] == {"de_test": 1}
     assert result["missing"] == ["de_missing"]
+    # Movement caches ride along for shipped-topology export.
+    assert len(list((demo_dir / ".cache").glob("*.moves.parquet"))) == 2
 
     shipped = load_shipped_anchors("de_test", root=out_dir)
     # Pooled median of (0,0),(10,10),(20,20) is (10,10) -> u=1034/2048.

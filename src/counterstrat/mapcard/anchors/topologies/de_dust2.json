@@ -1,107 +1,134 @@
 {
   "map_name": "de_dust2",
-  "computed_at": "2026-09-06T06:05:09.522613+00:00",
-  "game_version": "14140",
+  "computed_at": "2026-09-06T06:24:47.595152+00:00",
+  "game_version": "14178",
   "generated_from": [
+    "1-0067b3ae-3fc3-4fe6-9ee7-5e00aedf48ad-1-1.dem.zst",
+    "1-095a7dd5-471c-411e-bd24-30e8c6f190b8-1-1.dem.zst",
+    "1-3532be48-b211-4042-b700-cc2cc53dd2a5-1-1.dem.zst",
+    "1-5a433f6f-8301-4404-8fba-bccd0319543a-1-1.dem.zst",
+    "1-5d91b431-1f2b-4c04-810f-1f9bb73115d9-1-1.dem.zst",
+    "1-a90d0896-e0c7-493d-8fb2-94a037814d8a-1-1.dem.zst",
+    "1-ca62c210-c807-4d3a-ba25-1b6b71b74535-1-1.dem.zst",
     "card:a23ea7e2f180"
   ],
   "topology": {
     "ARamp": {
-      "BombsiteA": 2.0,
-      "LongA": 2.8
+      "BombsiteA": 2.4,
+      "LongA": 2.6
     },
     "BDoors": {
       "BombsiteB": 1.8,
-      "Hole": 2.4,
-      "MidDoors": 2.9
+      "Hole": 2.2,
+      "MidDoors": 3.1
     },
     "BombsiteA": {
       "ARamp": 3.8,
-      "ExtendedA": 3.4
+      "ExtendedA": 3.7,
+      "LongA": 6.5,
+      "UnderA": 1.6
     },
     "BombsiteB": {
-      "BDoors": 8.4,
-      "Hole": 7.8,
-      "UpperTunnel": 6.9
+      "BDoors": 8.1,
+      "Hole": 7.7,
+      "UpperTunnel": 7.2
     },
     "CTSpawn": {
-      "MidDoors": 2.8,
-      "UnderA": 1.7
+      "MidDoors": 2.7,
+      "UnderA": 1.4
     },
     "Catwalk": {
-      "Middle": 2.3,
-      "ShortStairs": 4.8
+      "MidDoors": 3.1,
+      "Middle": 2.4,
+      "ShortStairs": 5.6,
+      "TopofMid": 5.3
     },
     "ExtendedA": {
-      "BombsiteA": 5.6,
-      "ShortStairs": 1.7,
-      "UnderA": 1.1
+      "BombsiteA": 4.1,
+      "ShortStairs": 1.6,
+      "UnderA": 1.4
     },
     "Hole": {
-      "BDoors": 1.5,
-      "BombsiteB": 1.1
+      "BDoors": 1.2,
+      "BombsiteB": 0.9
     },
     "LongA": {
-      "ARamp": 7.7,
-      "LongDoors": 8.0,
-      "Pit": 7.0,
-      "UnderA": 4.2
+      "ARamp": 6.6,
+      "LongDoors": 5.6,
+      "Pit": 6.8,
+      "Side": 3.1,
+      "UnderA": 7.2
     },
     "LongDoors": {
-      "LongA": 10.2,
-      "OutsideLong": 8.2
+      "LongA": 7.5,
+      "OutsideLong": 9.7,
+      "Pit": 7.9
     },
     "LowerTunnel": {
-      "Middle": 6.6,
-      "TunnelStairs": 6.2
+      "Middle": 5.6,
+      "TunnelStairs": 3.5
     },
     "MidDoors": {
-      "BDoors": 4.6,
-      "CTSpawn": 7.5,
+      "BDoors": 3.6,
+      "CTSpawn": 5.2,
+      "Catwalk": 0.1,
       "Middle": 3.3
     },
     "Middle": {
-      "Catwalk": 2.8,
-      "LowerTunnel": 1.2,
-      "MidDoors": 1.3,
-      "TopofMid": 4.0
+      "Catwalk": 2.4,
+      "LowerTunnel": 1.1,
+      "MidDoors": 1.2,
+      "TopofMid": 3.2
     },
     "OutsideLong": {
       "LongDoors": 4.2,
-      "TopofMid": 5.1
+      "TSpawn": 4.5,
+      "TopofMid": 4.5
     },
     "OutsideTunnel": {
+      "TRamp": 3.6,
       "UpperTunnel": 3.6
     },
     "Pit": {
-      "LongA": 2.1
+      "LongA": 4.6,
+      "LongDoors": 0.4
     },
     "ShortStairs": {
-      "Catwalk": 3.1,
+      "Catwalk": 2.8,
       "ExtendedA": 3.8
     },
+    "Side": {
+      "LongA": 4.4
+    },
+    "TRamp": {
+      "TSpawn": 2.8
+    },
     "TSpawn": {
-      "OutsideLong": 4.0,
-      "OutsideTunnel": 3.6,
+      "OutsideLong": 3.8,
+      "OutsideTunnel": 3.5,
+      "TRamp": 8.6,
       "TopofMid": 2.6
     },
     "TopofMid": {
-      "Catwalk": 4.3,
-      "Middle": 8.6,
-      "OutsideLong": 0.9
+      "Catwalk": 4.7,
+      "Middle": 6.4,
+      "OutsideLong": 0.9,
+      "TSpawn": 8.3
     },
     "TunnelStairs": {
-      "LowerTunnel": 2.2,
+      "LowerTunnel": 1.7,
       "UpperTunnel": 1.8
     },
     "UnderA": {
+      "BombsiteA": 0.3,
       "CTSpawn": 3.2,
-      "ExtendedA": 3.6,
+      "ExtendedA": 3.9,
       "LongA": 3.0
     },
     "UpperTunnel": {
-      "BombsiteB": 7.2,
-      "TunnelStairs": 4.6
+      "BombsiteB": 6.0,
+      "OutsideTunnel": 5.6,
+      "TunnelStairs": 4.4
     }
   }
 }

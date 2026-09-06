@@ -4,13 +4,18 @@ Site-hold complexes (``counterstrat.mining.gaps``) need zone-to-zone move
 times, but compiled cards live under the personal data root (gitignored) and
 speak the operator's custom-callout vocabulary. The export ships only the
 callouts that come with the map, as ``anchors/topologies/<map>.json``, drawing
-per map from the best engine-vocabulary source available:
+per map as the edge-level UNION of every engine-vocabulary source, because a
+missing edge shrinks a hold complex and produces false "site vacant" reads,
+while a stale measured edge merely widens one. Where sources disagree on an
+edge, the fresher wins: compiled card < corpus lake < calibration demos.
 
-1. The corpus lake, rebuilt with custom zones undone (``place_default`` keeps
-   the game's own name under every re-zoned tick).
-2. Otherwise the compiled card, with the operator's custom zones renamed to
-   their engine parents - the modal engine place inside each rect, evidenced
-   by the calibration occupancy caches - or dropped when unresolvable.
+- Calibration movement caches (``mapcard.calibrate --moves-only``): curated
+  operator demos, engine vocabulary natively, provenance recorded.
+- The corpus lake, rebuilt with custom zones undone (``place_default`` keeps
+  the game's own name under every re-zoned tick).
+- The compiled card, with the operator's custom zones renamed to their engine
+  parents - the modal engine place inside each rect, evidenced by the
+  calibration occupancy caches - or dropped when unresolvable.
 
 At runtime the shipped engine skeleton merges UNDER the live compiled card
 (:func:`merge_topologies`): a clone mines correct complexes before its first
@@ -161,15 +166,44 @@ def _lake_topology(
     return topology, used, max(versions) if versions else ""
 
 
+def _calibration_index(data_root: Path) -> dict:
+    try:
+        path = data_root / "calibration" / ".cache" / "index.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - no calibration demos on this machine
+        return {}
+
+
+def _calibration_topology(data_root: Path, map_name: str) -> tuple[Topology, list[str], str]:
+    """Engine topology measured from the curated calibration demos' movement."""
+    cache = data_root / "calibration" / ".cache"
+    frames: list[pl.DataFrame] = []
+    files: list[str] = []
+    patches: list[str] = []
+    for sha, meta in sorted(_calibration_index(data_root).items()):
+        path = cache / f"{sha}.moves.parquet"
+        if meta.get("map") != map_name or not path.exists():
+            continue
+        try:
+            df = pl.read_parquet(path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Unreadable movement cache %s: %s", path, exc)
+            continue
+        frames.append(df.with_columns(pl.lit(sha).alias("match_id")))
+        files.append(str(meta.get("file") or sha))
+        if meta.get("patch"):
+            patches.append(str(meta["patch"]))
+    if not frames:
+        return {}, [], ""
+    topology = topology_from_ticks(pl.concat(frames, how="vertical_relaxed"))
+    return topology, files, max(patches) if patches else ""
+
+
 def _calibration_ticks(data_root: Path, map_name: str) -> pl.DataFrame:
     """Pooled engine-vocabulary occupancy ticks from the calibration cache."""
     cache = data_root / "calibration" / ".cache"
-    try:
-        index = json.loads((cache / "index.json").read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - no calibration demos on this machine
-        return pl.DataFrame()
     frames: list[pl.DataFrame] = []
-    for sha, meta in sorted(index.items()):
+    for sha, meta in sorted(_calibration_index(data_root).items()):
         path = cache / f"{sha}.parquet"
         if meta.get("map") != map_name or not path.exists():
             continue
@@ -250,7 +284,13 @@ def _card_topology(data_root: Path, map_name: str) -> tuple[Topology, list[str],
 
 
 def export_shipped_topologies(data_root: Path, root: Path | None = None) -> list[Path]:
-    """Snapshot every map's ENGINE-vocabulary topology (lake first, card fallback)."""
+    """Snapshot every map's ENGINE-vocabulary topology.
+
+    Edge-level union of card, lake, and calibration measurements (in that
+    order, so the fresher source wins where they disagree). Missing edges
+    cause false "site vacant" reads; measured-but-stale ones only widen a
+    complex - so every measured engine edge ships.
+    """
     from counterstrat.corpus import load_manifest
 
     manifest = load_manifest(data_root / "corpus.jsonl")
@@ -258,23 +298,27 @@ def export_shipped_topologies(data_root: Path, root: Path | None = None) -> list
     for mid, rec in manifest.items():
         by_map[rec.map_name].append(mid)
     card_maps = {p.parent.name for p in data_root.glob("mapcards/*/card.yaml")}
+    cal_maps = {str(m.get("map")) for m in _calibration_index(data_root).values() if m.get("map")}
 
     written: list[Path] = []
-    for map_name in sorted(set(by_map) | card_maps):
-        topology, generated_from, version = (
+    for map_name in sorted(cal_maps | set(by_map) | card_maps):
+        cal_topo, cal_from, cal_ver = _calibration_topology(data_root, map_name)
+        lake_topo, lake_from, lake_ver = (
             _lake_topology(data_root, by_map[map_name], manifest)
             if by_map.get(map_name)
             else ({}, [], "")
         )
-        if not topology:
-            topology, generated_from, version = _card_topology(data_root, map_name)
+        card_topo, card_from, card_ver = _card_topology(data_root, map_name)
+        topology = merge_topologies(merge_topologies(card_topo, lake_topo), cal_topo)
         if not topology:
             continue
+        generated_from = cal_from + lake_from + (card_from if card_topo else [])
+        versions = [v for v in (cal_ver, lake_ver, card_ver) if v]
         written.append(
             save_shipped_topology(
                 map_name,
                 topology,
-                game_version=version,
+                game_version=max(versions) if versions else "",
                 generated_from=generated_from,
                 root=root,
             )

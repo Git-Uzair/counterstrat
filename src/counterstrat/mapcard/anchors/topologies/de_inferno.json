@@ -1,97 +1,122 @@
 {
   "map_name": "de_inferno",
-  "computed_at": "2026-09-06T06:05:09.599096+00:00",
+  "computed_at": "2026-09-06T06:24:47.858762+00:00",
   "game_version": "14178",
   "generated_from": [
+    "1-37bebab3-6173-4230-8a01-ac18e60fa7ec-1-1.dem.zst",
+    "1-540b2d95-8d5c-46b4-ba4d-d2ad65d000c9-1-1.dem.zst",
+    "1-84f023b7-e46b-4a5b-a675-b70c866915d1-1-1.dem.zst",
+    "1-a7d507f5-df1d-48e6-bd82-9b7cc798c119-1-1.dem.zst",
+    "1-b43db896-ac1e-4d60-87ee-7fef8ac2939c-1-1.dem.zst",
+    "1-e1f54eef-fa43-4368-a837-7ec5dcb3f93e-1-1.dem.zst",
     "card:62cacd263ff5"
   ],
   "topology": {
     "Apartments": {
-      "BackAlley": 8.7,
-      "Balcony": 10.1,
-      "TopofMid": 12.2
+      "BackAlley": 7.5,
+      "Balcony": 10.4,
+      "Bridge": 4.2,
+      "Middle": 11.0,
+      "SecondMid": 9.8,
+      "TopofMid": 11.6
     },
     "Arch": {
-      "BombsiteA": 2.5,
-      "CTSpawn": 1.8,
-      "TopofMid": 1.8
+      "BombsiteA": 3.6,
+      "CTSpawn": 3.9,
+      "TopofMid": 2.9
     },
     "BackAlley": {
-      "Apartments": 3.6
+      "Apartments": 3.3,
+      "SecondMid": 3.3
     },
     "Balcony": {
-      "Apartments": 0.8,
-      "BombsiteA": 1.1,
-      "Pit": 1.9
+      "Apartments": 0.9,
+      "BombsiteA": 1.5,
+      "Pit": 3.4,
+      "SecondMid": 2.1
     },
     "Banana": {
-      "BombsiteB": 3.4,
-      "Middle": 7.4
+      "BombsiteB": 12.3,
+      "Middle": 11.0
     },
     "BombsiteA": {
-      "Arch": 3.1,
-      "Balcony": 7.1,
-      "Library": 3.2,
-      "Pit": 6.0,
-      "Quad": 0.1,
-      "TopofMid": 0.2
+      "Arch": 4.8,
+      "Balcony": 7.2,
+      "Library": 5.9,
+      "Pit": 7.8,
+      "Quad": 9.3,
+      "TopofMid": 6.8
     },
     "BombsiteB": {
-      "Banana": 4.5,
-      "Ruins": 2.7
+      "Banana": 2.9,
+      "Ruins": 7.7
+    },
+    "Bridge": {
+      "Apartments": 1.6,
+      "SecondMid": 7.1,
+      "Upstairs": 4.7
     },
     "CTSpawn": {
-      "Arch": 2.6,
+      "Arch": 3.7,
       "Library": 2.6,
-      "Ruins": 5.0
+      "Ruins": 5.4
     },
     "Library": {
       "BombsiteA": 2.4,
-      "CTSpawn": 5.5
+      "CTSpawn": 2.4
     },
     "LowerMid": {
       "SecondMid": 1.9,
-      "TRamp": 2.1
+      "TRamp": 2.1,
+      "Upstairs": 2.6
     },
     "Middle": {
-      "Banana": 0.4,
-      "SecondMid": 4.6,
+      "Banana": 0.5,
+      "SecondMid": 6.6,
       "TRamp": 1.3,
-      "TopofMid": 9.8
+      "TopofMid": 8.2,
+      "Underpass": 2.0
     },
     "Pit": {
-      "BombsiteA": 6.8
+      "BombsiteA": 6.6
     },
     "Quad": {
-      "BombsiteA": 0.6,
-      "TopofMid": 2.4
+      "BombsiteA": 3.1,
+      "TopofMid": 2.7
     },
     "Ruins": {
       "BombsiteB": 2.6,
-      "CTSpawn": 2.6
+      "CTSpawn": 2.9
     },
     "SecondMid": {
-      "Apartments": 4.6,
-      "BackAlley": 6.6,
-      "Balcony": 9.9,
-      "Middle": 7.6
+      "Apartments": 4.8,
+      "BackAlley": 7.2,
+      "Balcony": 10.0,
+      "LowerMid": 4.8,
+      "Middle": 7.6,
+      "Underpass": 4.1
     },
     "TRamp": {
-      "LowerMid": 3.7,
-      "Middle": 2.1
+      "LowerMid": 3.5,
+      "Middle": 2.2
     },
     "TSpawn": {
-      "LowerMid": 4.7
+      "LowerMid": 4.8
     },
     "TopofMid": {
-      "Apartments": 3.3,
-      "Arch": 5.1,
-      "BombsiteA": 3.9,
-      "Middle": 7.4,
-      "Quad": 2.2
+      "Apartments": 3.4,
+      "Arch": 5.4,
+      "BombsiteA": 4.0,
+      "Middle": 2.9,
+      "Quad": 2.9
     },
     "Underpass": {
-      "Middle": 1.6
+      "Middle": 1.9
+    },
+    "Upstairs": {
+      "Bridge": 2.1,
+      "Kitchen": 6.2,
+      "LowerMid": 2.0
     }
   }
 }

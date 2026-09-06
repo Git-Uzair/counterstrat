@@ -96,6 +96,65 @@ def test_export_rebuilds_engine_vocabulary_from_the_lake(tmp_path):
     assert payload["game_version"] == "9"
 
 
+def _moves_frame() -> pl.DataFrame:
+    """Movement rows as calibrate's cache stores them (engine vocabulary)."""
+    rows = []
+    tick = 0
+    for _ in range(8):
+        for zone in ("EngineA", "EngineB"):
+            for _ in range(3):
+                tick += 16
+                rows.append(
+                    {
+                        "steamid": 76500000000000001,
+                        "round_num": 1,
+                        "tick": tick,
+                        "clock_s": tick / 64.0,
+                        "is_alive": True,
+                        "last_place_name": zone,
+                    }
+                )
+    return pl.DataFrame(rows)
+
+
+def test_export_unions_sources_calibration_wins_per_edge(tmp_path):
+    """Every measured engine edge ships (missing edges fake vacancies); where
+    card and calibration both know an edge, the calibration time wins."""
+    import yaml
+
+    data_root = tmp_path / "data"
+    card_dir = data_root / "mapcards" / "de_z"
+    card_dir.mkdir(parents=True)
+    card_dir.joinpath("card.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "map": "de_z",
+                "game_version": "1",
+                "checksum": "old",
+                "topology": {"CardOnly": {"EngineB": 9.0}, "EngineA": {"EngineB": 9.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    cache = data_root / "calibration" / ".cache"
+    cache.mkdir(parents=True)
+    _moves_frame().write_parquet(cache / "beef.moves.parquet")
+    cache.joinpath("index.json").write_text(
+        json.dumps({"beef": {"file": "cal.dem.zst", "map": "de_z", "rows": 1, "patch": "14200"}}),
+        encoding="utf-8",
+    )
+
+    shipped_root = tmp_path / "shipped"
+    written = export_shipped_topologies(data_root, root=shipped_root)
+    assert [p.name for p in written] == ["de_z.json"]
+    topo = load_shipped_topology("de_z", root=shipped_root)
+    assert topo["CardOnly"] == {"EngineB": 9.0}  # card-only edge survives the union
+    assert topo["EngineA"]["EngineB"] < 9.0  # calibration time wins the shared edge
+    payload = json.loads(written[0].read_text(encoding="utf-8"))
+    assert payload["generated_from"] == ["cal.dem.zst", "card:old"]
+    assert payload["game_version"] == "14200"
+
+
 def test_export_card_source_renames_operator_customs(tmp_path):
     """No lake for a map: the card exports with custom zones renamed to their
     engine parents (calibration-cache evidence); unresolvable ones are dropped."""
@@ -177,6 +236,27 @@ def test_shipped_topologies_cover_the_map_pool():
     anubis_a = hold_complex("BombsiteA", load_shipped_topology("de_anubis"))
     assert {"Heaven", "Main", "Walkway"} <= anubis_a
     assert "Middle" not in anubis_a
+
+
+import pytest
+
+
+@pytest.mark.demo
+def test_calibrate_extract_frames_movement(demo_path):
+    """The calibration pass measures real movement: trajectory keys survive
+    and the graph rule yields a usable engine-vocabulary topology."""
+    from counterstrat.mapcard.calibrate import _extract_frames
+    from counterstrat.mapcard.topologies import topology_from_ticks
+
+    map_name, patch, occupancy, moves = _extract_frames(demo_path)
+    assert map_name == "de_anubis"
+    assert patch
+    assert not occupancy.is_empty()
+    assert {"steamid", "round_num", "tick", "clock_s", "is_alive", "last_place_name"} <= set(
+        moves.columns
+    )
+    topo = topology_from_ticks(moves.with_columns(pl.lit("m").alias("match_id")))
+    assert topo.get("BombsiteA"), "no measured edges out of A"
 
 
 def test_shipped_topologies_speak_engine_vocabulary():

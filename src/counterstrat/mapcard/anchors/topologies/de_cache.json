@@ -1,60 +1,76 @@
 {
   "map_name": "de_cache",
-  "computed_at": "2026-09-06T06:05:09.507150+00:00",
+  "computed_at": "2026-09-06T06:24:47.405291+00:00",
   "game_version": "14178",
   "generated_from": [
+    "1-5220c82a-f62e-46f8-8f2e-60ce41c95d4f-1-1.dem.zst",
+    "1-5e6b77dd-d713-427b-9958-c9c708a4ca57-1-1.dem.zst",
+    "1-bacafe9c-b8f6-40ae-8208-efbe5cef488b-1-1.dem.zst",
+    "1-fbe2381b-bcb2-4466-bdcc-0938802aef14-1-1.dem.zst",
     "card:89b1630b8ea8"
   ],
   "topology": {
+    "ABoost": {
+      "BombsiteA": 2.2
+    },
     "AHalls": {
-      "Squeaky": 5.3
+      "LongA": 11.3,
+      "Squeaky": 8.8
     },
     "AMain": {
       "AStairs": 7.0,
-      "BombsiteA": 8.2,
-      "Lockers": 4.9
+      "BombsiteA": 8.7,
+      "Lockers": 4.1
     },
     "AStairs": {
-      "AMain": 2.0,
-      "OutsideA": 4.3
+      "AMain": 2.4,
+      "OutsideA": 3.6
     },
     "BHalls": {
-      "BMain": 5.5,
-      "SunRoom": 3.6,
-      "Useless": 8.6
+      "BMain": 4.4,
+      "OutsideB": 4.2,
+      "SunRoom": 1.8,
+      "Useless": 6.8
     },
     "BMain": {
-      "BHalls": 5.1,
-      "BombsiteB": 5.8,
-      "Checkers": 5.1
+      "BHalls": 4.2,
+      "BombsiteB": 4.5,
+      "Checkers": 5.0
     },
     "Bear": {
       "CTLane": 0.9,
       "Heaven": 0.9
     },
     "BombsiteA": {
-      "AMain": 3.2,
-      "Corner": 2.9,
-      "ForkLift": 1.8,
-      "Quad": 4.5,
-      "Squeaky": 3.2,
-      "Toxic": 2.8
+      "ABoost": 2.8,
+      "AMain": 3.8,
+      "Catwalk": 1.8,
+      "Corner": 3.0,
+      "ElectricalBox": 8.2,
+      "ForkLift": 1.6,
+      "Highway": 9.0,
+      "Quad": 3.2,
+      "Squeaky": 3.4,
+      "Toxic": 5.4,
+      "Truck": 5.1
     },
     "BombsiteB": {
-      "BMain": 5.0,
-      "Checkers": 3.2,
-      "Headshot": 2.9,
-      "Rafters": 0.7,
-      "TreeRoom": 3.8
+      "BMain": 7.1,
+      "Checkers": 2.7,
+      "Headshot": 4.5,
+      "Rafters": 0.2,
+      "TreeRoom": 4.0
     },
     "Boost": {
-      "Middle": 2.4
+      "Middle": 3.5,
+      "OutsideA": 1.2
     },
     "BusStop": {
       "CTLane": 1.7
     },
     "CTLane": {
       "Bear": 2.2,
+      "BusStop": 2.5,
       "Connector": 1.5,
       "TreeRoom": 2.7,
       "Truck": 2.1
@@ -62,130 +78,163 @@
     "CTSpawn": {
       "BusStop": 2.0
     },
+    "Catwalk": {
+      "BombsiteA": 6.4,
+      "Ladder": 5.9
+    },
     "Checkers": {
-      "BMain": 7.4,
-      "BombsiteB": 4.9
+      "BMain": 6.0,
+      "BombsiteB": 4.7,
+      "Vents": 5.8
     },
     "Connector": {
-      "CTLane": 5.5,
-      "Mid": 2.0
+      "CTLane": 4.4,
+      "Mid": 2.1
     },
     "Corner": {
-      "BombsiteA": 3.0,
-      "Quad": 3.0
+      "BombsiteA": 1.2,
+      "Quad": 0.8
     },
     "Cubby": {
-      "Mid": 0.9
+      "Mid": 1.2
     },
     "ElectricalBox": {
-      "Highway": 1.8,
-      "Ladder": 1.8
+      "BombsiteA": 2.6,
+      "Highway": 2.0,
+      "Ladder": 2.1,
+      "Toxic": 2.2,
+      "Truck": 1.0
     },
     "ForkLift": {
-      "BombsiteA": 2.5
+      "BombsiteA": 3.1,
+      "Toxic": 1.1
     },
     "Garage": {
-      "Mid": 13.4,
+      "Mid": 8.6,
       "OutsideA": 5.4,
-      "Useless": 7.2
+      "Red": 7.4,
+      "TYard": 4.8,
+      "Useless": 6.3
     },
     "Headshot": {
-      "BombsiteB": 4.5
+      "BombsiteB": 2.9
     },
     "Heaven": {
-      "Bear": 5.6,
+      "Bear": 5.2,
       "Rafters": 1.8
     },
     "Highway": {
-      "BombsiteA": 7.6,
-      "Ladder": 3.9,
-      "Mid": 2.5,
-      "Toxic": 4.3
+      "BombsiteA": 6.2,
+      "ElectricalBox": 5.5,
+      "Ladder": 3.6,
+      "Mid": 2.1,
+      "Toxic": 4.5,
+      "Truck": 6.0
     },
     "Ladder": {
-      "Catwalk": 3.0,
+      "BombsiteA": 2.4,
+      "Catwalk": 2.4,
+      "ElectricalBox": 2.3,
       "Highway": 0.4,
-      "Toxic": 0.9
+      "Toxic": 0.8
     },
     "Lockers": {
-      "AMain": 5.0
+      "AMain": 3.7
     },
     "LongA": {
-      "AHalls": 3.4
+      "AHalls": 3.8,
+      "OutsideA": 4.9
     },
     "Mid": {
-      "Connector": 4.6,
-      "Cubby": 3.6,
-      "Garage": 7.4,
-      "Highway": 4.1,
-      "MidRoof": 8.4,
-      "Sandbags": 1.6,
-      "Vents": 9.3
+      "Connector": 3.2,
+      "Cubby": 1.9,
+      "Garage": 6.6,
+      "Highway": 2.8,
+      "MidRoof": 3.7,
+      "Sandbags": 1.4,
+      "Vents": 5.7
     },
     "MidRoof": {
-      "Mid": 3.5
+      "Mid": 3.8,
+      "Sandbags": 5.3
+    },
+    "Middle": {
+      "Boost": 0.4,
+      "Cubby": 0.6,
+      "Mid": 0.1
     },
     "OutsideA": {
-      "AStairs": 3.7,
-      "Boost": 14.8,
-      "Garage": 4.9,
-      "LongA": 2.8
+      "AStairs": 4.6,
+      "Boost": 7.6,
+      "Garage": 4.7,
+      "LongA": 2.9,
+      "TTruck": 6.3,
+      "TYard": 3.0
     },
     "OutsideB": {
-      "BHalls": 3.6
+      "BHalls": 3.6,
+      "TSpawn": 5.1
     },
     "Quad": {
-      "BombsiteA": 1.4,
-      "Corner": 3.6
+      "BombsiteA": 3.6,
+      "Corner": 1.9
     },
     "Rafters": {
-      "BombsiteB": 1.0,
-      "Heaven": 2.1
+      "BombsiteB": 1.1,
+      "Heaven": 2.6
+    },
+    "Red": {
+      "Garage": 8.5
     },
     "Sandbags": {
-      "Mid": 2.9
+      "Mid": 2.7
     },
     "Squeaky": {
       "AHalls": 2.7,
-      "BombsiteA": 1.2
+      "BombsiteA": 1.3
     },
     "SunRoom": {
       "BHalls": 3.8
     },
     "TSpawn": {
-      "OutsideB": 3.9,
+      "OutsideB": 3.8,
       "TYard": 3.4
     },
     "TTruck": {
-      "OutsideA": 0.3,
-      "TYard": 0.5
+      "OutsideA": 0.2,
+      "TYard": 0.7
     },
     "TYard": {
       "Garage": 2.4,
       "OutsideA": 3.1,
-      "TTruck": 3.1
+      "TSpawn": 2.9,
+      "TTruck": 3.0
     },
     "Toxic": {
       "BombsiteA": 1.5,
-      "ForkLift": 1.1,
-      "Highway": 3.4,
-      "Ladder": 1.7
+      "ElectricalBox": 3.9,
+      "ForkLift": 0.8,
+      "Highway": 2.1,
+      "Ladder": 1.6
     },
     "TreeRoom": {
-      "BombsiteB": 2.2,
-      "CTLane": 2.2
+      "BombsiteB": 2.3,
+      "CTLane": 2.7
     },
     "Truck": {
-      "BombsiteA": 4.4,
-      "CTLane": 6.2,
-      "ElectricalBox": 3.7
+      "BombsiteA": 4.2,
+      "CTLane": 4.8,
+      "ElectricalBox": 3.7,
+      "Ladder": 5.9,
+      "Toxic": 5.2
     },
     "Useless": {
-      "BHalls": 2.5,
+      "BHalls": 2.4,
       "Garage": 2.6
     },
     "Vents": {
-      "Mid": 1.5
+      "Checkers": 2.2,
+      "Mid": 3.7
     }
   }
 }
