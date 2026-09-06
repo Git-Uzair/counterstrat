@@ -181,6 +181,94 @@ def test_settings_roundtrip_never_echoes_key(client_app: TestClient):
     assert got["keys_present"]["gemini"] is True
 
 
+def test_settings_cs2_path_roundtrip(client_app: TestClient, tmp_path: Path):
+    """The CS2 install folder is a first-class setting: reported, validated,
+    persisted, and clearable."""
+    got = client_app.get("/api/settings").json()
+    assert got["cs2_install_path"] is None
+    assert got["cs2_path_valid"] is False
+
+    install = tmp_path / "cs2"
+    (install / "game" / "csgo").mkdir(parents=True)
+    r = client_app.post(
+        "/api/settings",
+        json={
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "cs2_install_path": str(install),
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["cs2_install_path"] == str(install)
+    assert body["cs2_path_valid"] is True
+
+    got = client_app.get("/api/settings").json()
+    assert got["cs2_install_path"] == str(install)
+    assert got["cs2_path_valid"] is True
+
+    # Explicit empty string clears the setting.
+    r = client_app.post(
+        "/api/settings",
+        json={"provider": "gemini", "model": "gemini-2.5-pro", "cs2_install_path": ""},
+    )
+    assert r.status_code == 200
+    assert r.json()["cs2_install_path"] is None
+
+    # Omitting the field leaves the stored value untouched.
+    client_app.post(
+        "/api/settings",
+        json={
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "cs2_install_path": str(install),
+        },
+    )
+    r = client_app.post("/api/settings", json={"provider": "gemini", "model": "gemini-2.5-pro"})
+    assert r.json()["cs2_install_path"] == str(install)
+
+
+def test_settings_rejects_bogus_cs2_path(client_app: TestClient, tmp_path: Path):
+    """A missing folder or one without game/csgo is refused with a reason."""
+    r = client_app.post(
+        "/api/settings",
+        json={
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "cs2_install_path": str(tmp_path / "nope"),
+        },
+    )
+    assert r.status_code == 400
+    assert "does not exist" in r.json()["detail"]
+
+    not_cs2 = tmp_path / "docs"
+    not_cs2.mkdir()
+    r = client_app.post(
+        "/api/settings",
+        json={
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "cs2_install_path": str(not_cs2),
+        },
+    )
+    assert r.status_code == 400
+    assert "game" in r.json()["detail"]
+
+    # Quotes pasted from Explorer's "Copy as path" are tolerated.
+    install = tmp_path / "cs2"
+    (install / "game" / "csgo").mkdir(parents=True)
+    r = client_app.post(
+        "/api/settings",
+        json={
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "cs2_install_path": f'"{install}"',
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["cs2_install_path"] == str(install)
+
+
 def test_models_fallback_without_key(client_app: TestClient):
     r = client_app.get("/api/models")
     assert r.status_code == 200

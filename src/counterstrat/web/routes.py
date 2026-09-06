@@ -72,12 +72,24 @@ class SettingsResponse(BaseModel):
     provider: str
     model: str
     keys_present: dict[str, bool]
+    # The local CS2 install: needed to extract radar images, place volumes and
+    # nav data from the game VPK. None until the user sets it; the UI keeps a
+    # notice up while cs2_path_valid is False.
+    cs2_install_path: str | None = None
+    cs2_path_valid: bool = False
 
 
 class SettingsUpdateRequest(BaseModel):
     provider: Literal["anthropic", "gemini"]
     model: str
     api_key: str | None = None
+    # None = leave unchanged; "" = clear; a path = validate and store.
+    cs2_install_path: str | None = None
+
+
+def _cs2_path_valid(install: Path | None) -> bool:
+    """True when the folder looks like a CS2 install (has game/csgo)."""
+    return bool(install) and (Path(install) / "game" / "csgo").is_dir()
 
 
 # --- 1. Demos Upload & Jobs ---
@@ -969,17 +981,22 @@ def put_zones(
 # --- 3. Settings & Models ---
 
 
-@router.get("/settings", response_model=SettingsResponse)
-def get_settings(cfg: ConfigDep) -> SettingsResponse:
-    model_name = cfg.anthropic_model if cfg.provider == "anthropic" else cfg.gemini_model
+def _settings_response(cfg: AppConfig) -> SettingsResponse:
     return SettingsResponse(
         provider=cfg.provider,
-        model=model_name,
+        model=cfg.anthropic_model if cfg.provider == "anthropic" else cfg.gemini_model,
         keys_present={
             "anthropic": bool(cfg.anthropic_api_key),
             "gemini": bool(cfg.gemini_api_key),
         },
+        cs2_install_path=str(cfg.cs2_install_path) if cfg.cs2_install_path else None,
+        cs2_path_valid=_cs2_path_valid(cfg.cs2_install_path),
     )
+
+
+@router.get("/settings", response_model=SettingsResponse)
+def get_settings(cfg: ConfigDep) -> SettingsResponse:
+    return _settings_response(cfg)
 
 
 @router.post("/settings", response_model=SettingsResponse)
@@ -987,6 +1004,31 @@ def update_settings(
     req: SettingsUpdateRequest,
     cfg: ConfigDep,
 ) -> SettingsResponse:
+    # Validate the CS2 folder BEFORE writing anything: a bogus path must not
+    # land in settings.json. Explorer's "Copy as path" wraps in quotes - strip.
+    new_install: Path | None = None
+    clear_install = False
+    if req.cs2_install_path is not None:
+        cleaned = req.cs2_install_path.strip().strip('"').strip()
+        if cleaned == "":
+            clear_install = True
+        else:
+            new_install = Path(cleaned)
+            if not new_install.is_dir():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"CS2 install folder does not exist: {new_install}",
+                )
+            if not _cs2_path_valid(new_install):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"'{new_install}' does not look like a CS2 install - "
+                        "expected a game/csgo folder inside it (e.g. "
+                        "...\\steamapps\\common\\Counter-Strike Global Offensive)"
+                    ),
+                )
+
     settings_path = cfg.data_root / "settings.json"
     data: dict[str, Any] = {}
     if settings_path.exists():
@@ -1007,6 +1049,11 @@ def update_settings(
         if req.api_key:
             data["gemini_api_key"] = req.api_key
 
+    if new_install is not None:
+        data["cs2_install_path"] = str(new_install)
+    elif clear_install:
+        data.pop("cs2_install_path", None)
+
     data["data_root"] = str(cfg.data_root)
 
     settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1022,15 +1069,12 @@ def update_settings(
         cfg.gemini_model = req.model
         if req.api_key:
             cfg.gemini_api_key = req.api_key
+    if new_install is not None:
+        cfg.cs2_install_path = new_install
+    elif clear_install:
+        cfg.cs2_install_path = None
 
-    return SettingsResponse(
-        provider=cfg.provider,
-        model=cfg.anthropic_model if cfg.provider == "anthropic" else cfg.gemini_model,
-        keys_present={
-            "anthropic": bool(cfg.anthropic_api_key),
-            "gemini": bool(cfg.gemini_api_key),
-        },
-    )
+    return _settings_response(cfg)
 
 
 @router.get("/models")

@@ -109,6 +109,28 @@ code, pre {
   letter-spacing: 0.3px;
 }
 
+/* Required-setup banner: stays up until the CS2 install folder checks out */
+.cs2-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 20px;
+  background-color: var(--color-warning-bg);
+  border-bottom: 1px solid var(--color-warning-border);
+  color: var(--color-warning-text);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.cs2-banner-text strong {
+  color: inherit;
+}
+
+.cs2-banner .btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 /* Main Two-Column Layout */
 .main-layout {
   display: grid;

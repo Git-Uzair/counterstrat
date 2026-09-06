@@ -22,6 +22,8 @@
   const el = {
     // Top Bar
     settingsBtn: document.getElementById("settings-btn"),
+    cs2Banner: document.getElementById("cs2-banner"),
+    cs2BannerBtn: document.getElementById("cs2-banner-btn"),
     
     // Ingestion
     dropZone: document.getElementById("drop-zone"),
@@ -56,6 +58,8 @@
     settingProvider: document.getElementById("setting-provider"),
     settingModel: document.getElementById("setting-model"),
     settingApiKey: document.getElementById("setting-api-key"),
+    settingCs2Path: document.getElementById("setting-cs2-path"),
+    cs2PathStatus: document.getElementById("cs2-path-status"),
     keyStatusIndicator: document.getElementById("key-status-indicator"),
     settingsFeedback: document.getElementById("settings-feedback"),
     saveSettingsBtn: document.getElementById("save-settings-btn"),
@@ -991,11 +995,30 @@
         state.settings = cfg;
         el.settingProvider.value = cfg.provider;
         updateKeyIndicator(cfg.provider);
+        el.settingCs2Path.value = cfg.cs2_install_path || "";
+        updateCs2Status(cfg);
         loadModels(cfg.provider, cfg.model);
       })
       .catch(function (err) {
         console.error("Settings load error:", err);
       });
+  }
+
+  // The CS2 install is required kit (radar art, callout maps and new-map
+  // ingest all read the game VPK): a banner stays up and the settings badge
+  // stays red until the configured folder actually looks like an install.
+  function updateCs2Status(cfg) {
+    el.cs2Banner.classList.toggle("hidden", !!cfg.cs2_path_valid);
+    if (cfg.cs2_path_valid) {
+      el.cs2PathStatus.textContent = "Folder found";
+      el.cs2PathStatus.className = "key-status badge-configured";
+    } else if (cfg.cs2_install_path) {
+      el.cs2PathStatus.textContent = "Folder invalid \u2014 required";
+      el.cs2PathStatus.className = "key-status badge-unconfigured";
+    } else {
+      el.cs2PathStatus.textContent = "Not set \u2014 required";
+      el.cs2PathStatus.className = "key-status badge-unconfigured";
+    }
   }
 
   function updateKeyIndicator(provider) {
@@ -1048,6 +1071,9 @@
     const payload = {
       provider: provider,
       model: model,
+      // Always sent: the field shows the stored value, so an emptied input is
+      // an explicit clear and a bogus path comes back as a 400 with the reason.
+      cs2_install_path: el.settingCs2Path.value.trim(),
     };
     if (apiKey) {
       payload.api_key = apiKey;
@@ -1072,6 +1098,8 @@
       .then(function (updated) {
         state.settings = updated;
         updateKeyIndicator(updated.provider);
+        el.settingCs2Path.value = updated.cs2_install_path || "";
+        updateCs2Status(updated);
         el.settingApiKey.value = "";
         el.settingsFeedback.className = "settings-feedback success";
         el.settingsFeedback.textContent = "Settings saved successfully!";
@@ -1114,6 +1142,7 @@
 
     // Settings Modal
     el.settingsBtn.addEventListener("click", openSettings);
+    el.cs2BannerBtn.addEventListener("click", openSettings);
     el.closeSettingsBtn.addEventListener("click", closeSettings);
     el.cancelSettingsBtn.addEventListener("click", closeSettings);
     el.settingsForm.addEventListener("submit", saveSettings);
@@ -1137,9 +1166,32 @@
     });
   }
 
+  // Before anything else can happen, the user learns the CS2 install folder
+  // is still required: the warning banner comes up and Settings opens itself
+  // on the field that fixes it.
+  function checkCs2Gate() {
+    fetch("/api/settings")
+      .then(function (res) {
+        if (!res.ok) throw new Error("Failed to load settings");
+        return res.json();
+      })
+      .then(function (cfg) {
+        state.settings = cfg;
+        updateCs2Status(cfg);
+        if (!cfg.cs2_path_valid) {
+          openSettings();
+          el.settingCs2Path.focus();
+        }
+      })
+      .catch(function (err) {
+        console.error("CS2 gate check failed:", err);
+      });
+  }
+
   // On page load
   document.addEventListener("DOMContentLoaded", function () {
     initEvents();
     loadTeams();
+    checkCs2Gate();
   });
 })();

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css?v=14">
+  <link rel="stylesheet" href="/static/style.css?v=15">
 </head>
 <body>
   <div class="app-shell">
@@ -22,6 +22,15 @@
         </button>
       </div>
     </header>
+
+    <div id="cs2-banner" class="cs2-banner hidden">
+      <span class="cs2-banner-text">
+        <strong>CS2 install folder required.</strong>
+        Radar images, callout maps and new-map ingest are extracted from the game's files -
+        point the app at your Counter-Strike 2 install before doing anything else.
+      </span>
+      <button type="button" id="cs2-banner-btn" class="btn btn-sm btn-primary">Set CS2 folder</button>
+    </div>
 
     <div class="main-layout">
       <!-- Left Sidebar: Ingestion & Team/Map Catalog -->
@@ -184,6 +193,23 @@
           <small class="form-help">Write-only: stored locally in <code>settings.json</code>; never displayed in browser.</small>
         </div>
 
+        <div class="form-group">
+          <div class="label-row">
+            <label for="setting-cs2-path">CS2 Install Folder</label>
+            <span id="cs2-path-status" class="key-status badge-unconfigured">Not set &mdash; required</span>
+          </div>
+          <input
+            type="text"
+            id="setting-cs2-path"
+            class="form-control"
+            placeholder="C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <small class="form-help">The folder containing <code>game\csgo</code>. Required:
+          radar images, callout maps and new-map ingest are extracted from the game's files (VPK).</small>
+        </div>
+
         <div id="settings-feedback" class="settings-feedback hidden"></div>
 
         <div class="modal-footer">
@@ -194,7 +220,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
   <script src="/static/callouts.js?v=12"></script>
 </body>
 </html>
