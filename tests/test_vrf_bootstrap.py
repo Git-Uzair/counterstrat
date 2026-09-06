@@ -59,7 +59,8 @@ def test_ensure_downloads_and_extracts_once(monkeypatch, tmp_path: Path):
     assert cli.name.startswith("Source2Viewer-CLI")
     assert len(calls) == 1
     assert ingest.VRF_VERSION in calls[0] and calls[0].startswith("https://github.com/")
-    assert not list(cli.parent.glob(".download_*.zip")), "temp archive must be cleaned up"
+    leftovers = list((tmp_path / "tools").glob(".vrf_*"))
+    assert not leftovers, f"staging/zip must be cleaned up: {leftovers}"
 
     # Second call finds the extracted CLI - no second download.
     assert ingest._ensure_vrf_cli() == cli

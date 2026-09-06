@@ -109,6 +109,84 @@ code, pre {
   letter-spacing: 0.3px;
 }
 
+/* Setup checklist: gates the drop zone until the app is ingest-ready */
+.setup-checklist {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-warning-bg);
+}
+
+.setup-checklist-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-warning-text);
+  margin-bottom: 8px;
+}
+
+.setup-checklist-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.setup-item-icon {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.setup-item-ok .setup-item-icon {
+  color: var(--color-success);
+}
+
+.setup-item-missing .setup-item-icon {
+  color: var(--color-error);
+}
+
+.setup-item-label {
+  color: var(--text-primary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.setup-item-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.setup-fix-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.setup-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.drop-zone.gated {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* Required-setup banner: stays up until the CS2 install folder checks out */
 .cs2-banner {
   display: flex;

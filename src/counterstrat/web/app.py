@@ -23,6 +23,13 @@ def create_app(cfg: AppConfig | None = None, client_factory: Any = None) -> Fast
     app.state.cfg = cfg or AppConfig.load()
     app.state.client_factory = client_factory
     app.state.chat_sessions = {}
+
+    # Setup work (decompiler download, map-asset warmup) starts at boot, not
+    # on a user's first click; no-op under COUNTERSTRAT_NO_VRF_DOWNLOAD.
+    from counterstrat.web import readiness
+
+    readiness.start_bootstrap(app.state.cfg)
+
     app.include_router(router)
     app.include_router(chat_router)
     app.include_router(radar_router)

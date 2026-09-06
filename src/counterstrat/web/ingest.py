@@ -160,10 +160,16 @@ def _ensure_vrf_cli() -> Path | None:
 
         url = f"{_VRF_BASE_URL}/{VRF_VERSION}/{asset}"
         dest_dir = REPO_ROOT / "tools" / "vrf"
-        tmp_zip = dest_dir / f".download_{os.getpid()}.zip"
+        # Everything lands in a staging dir first, then one atomic rename
+        # publishes it. A half-written 108 MB exe must never be visible at the
+        # findable path: the pre-lock fast check above would hand it to a
+        # caller whose CreateProcess then dies with WinError 32 (field bug,
+        # 2026-09-06: ingest raced the callouts page on a fresh clone).
+        staging = REPO_ROOT / "tools" / f".vrf_staging_{os.getpid()}"
+        tmp_zip = REPO_ROOT / "tools" / f".vrf_download_{os.getpid()}.zip"
         try:
             logger.info("Downloading the map decompiler (one-time, ~50 MB): %s", url)
-            dest_dir.mkdir(parents=True, exist_ok=True)
+            staging.mkdir(parents=True, exist_ok=True)
             # Pinned https release URL - not user input.
             with urllib.request.urlopen(url, timeout=300) as resp, tmp_zip.open("wb") as out:
                 shutil.copyfileobj(resp, out)
@@ -172,11 +178,19 @@ def _ensure_vrf_cli() -> Path | None:
                     # Official archives are flat; refuse traversal all the same.
                     if member.startswith(("/", "\\")) or ".." in member:
                         raise ValueError(f"unsafe zip member: {member}")
-                zf.extractall(dest_dir)
+                zf.extractall(staging)
+            if os.name != "nt":
+                for name in ("Source2Viewer-CLI", "Source2Viewer-CLI.exe"):
+                    cli = staging / name
+                    if cli.exists():
+                        cli.chmod(0o755)
+            try:
+                staging.rename(dest_dir)
+            except OSError:
+                # Another process published first; use theirs.
+                pass
             found = _find_vrf_cli()
             if found is not None:
-                if os.name != "nt":
-                    found.chmod(0o755)
                 logger.info("Map decompiler ready at %s", found)
             else:
                 logger.warning("VRF archive extracted but no CLI found in %s", dest_dir)
@@ -191,6 +205,8 @@ def _ensure_vrf_cli() -> Path | None:
             return None
         finally:
             tmp_zip.unlink(missing_ok=True)
+            if staging.exists():
+                shutil.rmtree(staging, ignore_errors=True)
 
 
 def _rekey(script: RoundScript, keys: set[str], canonical: str) -> RoundScript:

@@ -87,10 +87,21 @@ class SettingsUpdateRequest(BaseModel):
 
 def _cs2_path_valid(install: Path | None) -> bool:
     """True when the folder looks like a CS2 install (has game/csgo)."""
-    return bool(install) and (Path(install) / "game" / "csgo").is_dir()
+    from counterstrat.web.readiness import cs2_path_valid
+
+    return cs2_path_valid(install)
 
 
 # --- 1. Demos Upload & Jobs ---
+
+
+@router.get("/readiness")
+def get_readiness(cfg: ConfigDep) -> dict:
+    """Setup state for the ingest gate; polling also (re)kicks the bootstrap."""
+    from counterstrat.web import readiness
+
+    readiness.start_bootstrap(cfg)
+    return readiness.snapshot(cfg)
 
 
 @router.post("/demos")
@@ -99,6 +110,16 @@ def upload_demo(
     demo: Annotated[UploadFile, File()],
     cfg: ConfigDep,
 ) -> dict[str, str]:
+    from counterstrat.web.readiness import ingest_blockers
+
+    # Ingestion only starts on a fully set-up app: lazy first-touch work
+    # mid-ingest reads as breakage (owner decree, 2026-09-06).
+    blockers = ingest_blockers(cfg)
+    if blockers:
+        raise HTTPException(
+            status_code=409,
+            detail="Setup incomplete - " + "; ".join(blockers),
+        )
     filename = demo.filename or "uploaded.dem"
     lower = filename.lower()
     if lower.endswith(".dem.zst"):
@@ -1070,6 +1091,12 @@ def update_settings(
         cfg.cs2_install_path = new_install
     elif clear_install:
         cfg.cs2_install_path = None
+
+    # A saved key/path may have just unlocked setup work (decompiler download,
+    # map-asset warmup): start it NOW, visibly, not on some later first touch.
+    from counterstrat.web import readiness
+
+    readiness.start_bootstrap(cfg)
 
     return _settings_response(cfg)
 

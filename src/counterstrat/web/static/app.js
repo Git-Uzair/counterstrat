@@ -14,6 +14,8 @@
     currentTeamData: null,
     currentMatchIds: null, // null = full corpus scope; array = subset
     readGate: null, // token: chat stays gated while the CURRENT First Read runs
+    setupReady: false, // ingest stays gated until GET /api/readiness says ready
+    readinessTimer: null,
     isProcessing: false,
     pollTimers: {}, // jobId -> interval handle (one per queued ingest)
     settings: null,
@@ -30,6 +32,8 @@
     dropZone: document.getElementById("drop-zone"),
     fileInput: document.getElementById("file-input"),
     browseBtn: document.getElementById("browse-btn"),
+    setupChecklist: document.getElementById("setup-checklist"),
+    setupChecklistItems: document.getElementById("setup-checklist-items"),
     ingestQueue: document.getElementById("ingest-queue"),
 
     // Catalog
@@ -154,9 +158,78 @@
     });
   }
 
+  // =========================================================================
+  // Setup readiness gate: no ingest until the app is fully prepared. The
+  // server enforces it too (POST /demos -> 409); this keeps the UI honest,
+  // shows what's left, and spins while the bootstrap works.
+  // =========================================================================
+
+  function renderChecklistItem(item) {
+    const li = document.createElement("li");
+    li.className = "setup-item " + (item.ok ? "setup-item-ok" : "setup-item-missing");
+    let icon = item.ok ? "\u2713" : "\u2717";
+    let spin = "";
+    const busy =
+      !item.ok && item.id === "decompiler" &&
+      (item.status === "downloading" || item.status === "warming");
+    if (busy) {
+      icon = "";
+      spin = '<span class="setup-spinner"></span>';
+    }
+    let fix = "";
+    if (!item.ok && (item.id === "cs2_path" || item.id === "api_key")) {
+      fix = '<button type="button" class="btn btn-sm btn-outline setup-fix-btn">Open Settings</button>';
+    }
+    li.innerHTML =
+      `<span class="setup-item-icon">${icon}</span>${spin}` +
+      `<span class="setup-item-label">${escapeHtml(item.label)}</span>` +
+      `<span class="setup-item-detail">${escapeHtml(item.detail || "")}</span>` +
+      fix;
+    const btn = li.querySelector(".setup-fix-btn");
+    if (btn) btn.addEventListener("click", openSettings);
+    return li;
+  }
+
+  function applyReadiness(data) {
+    state.setupReady = !!data.ready;
+    el.setupChecklist.classList.toggle("hidden", state.setupReady);
+    el.dropZone.classList.toggle("gated", !state.setupReady);
+    el.browseBtn.disabled = !state.setupReady;
+    if (!state.setupReady) {
+      el.setupChecklistItems.innerHTML = "";
+      (data.items || []).forEach(function (item) {
+        el.setupChecklistItems.appendChild(renderChecklistItem(item));
+      });
+    }
+  }
+
+  function pollReadiness() {
+    fetch("/api/readiness")
+      .then(function (res) {
+        if (!res.ok) throw new Error("readiness unavailable");
+        return res.json();
+      })
+      .then(function (data) {
+        applyReadiness(data);
+        if (!state.setupReady) {
+          clearTimeout(state.readinessTimer);
+          state.readinessTimer = setTimeout(pollReadiness, 2500);
+        }
+      })
+      .catch(function (err) {
+        console.error("Readiness poll failed:", err);
+        clearTimeout(state.readinessTimer);
+        state.readinessTimer = setTimeout(pollReadiness, 5000);
+      });
+  }
+
   // Multi-file ingestion: one queue row per file, uploads run one at a time,
   // each accepted job polls independently. Server serializes the pipelines.
   function uploadDemoFiles(fileList) {
+    if (!state.setupReady) {
+      el.setupChecklist.classList.remove("hidden");
+      return; // the checklist says what's left; the server would 409 anyway
+    }
     const files = Array.from(fileList || []);
     if (files.length === 0) return;
     el.ingestQueue.classList.remove("hidden");
@@ -1077,14 +1150,25 @@
     }
   }
 
+  // Model lists load per provider and requests can resolve out of order (a
+  // slow Gemini listing once landed AFTER a later Anthropic one, leaving
+  // Sonnet under a Google provider - field bug, 2026-09-06). Last request
+  // wins: stale responses are dropped, and the dropdown says so while loading.
+  let modelsRequestSeq = 0;
+
   function loadModels(provider, selectedModel) {
+    const seq = ++modelsRequestSeq;
+    el.settingModel.innerHTML = '<option value="">Loading models\u2026</option>';
+    el.settingModel.disabled = true;
     fetch(`/api/models?provider=${encodeURIComponent(provider)}`)
       .then(function (res) {
         if (!res.ok) return [];
         return res.json();
       })
       .then(function (models) {
+        if (seq !== modelsRequestSeq) return; // a newer request owns the dropdown
         el.settingModel.innerHTML = "";
+        el.settingModel.disabled = false;
         const modelList = (models && models.length > 0)
           ? models
           : (provider === "gemini" ? ["gemini-2.5-pro", "gemini-2.5-flash"] : ["claude-sonnet-5"]);
@@ -1100,7 +1184,8 @@
         });
       })
       .catch(function () {
-        // Fallback
+        if (seq !== modelsRequestSeq) return;
+        el.settingModel.disabled = false;
         el.settingModel.innerHTML = `<option value="${selectedModel || ''}">${selectedModel || 'default'}</option>`;
       });
   }
@@ -1143,6 +1228,8 @@
         updateKeyIndicator(updated.provider);
         el.settingCs2Path.value = updated.cs2_install_path || "";
         updateCs2Status(updated);
+        // A saved key/path may have unlocked setup work: reflect it now.
+        pollReadiness();
         el.settingApiKey.value = "";
         el.settingsFeedback.className = "settings-feedback success";
         el.settingsFeedback.textContent = "Settings saved successfully!";
@@ -1236,5 +1323,6 @@
     initEvents();
     loadTeams();
     checkCs2Gate();
+    pollReadiness();
   });
 })();

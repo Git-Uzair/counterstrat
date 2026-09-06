@@ -18,9 +18,25 @@ def test_cfg(tmp_path: Path) -> AppConfig:
 
 
 @pytest.fixture
-def client_app(test_cfg: AppConfig) -> TestClient:
-    app = create_app(test_cfg)
-    return TestClient(app)
+def bare_client(test_cfg: AppConfig) -> TestClient:
+    """A client on the pristine cfg: no keys, no CS2 path, setup incomplete."""
+    return TestClient(create_app(test_cfg))
+
+
+@pytest.fixture
+def client_app(test_cfg: AppConfig, monkeypatch) -> TestClient:
+    """The default client: an ingest-ready cfg (valid CS2 dir, API keys, a
+    present decompiler), so upload flows never trip the setup gate. Tests
+    about pristine setup states use ``bare_client`` instead."""
+    install = test_cfg.data_root / "cs2install"
+    (install / "game" / "csgo").mkdir(parents=True)
+    test_cfg.cs2_install_path = install
+    test_cfg.anthropic_api_key = "k"
+    test_cfg.gemini_api_key = "k"
+    from counterstrat.web import readiness
+
+    monkeypatch.setattr(readiness, "_find_vrf_cli", lambda: install / "Source2Viewer-CLI.exe")
+    return TestClient(create_app(test_cfg))
 
 
 def _poll_until_done(
@@ -181,6 +197,37 @@ def test_settings_roundtrip_never_echoes_key(client_app: TestClient):
     assert got["keys_present"]["gemini"] is True
 
 
+def test_ingest_gate_blocks_until_setup_complete(bare_client: TestClient, monkeypatch):
+    """No CS2 folder, no decompiler, no key: uploads are refused with the
+    full checklist instead of starting an ingest that trips lazy work."""
+    from counterstrat.web import readiness
+
+    monkeypatch.setattr(readiness, "_find_vrf_cli", lambda: None)
+    r = bare_client.post("/api/demos", files={"demo": ("x.dem", b"PBDEMS2\0" + b"a" * 64)})
+    assert r.status_code == 409
+    detail = r.json()["detail"]
+    assert "CS2 install folder" in detail
+    assert "decompiler" in detail
+    assert "API key" in detail
+
+
+def test_readiness_reports_blockers(bare_client: TestClient, monkeypatch):
+    from counterstrat.web import readiness
+
+    monkeypatch.setattr(readiness, "_find_vrf_cli", lambda: None)
+    j = bare_client.get("/api/readiness").json()
+    assert j["ready"] is False
+    oks = {i["id"]: i["ok"] for i in j["items"]}
+    assert oks == {"cs2_path": False, "decompiler": False, "api_key": False}
+    assert all(i["detail"] for i in j["items"]), "every blocker explains its fix"
+
+
+def test_readiness_ready_on_complete_setup(client_app: TestClient):
+    j = client_app.get("/api/readiness").json()
+    assert j["ready"] is True
+    assert all(i["ok"] for i in j["items"])
+
+
 def test_shipped_cards_cover_the_calibrated_pool():
     """Every calibrated map ships a real card: fresh clones must get zones,
     measured topology and rotates without a CS2 install or the VRF CLI."""
@@ -277,9 +324,10 @@ def test_insights_bundle_survives_missing_card(tmp_path: Path):
     assert lex.zones, "lexicon must fall back to script/shipped vocabulary"
 
 
-def test_settings_cs2_path_roundtrip(client_app: TestClient, tmp_path: Path):
+def test_settings_cs2_path_roundtrip(bare_client: TestClient, tmp_path: Path):
     """The CS2 install folder is a first-class setting: reported, validated,
     persisted, and clearable."""
+    client_app = bare_client
     got = client_app.get("/api/settings").json()
     assert got["cs2_install_path"] is None
     assert got["cs2_path_valid"] is False
@@ -365,8 +413,8 @@ def test_settings_rejects_bogus_cs2_path(client_app: TestClient, tmp_path: Path)
     assert r.json()["cs2_install_path"] == str(install)
 
 
-def test_models_fallback_without_key(client_app: TestClient):
-    r = client_app.get("/api/models")
+def test_models_fallback_without_key(bare_client: TestClient):
+    r = bare_client.get("/api/models")
     assert r.status_code == 200
     models = r.json()
     assert isinstance(models, list)

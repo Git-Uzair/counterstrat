@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CS2 Counter-Strat Analyst</title>
-  <link rel="stylesheet" href="/static/style.css?v=15">
+  <link rel="stylesheet" href="/static/style.css?v=16">
 </head>
 <body>
   <div class="app-shell">
@@ -38,6 +38,10 @@
         <!-- Demo Ingestion Box -->
         <section class="panel-section upload-section">
           <h2 class="section-title">Ingest Demos</h2>
+          <div id="setup-checklist" class="setup-checklist hidden">
+            <div class="setup-checklist-title">Finish setup before ingesting demos</div>
+            <ul id="setup-checklist-items" class="setup-checklist-items"></ul>
+          </div>
           <div id="drop-zone" class="drop-zone">
             <input type="file" id="file-input" multiple accept=".dem,.dem.zst,.zst,.dem.gz,.gz,.dem.bz2,.bz2" class="file-input-hidden">
             <p class="drop-prompt">Drop <code>.dem</code> / <code>.zst</code> demos here (multiple OK)</p>
@@ -226,7 +230,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=10"></script>
+  <script src="/static/app.js?v=11"></script>
   <script src="/static/callouts.js?v=12"></script>
 </body>
 </html>
