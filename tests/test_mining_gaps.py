@@ -173,49 +173,55 @@ def test_post_plant_gaps_only_consider_the_planted_site():
     )
 
 
-def test_gap_covered_rate_from_adjacency():
-    """'Vacant' with a teammate next door is a covered gap, and the finding says so.
+def test_gap_vacancy_uses_site_complex():
+    """Holding a site means being anywhere in its travel-time complex, not
+    standing on the plant zone. Vacancy = the whole complex is empty.
 
     Regression: a CT watching the A entrance from Main was mined as 'CT vacate
     BombsiteA', which the First Read escalated to 'completely conceding A'.
     """
-    covered = [_beat("B+15", 15.0, [(3, "BombsiteA"), (2, "Connector")])]
-    open_gap = [_beat("B+15", 15.0, [(3, "BombsiteA"), (2, "CTSpawn")])]
-    held = [_beat("B+15", 15.0, [(2, "BombsiteB"), (3, "BombsiteA")])]
+    # Connector is 3.8s from B (inside the 5s complex); Canal is 3.8+3.2=7.0s (out).
+    topo = {"BombsiteB": {"Connector": 3.8, "Alley": 4.9}, "Connector": {"Canal": 3.2}}
+    onsite = [_beat("B+15", 15.0, [(2, "BombsiteB"), (3, "BombsiteA")])]
+    offsite = [_beat("B+15", 15.0, [(3, "BombsiteA"), (2, "Connector")])]
+    empty = [_beat("B+15", 15.0, [(3, "BombsiteA"), (2, "Canal")])]
     scripts = [
-        _script(1, beats=covered, winner="CT"),
-        _script(2, beats=covered, winner="CT"),
-        _script(3, beats=open_gap, winner="CT"),
-        _script(4, beats=held, winner="CT"),
+        _script(1, beats=onsite, winner="CT"),
+        _script(2, beats=offsite, winner="CT"),
+        _script(3, beats=offsite, winner="CT"),
+        _script(4, beats=empty, winner="CT"),
     ]
 
-    rep = build_gap_report(scripts, TEAM, adjacency={"BombsiteB": {"Connector": 3.8, "Alley": 4.9}})
+    rep = build_gap_report(scripts, TEAM, topology=topo)
+    assert rep.site_complexes["BombsiteB"] == ["Alley", "BombsiteB", "Connector"]
     f = next(
         f
         for f in rep.findings
         if f.trigger == "base" and f.zone == "BombsiteB" and f.window == "B+15"
     )
-    assert abs(f.vacancy_rate - 3 / 4) < 1e-9
-    assert f.covered_rate is not None and abs(f.covered_rate - 2 / 3) < 1e-9
+    assert abs(f.vacancy_rate - 1 / 4) < 1e-9  # only the round with nobody in the complex
+    assert f.evidence == ["gm1:4"]
+    assert f.top_holds == {"Connector": 2, "BombsiteB": 1}
 
-    # Symmetric lookup: Connector covers BombsiteB even when the topology only
-    # records the edge on Connector's side.
-    rep_sym = build_gap_report(scripts, TEAM, adjacency={"Connector": {"BombsiteB": 3.8}})
+    # Symmetric lookup: the topology may record the edge on Connector's side only.
+    rep_sym = build_gap_report(scripts, TEAM, topology={"Connector": {"BombsiteB": 3.8}})
     f_sym = next(
         f
         for f in rep_sym.findings
         if f.trigger == "base" and f.zone == "BombsiteB" and f.window == "B+15"
     )
-    assert f_sym.covered_rate is not None and abs(f_sym.covered_rate - 2 / 3) < 1e-9
+    assert abs(f_sym.vacancy_rate - 1 / 4) < 1e-9
 
-    # No topology -> coverage unknown, never a misleading 0%.
-    rep_none = build_gap_report(scripts, TEAM)
-    f_none = next(
+    # No topology -> the complex degrades to the zone itself (literal vacancy).
+    rep_lit = build_gap_report(scripts, TEAM)
+    f_lit = next(
         f
-        for f in rep_none.findings
+        for f in rep_lit.findings
         if f.trigger == "base" and f.zone == "BombsiteB" and f.window == "B+15"
     )
-    assert f_none.covered_rate is None
+    assert abs(f_lit.vacancy_rate - 3 / 4) < 1e-9
+    assert f_lit.top_holds == {"BombsiteB": 1}
+    assert rep_lit.site_complexes["BombsiteB"] == ["BombsiteB"]
 
 
 def test_gap_report_respects_explicit_key_zones(after_loss_scripts):

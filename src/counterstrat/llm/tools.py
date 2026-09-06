@@ -215,15 +215,15 @@ def tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_gap_report",
             description=(
-                "Where this team leaves key zones (bombsites) unoccupied, by 15s beat "
+                "Where this team leaves key zones (bombsites) UNCOVERED, by 15s beat "
                 "window, with the trigger that opens the gap (after_loss, after_win, "
                 "behind, ahead, first contact won/lost, utility dump) and the lift over "
-                "the unconditioned baseline. Windows come from 15s formation beats, so "
-                "sub-15s rotations are invisible. 'Vacant' is literal - nobody inside "
-                "the zone itself - so read covered_rate too: the share of vacant rounds "
-                "with a player in an adjacent zone still watching the entrances. High "
-                "covered_rate = nominal gap, not a conceded zone. Use for 'where are "
-                "they weak and when'."
+                "the unconditioned baseline. A zone counts as held when someone stands "
+                "in its hold complex (the zone or any position within ~5s of it - see "
+                "site_complexes); vacancy_rate is the share of rounds the WHOLE complex "
+                "was empty, and top_holds names the zones that provided cover. Windows "
+                "come from 15s formation beats, so sub-15s rotations are invisible. "
+                "Use for 'where are they weak and when'."
             ),
             input_schema={
                 "type": "object",
@@ -540,11 +540,12 @@ def _tool_get_gap_report(ctx: SessionContext, args: dict) -> str:
         {
             "side": side,
             "key_zones": ctx.gap_report.key_zones,
+            "site_complexes": ctx.gap_report.site_complexes,
             "window_note": (
                 "Windows are 15s formation beats; sub-15s rotations are invisible. "
-                "'Vacant' means nobody stood inside the zone itself; covered_rate is "
-                "the share of vacant rounds with a teammate in an adjacent zone "
-                "(entrances still watched). null covered_rate = no topology, unknown."
+                "A zone counts as held when someone stands in its hold complex "
+                "(site_complexes); vacancy_rate = share of rounds the WHOLE complex "
+                "was empty. top_holds names the zones that provided cover."
             ),
             "findings": findings,
         }

@@ -1,12 +1,18 @@
-"""Zone vacancy mining: where a team leaves gaps, when, and on what trigger (plan Task 3).
+"""Site-hold gap mining: where a team leaves key zones uncovered, and on what trigger.
 
-Findings condition zone vacancies (a key zone absent from the side's beat
-formation) on the research-derived trigger vocabulary: previous-round outcome,
-score state, a won/lost first contact before the beat, and an early utility
-dump. Windows are the 15s beat grid plus the first-contact and plant anchors.
+A key zone (bombsite) counts as HELD when any player stands in its hold
+complex: the zone itself or any zone within ``SITE_HOLD_RADIUS_S`` seconds of
+it over the map card topology (Dijkstra on measured move times). Players hold
+sites from Heaven/Main/Jungle-style positions without standing on the plant
+zone, so literal polygon vacancy misread covered sites as conceded ones.
+Complex vacancies are conditioned on the research-derived trigger vocabulary:
+previous-round outcome, score state, a won/lost first contact before the beat,
+and an early utility dump. Windows are the 15s beat grid plus the
+first-contact and plant anchors.
 """
 
-from collections import defaultdict
+import heapq
+from collections import Counter, defaultdict
 
 from pydantic import BaseModel
 
@@ -20,23 +26,28 @@ MAX_FINDINGS = 30
 MAX_EVIDENCE = 6
 UTIL_DUMP_COUNT = 3
 BASE_WINDOWS = ("B+00", "B+15", "B+30", "B+45")
+# Calibrated over the 7 shipped map cards (2026-09-06 sweep of 5/6/7/8s): 5s
+# keeps every complex tactically tight (Anubis A = site + Heaven, Walkway,
+# Main, Fountain, TunnelStairs); 6s and up start swallowing mid on dense cards
+# (Cache A, Anubis B).
+SITE_HOLD_RADIUS_S = 5.0
+MAX_HOLDS = 4
 
 
 class GapFinding(BaseModel):
     side: str  # the observed team's side in these rounds
-    zone: str  # the vacated key zone
+    zone: str  # the uncovered key zone
     window: str  # "B+15" ... or "post-FC" / "post-PL"
     trigger: str  # "base" or one of the trigger vocabulary
-    vacancy_rate: float  # vacant rounds / rounds matching trigger
+    vacancy_rate: float  # rounds with the hold complex EMPTY / rounds matching trigger
     n: int  # rounds matching trigger with this window present
     baseline_rate: float  # unconditioned vacancy rate for (side, zone, window)
     lift: float  # vacancy_rate - baseline_rate (0.0 for base rows)
-    evidence: list[str]  # vacant round ids, capped at MAX_EVIDENCE
-    # Of the vacant rounds, the share where a teammate stood in a zone adjacent
-    # to the vacated zone (an entrance watcher). Vacancy is literal - nobody
-    # inside the zone polygon - so a high covered_rate means the gap is nominal.
-    # None when no topology was supplied: coverage unknown, not zero.
-    covered_rate: float | None = None
+    evidence: list[str]  # uncovered round ids, capped at MAX_EVIDENCE
+    # In the covered rounds, which complex members provided the hold: zone ->
+    # number of rounds it was occupied, largest first, capped at MAX_HOLDS.
+    # Shows HOW the site is held (on-site vs from Heaven/Main) - the read.
+    top_holds: dict[str, int] = {}
 
 
 class GapReport(BaseModel):
@@ -44,14 +55,43 @@ class GapReport(BaseModel):
     map_name: str
     key_zones: list[str]
     findings: list[GapFinding]  # triggered rows filtered by thresholds, sorted by lift
+    # key zone -> sorted members of its hold complex (just the zone itself when
+    # no topology was available).
+    site_complexes: dict[str, list[str]] = {}
 
 
-def _neighbors(zone: str, adjacency: dict[str, dict[str, float]]) -> set[str]:
-    """Zones adjacent to `zone`; symmetric, since card topology edges can be one-way."""
-    out = set(adjacency.get(zone, {}))
-    out.update(u for u, nbrs in adjacency.items() if zone in nbrs)
-    out.discard(zone)
-    return out
+def _symmetric_graph(topology: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
+    """Undirected weighted graph from card topology (edges can be recorded one-way)."""
+    g: dict[str, dict[str, float]] = defaultdict(dict)
+    for u, nbrs in topology.items():
+        for v, w in nbrs.items():
+            w = float(w)
+            g[u][v] = min(g[u].get(v, w), w)
+            g[v][u] = min(g[v].get(u, w), w)
+    return g
+
+
+def hold_complex(
+    zone: str,
+    topology: dict[str, dict[str, float]] | None,
+    cutoff_s: float = SITE_HOLD_RADIUS_S,
+) -> set[str]:
+    """Zones from which `zone` is contestable within cutoff_s seconds (incl. itself)."""
+    if not topology:
+        return {zone}
+    g = _symmetric_graph(topology)
+    dist = {zone: 0.0}
+    heap = [(0.0, zone)]
+    while heap:
+        d, u = heapq.heappop(heap)
+        if d > dist[u]:
+            continue
+        for v, w in g.get(u, {}).items():
+            nd = d + w
+            if nd <= cutoff_s and nd < dist.get(v, float("inf")):
+                dist[v] = nd
+                heapq.heappush(heap, (nd, v))
+    return set(dist)
 
 
 def _window(label: str) -> str | None:
@@ -90,12 +130,12 @@ def build_gap_report(
     scripts: list[RoundScript],
     team_key: str,
     key_zones: list[str] | None = None,
-    adjacency: dict[str, dict[str, float]] | None = None,
+    topology: dict[str, dict[str, float]] | None = None,
 ) -> GapReport:
-    """Mine systematic key-zone vacancies for team_key, conditioned on triggers.
+    """Mine systematic key-zone hold gaps for team_key, conditioned on triggers.
 
-    `adjacency` (a map card `topology`) enables covered_rate: how often a
-    'vacant' zone still had a teammate right next door.
+    `topology` (a map card ``topology``) derives each key zone's hold complex;
+    without it the complex degrades to the literal zone.
     """
     map_name = scripts[0].map_name if scripts else ""
     states = iter_round_states(scripts, team_key)
@@ -103,8 +143,10 @@ def build_gap_report(
     if not states or not zones:
         return GapReport(team_key=team_key, map_name=map_name, key_zones=zones, findings=[])
 
-    # (side, window, zone) -> [(round_id, vacant, covered, active_triggers)]
-    obs: dict[tuple[str, str, str], list[tuple[str, bool, bool, set[str]]]] = defaultdict(list)
+    complexes = {z: hold_complex(z, topology) for z in zones}
+
+    # (side, window, zone) -> [(round_id, holder_zones, active_triggers)]
+    obs: dict[tuple[str, str, str], list[tuple[str, frozenset[str], set[str]]]] = defaultdict(list)
     for st in states:
         s = st.script
         round_id = f"{s.match_id}:{s.round_num}"
@@ -118,31 +160,27 @@ def build_gap_report(
             occupied = {z for _, z in form.zones}
             triggers = _triggers_at_beat(s, st.side, beat, st)
             if window == "post-PL":
-                # Post-plant, vacating the NON-planted site is normal retake
+                # Post-plant, leaving the NON-planted site is normal retake
                 # rotation, not a gap: only the planted site is a read there.
                 beat_zones = [z for z in zones if s.plant is not None and z == s.plant.site]
             else:
                 beat_zones = zones
             for zone in beat_zones:
-                covered = bool(adjacency) and bool(occupied & _neighbors(zone, adjacency or {}))
-                obs[(st.side, window, zone)].append(
-                    (round_id, zone not in occupied, covered, triggers)
-                )
+                holders = frozenset(occupied & complexes[zone])
+                obs[(st.side, window, zone)].append((round_id, holders, triggers))
 
-    use_cover = bool(adjacency)
-
-    def covered_rate_of(vacant_rows: list[tuple[str, bool]]) -> float | None:
-        if not use_cover or not vacant_rows:
-            return None
-        return sum(1 for _, covered in vacant_rows if covered) / len(vacant_rows)
+    def top_holds_of(rows: list[tuple[str, frozenset[str]]]) -> dict[str, int]:
+        counts: Counter[str] = Counter()
+        for _, holders in rows:
+            counts.update(holders)
+        return dict(counts.most_common(MAX_HOLDS))
 
     findings: list[GapFinding] = []
     for (side, window, zone), rows in sorted(obs.items()):
         n = len(rows)
         if n < MIN_N:
             continue
-        vacant_rows = [(rid, covered) for rid, vacant, covered, _ in rows if vacant]
-        vacant_ids = [rid for rid, _ in vacant_rows]
+        vacant_ids = [rid for rid, holders, _ in rows if not holders]
         base_rate = len(vacant_ids) / n
         findings.append(
             GapFinding(
@@ -155,18 +193,16 @@ def build_gap_report(
                 baseline_rate=base_rate,
                 lift=0.0,
                 evidence=vacant_ids[:MAX_EVIDENCE],
-                covered_rate=covered_rate_of(vacant_rows),
+                top_holds=top_holds_of([(rid, h) for rid, h, _ in rows]),
             )
         )
-        trigger_names = sorted({t for _, _, _, trigs in rows for t in trigs})
+        trigger_names = sorted({t for _, _, trigs in rows for t in trigs})
         for trigger in trigger_names:
-            t_rows = [
-                (rid, vacant, covered) for rid, vacant, covered, trigs in rows if trigger in trigs
-            ]
+            t_rows = [(rid, holders) for rid, holders, trigs in rows if trigger in trigs]
             t_n = len(t_rows)
             if t_n < MIN_N:
                 continue
-            t_vacant = [(rid, covered) for rid, vacant, covered in t_rows if vacant]
+            t_vacant = [rid for rid, holders in t_rows if not holders]
             rate = len(t_vacant) / t_n
             lift = rate - base_rate
             if rate < MIN_VACANCY or lift < MIN_LIFT:
@@ -181,8 +217,8 @@ def build_gap_report(
                     n=t_n,
                     baseline_rate=base_rate,
                     lift=lift,
-                    evidence=[rid for rid, _ in t_vacant][:MAX_EVIDENCE],
-                    covered_rate=covered_rate_of(t_vacant),
+                    evidence=t_vacant[:MAX_EVIDENCE],
+                    top_holds=top_holds_of(t_rows),
                 )
             )
 
@@ -192,4 +228,5 @@ def build_gap_report(
         map_name=map_name,
         key_zones=zones,
         findings=findings[:MAX_FINDINGS],
+        site_complexes={z: sorted(members) for z, members in complexes.items()},
     )

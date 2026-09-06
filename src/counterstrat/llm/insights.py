@@ -19,7 +19,7 @@ from counterstrat.mapcard.compile import MapCard
 from counterstrat.mapcard.lexicon import Lexicon
 from counterstrat.mining.deaths import build_death_profiles
 from counterstrat.mining.econ_policy import EconPolicy
-from counterstrat.mining.gaps import GapReport
+from counterstrat.mining.gaps import SITE_HOLD_RADIUS_S, GapReport
 from counterstrat.mining.range_profile import build_range_profile
 from counterstrat.mining.retakes import build_retake_report
 from counterstrat.mining.rotations import build_rotation_report
@@ -254,23 +254,25 @@ def build_insights_user(
     sections += [
         "",
         (
-            "## Gap Findings (15s formation windows; 'vacate' = nobody inside the zone "
-            "itself at that instant - a player in an adjacent zone may still watch its "
-            "entrances, see each line's adjacent-cover rate; plant rows = the planted "
-            "site only)"
+            "## Gap Findings (15s formation windows; a zone counts as HELD when someone "
+            f"stands in its hold complex - the zone or any position within "
+            f"~{SITE_HOLD_RADIUS_S:.0f}s of it, listed below; 'uncovered' means the "
+            "whole complex was empty; plant rows = the planted site only)"
         ),
     ]
+    for zone, members in sorted(gap_report.site_complexes.items()):
+        sections.append(f"- `{zone}` complex: {', '.join(members)}")
     for f in gap_report.findings:
         evidence = ", ".join(_friendly_round(e, labels) for e in f.evidence[:4])
-        cover = (
-            ""
-            if f.covered_rate is None
-            else f", covered from an adjacent zone in {f.covered_rate:.0%} of those"
+        holds = (
+            "; cover comes from " + ", ".join(f"{z} x{c}" for z, c in f.top_holds.items())
+            if f.top_holds
+            else ""
         )
         sections.append(
-            f"- {f.side} vacate `{f.zone}` {_friendly_window(f.window)} on '{f.trigger}': "
-            f"{f.vacancy_rate:.0%} of {f.n} (baseline {f.baseline_rate:.0%}, lift {f.lift:+.0%}"
-            f"{cover}; evidence: {evidence})"
+            f"- {f.side} leave `{f.zone}` uncovered {_friendly_window(f.window)} on "
+            f"'{f.trigger}': {f.vacancy_rate:.0%} of {f.n} (baseline {f.baseline_rate:.0%}, "
+            f"lift {f.lift:+.0%}{holds}; evidence: {evidence})"
         )
     sections += ["", "## Economy Policy"]
     for state, dist in econ_policy.policy.items():

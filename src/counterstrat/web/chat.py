@@ -353,7 +353,7 @@ def _build_session(
         con=_lake_connection(cfg),
         scripts=scripts,
         utility_book=build_utility_book(script_list, team_key),
-        gap_report=build_gap_report(script_list, team_key, adjacency=card.topology),
+        gap_report=build_gap_report(script_list, team_key, topology=card.topology),
         econ_policy=build_econ_policy(script_list, team_key),
         renamer=renamer if renamer else None,
         data_root=str(cfg.data_root),

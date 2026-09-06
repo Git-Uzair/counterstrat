@@ -67,18 +67,20 @@ def test_insights_user_prompt_carries_everything(synthetic_scripts):
     assert "post-PL" not in user and "post-FC" not in user
 
 
-def test_insights_gap_lines_carry_adjacent_coverage(synthetic_scripts):
-    """Vacancy semantics reach the prompt: the header defines 'vacate' and each
-    finding with topology reports how often an adjacent zone still covered it."""
+def test_insights_gap_lines_carry_site_complexes(synthetic_scripts):
+    """Site-complex semantics reach the prompt: the header defines 'uncovered',
+    each site's complex is listed, and findings name the zones providing cover."""
     b = _bundle(synthetic_scripts)
-    # Synthetic CTs hold BombsiteA and never stand in BombsiteB: with A adjacent
-    # to B, every vacant-B round is covered from next door.
+    # Synthetic CTs hold BombsiteA and never stand in BombsiteB: with A inside
+    # B's 5s complex, the A-holders cover B too.
     b["gap_report"] = build_gap_report(
-        synthetic_scripts, SYNTHETIC_TEAM, adjacency={"BombsiteB": {"BombsiteA": 1.0}}
+        synthetic_scripts, SYNTHETIC_TEAM, topology={"BombsiteB": {"BombsiteA": 1.0}}
     )
     user = build_insights_user(scripts=synthetic_scripts, **b)
-    assert "nobody inside the zone itself" in user
-    assert "covered from an adjacent zone in 100%" in user
+    assert "hold complex" in user
+    assert "`BombsiteB` complex: BombsiteA, BombsiteB" in user
+    assert "uncovered" in user
+    assert "cover comes from" in user and "BombsiteA x" in user
 
 
 def test_generate_insights_calls_llm_and_lints(synthetic_scripts):
