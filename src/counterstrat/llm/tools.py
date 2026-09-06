@@ -219,7 +219,11 @@ def tool_specs() -> list[ToolSpec]:
                 "window, with the trigger that opens the gap (after_loss, after_win, "
                 "behind, ahead, first contact won/lost, utility dump) and the lift over "
                 "the unconditioned baseline. Windows come from 15s formation beats, so "
-                "sub-15s rotations are invisible. Use for 'where are they weak and when'."
+                "sub-15s rotations are invisible. 'Vacant' is literal - nobody inside "
+                "the zone itself - so read covered_rate too: the share of vacant rounds "
+                "with a player in an adjacent zone still watching the entrances. High "
+                "covered_rate = nominal gap, not a conceded zone. Use for 'where are "
+                "they weak and when'."
             ),
             input_schema={
                 "type": "object",
@@ -536,7 +540,12 @@ def _tool_get_gap_report(ctx: SessionContext, args: dict) -> str:
         {
             "side": side,
             "key_zones": ctx.gap_report.key_zones,
-            "window_note": "Windows are 15s formation beats; sub-15s rotations are invisible.",
+            "window_note": (
+                "Windows are 15s formation beats; sub-15s rotations are invisible. "
+                "'Vacant' means nobody stood inside the zone itself; covered_rate is "
+                "the share of vacant rounds with a teammate in an adjacent zone "
+                "(entrances still watched). null covered_rate = no topology, unknown."
+            ),
             "findings": findings,
         }
     )

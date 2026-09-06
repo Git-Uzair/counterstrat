@@ -32,6 +32,11 @@ class GapFinding(BaseModel):
     baseline_rate: float  # unconditioned vacancy rate for (side, zone, window)
     lift: float  # vacancy_rate - baseline_rate (0.0 for base rows)
     evidence: list[str]  # vacant round ids, capped at MAX_EVIDENCE
+    # Of the vacant rounds, the share where a teammate stood in a zone adjacent
+    # to the vacated zone (an entrance watcher). Vacancy is literal - nobody
+    # inside the zone polygon - so a high covered_rate means the gap is nominal.
+    # None when no topology was supplied: coverage unknown, not zero.
+    covered_rate: float | None = None
 
 
 class GapReport(BaseModel):
@@ -39,6 +44,14 @@ class GapReport(BaseModel):
     map_name: str
     key_zones: list[str]
     findings: list[GapFinding]  # triggered rows filtered by thresholds, sorted by lift
+
+
+def _neighbors(zone: str, adjacency: dict[str, dict[str, float]]) -> set[str]:
+    """Zones adjacent to `zone`; symmetric, since card topology edges can be one-way."""
+    out = set(adjacency.get(zone, {}))
+    out.update(u for u, nbrs in adjacency.items() if zone in nbrs)
+    out.discard(zone)
+    return out
 
 
 def _window(label: str) -> str | None:
@@ -77,16 +90,21 @@ def build_gap_report(
     scripts: list[RoundScript],
     team_key: str,
     key_zones: list[str] | None = None,
+    adjacency: dict[str, dict[str, float]] | None = None,
 ) -> GapReport:
-    """Mine systematic key-zone vacancies for team_key, conditioned on triggers."""
+    """Mine systematic key-zone vacancies for team_key, conditioned on triggers.
+
+    `adjacency` (a map card `topology`) enables covered_rate: how often a
+    'vacant' zone still had a teammate right next door.
+    """
     map_name = scripts[0].map_name if scripts else ""
     states = iter_round_states(scripts, team_key)
     zones = key_zones if key_zones is not None else _default_key_zones(scripts)
     if not states or not zones:
         return GapReport(team_key=team_key, map_name=map_name, key_zones=zones, findings=[])
 
-    # (side, window, zone) -> [(round_id, vacant, active_triggers)]
-    obs: dict[tuple[str, str, str], list[tuple[str, bool, set[str]]]] = defaultdict(list)
+    # (side, window, zone) -> [(round_id, vacant, covered, active_triggers)]
+    obs: dict[tuple[str, str, str], list[tuple[str, bool, bool, set[str]]]] = defaultdict(list)
     for st in states:
         s = st.script
         round_id = f"{s.match_id}:{s.round_num}"
@@ -106,14 +124,25 @@ def build_gap_report(
             else:
                 beat_zones = zones
             for zone in beat_zones:
-                obs[(st.side, window, zone)].append((round_id, zone not in occupied, triggers))
+                covered = bool(adjacency) and bool(occupied & _neighbors(zone, adjacency or {}))
+                obs[(st.side, window, zone)].append(
+                    (round_id, zone not in occupied, covered, triggers)
+                )
+
+    use_cover = bool(adjacency)
+
+    def covered_rate_of(vacant_rows: list[tuple[str, bool]]) -> float | None:
+        if not use_cover or not vacant_rows:
+            return None
+        return sum(1 for _, covered in vacant_rows if covered) / len(vacant_rows)
 
     findings: list[GapFinding] = []
     for (side, window, zone), rows in sorted(obs.items()):
         n = len(rows)
         if n < MIN_N:
             continue
-        vacant_ids = [rid for rid, vacant, _ in rows if vacant]
+        vacant_rows = [(rid, covered) for rid, vacant, covered, _ in rows if vacant]
+        vacant_ids = [rid for rid, _ in vacant_rows]
         base_rate = len(vacant_ids) / n
         findings.append(
             GapFinding(
@@ -126,15 +155,18 @@ def build_gap_report(
                 baseline_rate=base_rate,
                 lift=0.0,
                 evidence=vacant_ids[:MAX_EVIDENCE],
+                covered_rate=covered_rate_of(vacant_rows),
             )
         )
-        trigger_names = sorted({t for _, _, trigs in rows for t in trigs})
+        trigger_names = sorted({t for _, _, _, trigs in rows for t in trigs})
         for trigger in trigger_names:
-            t_rows = [(rid, vacant) for rid, vacant, trigs in rows if trigger in trigs]
+            t_rows = [
+                (rid, vacant, covered) for rid, vacant, covered, trigs in rows if trigger in trigs
+            ]
             t_n = len(t_rows)
             if t_n < MIN_N:
                 continue
-            t_vacant = [rid for rid, vacant in t_rows if vacant]
+            t_vacant = [(rid, covered) for rid, vacant, covered in t_rows if vacant]
             rate = len(t_vacant) / t_n
             lift = rate - base_rate
             if rate < MIN_VACANCY or lift < MIN_LIFT:
@@ -149,7 +181,8 @@ def build_gap_report(
                     n=t_n,
                     baseline_rate=base_rate,
                     lift=lift,
-                    evidence=t_vacant[:MAX_EVIDENCE],
+                    evidence=[rid for rid, _ in t_vacant][:MAX_EVIDENCE],
+                    covered_rate=covered_rate_of(t_vacant),
                 )
             )
 

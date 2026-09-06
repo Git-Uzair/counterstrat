@@ -173,6 +173,51 @@ def test_post_plant_gaps_only_consider_the_planted_site():
     )
 
 
+def test_gap_covered_rate_from_adjacency():
+    """'Vacant' with a teammate next door is a covered gap, and the finding says so.
+
+    Regression: a CT watching the A entrance from Main was mined as 'CT vacate
+    BombsiteA', which the First Read escalated to 'completely conceding A'.
+    """
+    covered = [_beat("B+15", 15.0, [(3, "BombsiteA"), (2, "Connector")])]
+    open_gap = [_beat("B+15", 15.0, [(3, "BombsiteA"), (2, "CTSpawn")])]
+    held = [_beat("B+15", 15.0, [(2, "BombsiteB"), (3, "BombsiteA")])]
+    scripts = [
+        _script(1, beats=covered, winner="CT"),
+        _script(2, beats=covered, winner="CT"),
+        _script(3, beats=open_gap, winner="CT"),
+        _script(4, beats=held, winner="CT"),
+    ]
+
+    rep = build_gap_report(scripts, TEAM, adjacency={"BombsiteB": {"Connector": 3.8, "Alley": 4.9}})
+    f = next(
+        f
+        for f in rep.findings
+        if f.trigger == "base" and f.zone == "BombsiteB" and f.window == "B+15"
+    )
+    assert abs(f.vacancy_rate - 3 / 4) < 1e-9
+    assert f.covered_rate is not None and abs(f.covered_rate - 2 / 3) < 1e-9
+
+    # Symmetric lookup: Connector covers BombsiteB even when the topology only
+    # records the edge on Connector's side.
+    rep_sym = build_gap_report(scripts, TEAM, adjacency={"Connector": {"BombsiteB": 3.8}})
+    f_sym = next(
+        f
+        for f in rep_sym.findings
+        if f.trigger == "base" and f.zone == "BombsiteB" and f.window == "B+15"
+    )
+    assert f_sym.covered_rate is not None and abs(f_sym.covered_rate - 2 / 3) < 1e-9
+
+    # No topology -> coverage unknown, never a misleading 0%.
+    rep_none = build_gap_report(scripts, TEAM)
+    f_none = next(
+        f
+        for f in rep_none.findings
+        if f.trigger == "base" and f.zone == "BombsiteB" and f.window == "B+15"
+    )
+    assert f_none.covered_rate is None
+
+
 def test_gap_report_respects_explicit_key_zones(after_loss_scripts):
     rep = build_gap_report(after_loss_scripts, TEAM, key_zones=["BombsiteA"])
     assert rep.key_zones == ["BombsiteA"]

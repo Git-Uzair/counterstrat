@@ -251,13 +251,26 @@ def build_insights_user(
             f"- {p.side} {p.nade} -> `{p.to_zone}`{lineup}: {p.count}/{p.rounds_seen} rounds, "
             f"median {p.median_t:.0f}s, early-share {p.early_share:.0%} (evidence: {evidence})"
         )
-    sections += ["", "## Gap Findings (15s formation windows; plant rows = the planted site only)"]
+    sections += [
+        "",
+        (
+            "## Gap Findings (15s formation windows; 'vacate' = nobody inside the zone "
+            "itself at that instant - a player in an adjacent zone may still watch its "
+            "entrances, see each line's adjacent-cover rate; plant rows = the planted "
+            "site only)"
+        ),
+    ]
     for f in gap_report.findings:
         evidence = ", ".join(_friendly_round(e, labels) for e in f.evidence[:4])
+        cover = (
+            ""
+            if f.covered_rate is None
+            else f", covered from an adjacent zone in {f.covered_rate:.0%} of those"
+        )
         sections.append(
             f"- {f.side} vacate `{f.zone}` {_friendly_window(f.window)} on '{f.trigger}': "
-            f"{f.vacancy_rate:.0%} of {f.n} (baseline {f.baseline_rate:.0%}, lift {f.lift:+.0%}; "
-            f"evidence: {evidence})"
+            f"{f.vacancy_rate:.0%} of {f.n} (baseline {f.baseline_rate:.0%}, lift {f.lift:+.0%}"
+            f"{cover}; evidence: {evidence})"
         )
     sections += ["", "## Economy Policy"]
     for state, dist in econ_policy.policy.items():

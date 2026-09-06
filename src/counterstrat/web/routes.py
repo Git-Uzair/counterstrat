@@ -576,7 +576,7 @@ def get_insights(
             card,
             teambook=teambook,
             utility_book=build_utility_book(scripts, team_key),
-            gap_report=build_gap_report(scripts, team_key),
+            gap_report=build_gap_report(scripts, team_key, adjacency=card.topology),
             econ_policy=build_econ_policy(scripts, team_key),
             scripts=scripts,
             lexicon=lex,

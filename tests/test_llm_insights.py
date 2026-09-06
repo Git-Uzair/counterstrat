@@ -67,6 +67,20 @@ def test_insights_user_prompt_carries_everything(synthetic_scripts):
     assert "post-PL" not in user and "post-FC" not in user
 
 
+def test_insights_gap_lines_carry_adjacent_coverage(synthetic_scripts):
+    """Vacancy semantics reach the prompt: the header defines 'vacate' and each
+    finding with topology reports how often an adjacent zone still covered it."""
+    b = _bundle(synthetic_scripts)
+    # Synthetic CTs hold BombsiteA and never stand in BombsiteB: with A adjacent
+    # to B, every vacant-B round is covered from next door.
+    b["gap_report"] = build_gap_report(
+        synthetic_scripts, SYNTHETIC_TEAM, adjacency={"BombsiteB": {"BombsiteA": 1.0}}
+    )
+    user = build_insights_user(scripts=synthetic_scripts, **b)
+    assert "nobody inside the zone itself" in user
+    assert "covered from an adjacent zone in 100%" in user
+
+
 def test_generate_insights_calls_llm_and_lints(synthetic_scripts):
     b = _bundle(synthetic_scripts)
     card = build_synthetic_card()
