@@ -113,6 +113,86 @@ def _find_vrf_cli() -> Path | None:
     return None
 
 
+# The decompiler is MIT-licensed but 108 MB unpacked - over GitHub's file
+# limit - so it cannot live in the repo. The app bootstraps it instead: one
+# pinned-release download into tools/vrf/ on first need. 20.0 is the release
+# the extraction code is tested against; bump deliberately, not blindly.
+VRF_VERSION = "20.0"
+_VRF_BASE_URL = "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download"
+_VRF_LOCK = threading.Lock()
+
+
+def _vrf_asset_name() -> str | None:
+    """The pinned release's CLI zip for this OS/arch, or None when unbuilt."""
+    import platform
+    import sys
+
+    os_name = {"win32": "windows", "linux": "linux", "darwin": "macos"}.get(sys.platform)
+    arch = {"amd64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(
+        platform.machine().lower()
+    )
+    if os_name is None or arch is None:
+        return None
+    return f"cli-{os_name}-{arch}.zip"
+
+
+def _ensure_vrf_cli() -> Path | None:
+    """``_find_vrf_cli``, downloading the pinned VRF release on first need.
+
+    Returns None when the download is disabled (COUNTERSTRAT_NO_VRF_DOWNLOAD),
+    the platform has no published CLI build, or the fetch fails - callers
+    already treat a missing CLI as 'degrade, do not crash'.
+    """
+    found = _find_vrf_cli()
+    if found is not None:
+        return found
+    if os.environ.get("COUNTERSTRAT_NO_VRF_DOWNLOAD"):
+        return None
+    asset = _vrf_asset_name()
+    if asset is None:
+        return None
+    with _VRF_LOCK:
+        found = _find_vrf_cli()  # a concurrent job may have won the race
+        if found is not None:
+            return found
+        import urllib.request
+        import zipfile
+
+        url = f"{_VRF_BASE_URL}/{VRF_VERSION}/{asset}"
+        dest_dir = REPO_ROOT / "tools" / "vrf"
+        tmp_zip = dest_dir / f".download_{os.getpid()}.zip"
+        try:
+            logger.info("Downloading the map decompiler (one-time, ~50 MB): %s", url)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            # Pinned https release URL - not user input.
+            with urllib.request.urlopen(url, timeout=300) as resp, tmp_zip.open("wb") as out:
+                shutil.copyfileobj(resp, out)
+            with zipfile.ZipFile(tmp_zip) as zf:
+                for member in zf.namelist():
+                    # Official archives are flat; refuse traversal all the same.
+                    if member.startswith(("/", "\\")) or ".." in member:
+                        raise ValueError(f"unsafe zip member: {member}")
+                zf.extractall(dest_dir)
+            found = _find_vrf_cli()
+            if found is not None:
+                if os.name != "nt":
+                    found.chmod(0o755)
+                logger.info("Map decompiler ready at %s", found)
+            else:
+                logger.warning("VRF archive extracted but no CLI found in %s", dest_dir)
+            return found
+        except Exception as exc:  # noqa: BLE001 - offline/AV block: degrade, never crash
+            logger.warning(
+                "Map decompiler download failed (%s); maps outside the shipped pool "
+                "stay degraded until tools/vrf exists: %s",
+                url,
+                exc,
+            )
+            return None
+        finally:
+            tmp_zip.unlink(missing_ok=True)
+
+
 def _rekey(script: RoundScript, keys: set[str], canonical: str) -> RoundScript:
     """The script with any cluster lineup key replaced by the canonical team id."""
     update: dict[str, str] = {}
@@ -221,7 +301,7 @@ def _run_ingest_locked(job_id: str, demo_path: Path, cfg: AppConfig) -> None:
 
         if card is None:
             vpk_path = _find_vpk_path(rec.map_name, cfg)
-            vrf_cli = _find_vrf_cli()
+            vrf_cli = _ensure_vrf_cli()
             if vpk_path and vrf_cli:
                 try:
                     from counterstrat.web.maintenance import compile_map_card

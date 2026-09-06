@@ -1,7 +1,12 @@
+import os
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+# Tests must never trigger the one-time VRF CLI download (web.ingest
+# _ensure_vrf_cli): unit tests stay offline; the bootstrap has its own tests.
+os.environ.setdefault("COUNTERSTRAT_NO_VRF_DOWNLOAD", "1")
 
 REPO = Path(__file__).resolve().parents[1]
 DEMO = REPO / "demos" / "1-7065ab7c-bc8f-4995-adf1-ac774327c5db-1-1.dem"
@@ -240,10 +245,14 @@ class ScriptedToolClient:
     def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> Any:
         raise NotImplementedError
 
-    def complete_json(self, *, system: str, user: str, schema: Any, max_tokens: int | None = None) -> Any:
+    def complete_json(
+        self, *, system: str, user: str, schema: Any, max_tokens: int | None = None
+    ) -> Any:
         raise NotImplementedError
 
-    def chat(self, *, system: str, turns: list, tools: list, max_tokens: int | None = None) -> tuple:
+    def chat(
+        self, *, system: str, turns: list, tools: list, max_tokens: int | None = None
+    ) -> tuple:
         from counterstrat.llm.base import ChatTurn, LLMResult
 
         self.calls.append({"system": system, "turns": list(turns), "tools": list(tools)})

@@ -31,7 +31,7 @@ from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.roundscript.models import RoundScript
-from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
+from counterstrat.web.ingest import _ensure_vrf_cli, _find_vpk_path
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def _compile_user_card(cfg: AppConfig, map_name: str, teambook: TeamBook) -> Map
     """Compile from the user's lake when the VPK and VRF CLI are available,
     persisting the card (and its sightlines) for every later session."""
     vpk_path = _find_vpk_path(map_name, cfg)
-    vrf_cli = _find_vrf_cli()
+    vrf_cli = _ensure_vrf_cli()
     if vpk_path is None or vrf_cli is None:
         return None
     ticks_df: pl.DataFrame | None = None

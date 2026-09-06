@@ -654,13 +654,13 @@ def _map_places(cfg: AppConfig, map_name: str) -> list:
     """env_cs_place volumes (name + world origin) from the map VPK, cached."""
     from counterstrat.mapcard.vents import parse_places
     from counterstrat.mapcard.vrf import extract_map_assets
-    from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
+    from counterstrat.web.ingest import _ensure_vrf_cli, _find_vpk_path
 
     out_dir = cfg.data_root / "tmp_assets" / map_name
     vents = out_dir / "maps" / map_name / "entities" / "default_ents.vents"
     if not vents.exists():
         vpk = _find_vpk_path(map_name, cfg)
-        vrf_cli = _find_vrf_cli()
+        vrf_cli = _ensure_vrf_cli() if vpk is not None else None
         if vpk is None or vrf_cli is None:
             return []
         try:
@@ -678,13 +678,13 @@ def _map_places(cfg: AppConfig, map_name: str) -> list:
 def _radar_calibration(cfg: AppConfig, map_name: str):
     """Cached radar calibration; extracted from the CS2 install when possible."""
     from counterstrat.radar.extract import extract_radar_assets, load_cached_assets
-    from counterstrat.web.ingest import _find_vrf_cli
+    from counterstrat.web.ingest import _ensure_vrf_cli
 
     assets = load_cached_assets(cfg.data_root, map_name)
     if assets is not None:
         return assets.calibration
     install = getattr(cfg, "cs2_install_path", None)
-    vrf_cli = _find_vrf_cli()
+    vrf_cli = _ensure_vrf_cli() if install else None
     if not install or vrf_cli is None:
         return None
     try:

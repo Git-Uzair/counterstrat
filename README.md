@@ -122,10 +122,13 @@ On first launch a banner and the Settings window will tell you what's missing:
    key, save. The key is stored only on your PC, in `data/settings.json`, and
    is never displayed again.
 
-3. **Maps beyond the built-in seven** *(optional)* - to analyze other maps,
-   download the **Source2Viewer CLI** (`cli-windows-x64.zip`) from
-   [ValveResourceFormat releases](https://github.com/ValveResourceFormat/ValveResourceFormat/releases)
-   and extract it so this file exists:
+3. **Maps beyond the built-in seven** *(automatic)* - other maps read radar
+   and zone data from the game files. The first time that's needed, the app
+   downloads the open-source **Source2Viewer CLI** by itself (one time,
+   about 50 MB, from the official
+   [ValveResourceFormat releases](https://github.com/ValveResourceFormat/ValveResourceFormat/releases)).
+   No internet or blocked by antivirus? Grab `cli-windows-x64.zip` from that
+   page yourself and extract it so this file exists:
    `counterstrat\tools\vrf\Source2Viewer-CLI.exe`
    The built-in seven maps need none of this.
 
@@ -179,10 +182,10 @@ clean.
 | `uv: command not found` | Reopen PowerShell (the installer edits PATH), or reinstall uv (Step 1). |
 | Browser shows nothing at localhost:8710 | Check the PowerShell window for errors; the app only listens on your own PC (`127.0.0.1`), which is by design. |
 | "CS2 install folder required" banner won't go away | The folder you picked must contain `game\csgo`. Point it at the folder named `Counter-Strike Global Offensive`, not `steamapps`. |
-| Upload says "card missing" for a map | That map isn't in the built-in seven - set the CS2 folder and add the Source2Viewer CLI (setup step 3), then re-ingest. Analysis still works meanwhile, just without map-graph extras. |
+| Upload says "card missing" for a map | That map isn't in the built-in seven - set the CS2 folder (the decompiler downloads itself) and re-ingest. Analysis still works meanwhile, just without map-graph extras. |
 | First Read says "No API key configured" | Settings → pick provider → paste key → Save. |
 | A demo fails to parse | Very old demos (pre-CS2 or from ancient game builds) aren't supported by the parser. Recent match demos work. |
-| Antivirus flags `Source2Viewer-CLI.exe` | It's the standard open-source Valve-format tool; download only from the official releases page linked above. |
+| Antivirus flags `Source2Viewer-CLI.exe` | It's the standard open-source Valve-format tool the app fetches from the official releases page; allow it or download it manually from that same page. |
 
 ---
 

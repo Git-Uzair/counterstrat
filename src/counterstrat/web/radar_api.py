@@ -14,7 +14,7 @@ from counterstrat.corpus import load_manifest
 from counterstrat.radar.extract import RadarAssets, extract_radar_assets, load_cached_assets
 from counterstrat.radar.layers import LayerFilters, build_layers, lake_frames
 from counterstrat.teams import load_or_build_clusters
-from counterstrat.web.ingest import _find_vrf_cli
+from counterstrat.web.ingest import VRF_VERSION, _ensure_vrf_cli
 from counterstrat.web.routes import ConfigDep
 
 logger = logging.getLogger(__name__)
@@ -57,15 +57,20 @@ def _resolve_assets(map_name: str, cfg: AppConfig) -> RadarAssets:
         raise HTTPException(
             status_code=503,
             detail=(
-                "No cached radar for this map and no CS2 install path is configured. "
-                "Set cs2_install_path in Settings to enable radar overlays "
-                "(see docs/NEEDS-FROM-YOU.md item N2)."
+                "No bundled radar for this map. Set your CS2 Install Folder in "
+                "Settings and the app extracts the radar from the game files."
             ),
         )
-    vrf_cli = _find_vrf_cli()
+    vrf_cli = _ensure_vrf_cli()
     if vrf_cli is None:
         raise HTTPException(
-            status_code=503, detail="Source2Viewer-CLI is not vendored under tools/vrf/"
+            status_code=503,
+            detail=(
+                "The map decompiler could not be downloaded automatically "
+                "(offline or blocked). Manual fallback: put Source2Viewer-CLI "
+                f"(release {VRF_VERSION}, cli zip for your OS) under tools/vrf/ "
+                "and retry."
+            ),
         )
     try:
         return extract_radar_assets(cfg.cs2_install_path, vrf_cli, map_name, cfg.data_root)
