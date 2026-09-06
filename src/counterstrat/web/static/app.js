@@ -44,6 +44,7 @@
     chatWelcome: document.getElementById("chat-welcome"),
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
+    chatInputBar: document.getElementById("chat-input-bar"),
     sendBtn: document.getElementById("send-btn"),
     chatSpinner: document.getElementById("chat-spinner"),
 
@@ -571,9 +572,39 @@
   // 3. Chat Sessions & Messaging
   // =========================================================================
 
+  // Session creation mines the whole scope server-side (tendencies, utility,
+  // gaps, economy) and can take seconds on a big corpus: the right pane shows
+  // a working bar and the chat input stays hidden until the session exists -
+  // nobody types into a session that is not there yet.
+  function showSessionLoading(displayName, mapName, matchIds) {
+    removeSessionLoading();
+    const strip = document.createElement("div");
+    strip.className = "session-loading";
+    strip.id = "session-loading";
+    const scope =
+      matchIds && matchIds.length
+        ? `${matchIds.length} match${matchIds.length === 1 ? "" : "es"}`
+        : "all matches";
+    strip.innerHTML =
+      '<div class="session-loading-label">Preparing analyst session for ' +
+      `<strong>${escapeHtml(displayName)}</strong> on <code>${escapeHtml(mapName)}</code>` +
+      ` \u2014 mining tendencies, utility, gaps and economy over ${scope}\u2026</div>` +
+      '<div class="progress-bar-container">' +
+      '<div class="progress-bar-fill progress-indeterminate"></div></div>';
+    el.messagesContainer.appendChild(strip);
+    strip.scrollIntoView({ block: "end" });
+  }
+
+  function removeSessionLoading() {
+    const strip = document.getElementById("session-loading");
+    if (strip) strip.remove();
+  }
+
   function createChatSession(teamKey, mapName, displayName, matchIds, autoGenerate) {
     el.chatInput.disabled = true;
     el.sendBtn.disabled = true;
+    el.chatInputBar.classList.add("hidden");
+    showSessionLoading(displayName, mapName, matchIds);
 
     fetch("/api/chat/sessions", {
       method: "POST",
@@ -603,17 +634,21 @@
         // the cache and otherwise waits for Generate/Regenerate.
         renderFirstRead(teamKey, mapName, matchIds, autoGenerate ? "generate" : "probe");
 
+        removeSessionLoading();
         if (!sameScope) {
           el.messagesContainer.innerHTML = "";
           replayTranscript(data.session_id, displayName, mapName, matchIds);
         }
 
+        el.chatInputBar.classList.remove("hidden");
         el.chatInput.disabled = false;
         el.sendBtn.disabled = false;
         el.deleteChatBtn.classList.remove("hidden");
         el.chatInput.focus();
       })
       .catch(function (err) {
+        removeSessionLoading();
+        el.chatInputBar.classList.remove("hidden");
         alert("Failed to initialize session: " + err.message);
       });
   }
@@ -690,7 +725,8 @@
       '<span class="first-read-title"><span class="insights-chevron">\u25be</span> AI First Read</span>' +
       '<span class="first-read-actions">' +
       '<button type="button" class="first-read-regen" ' +
-      'title="Re-run the AI First Read for this selection (one LLM call)">Regenerate</button>' +
+      'title="Re-run the AI First Read for this selection (one LLM call)">' +
+      "\u21bb Regenerate</button>" +
       '<span class="first-read-meta"></span>' +
       "</span>" +
       "</div>" +

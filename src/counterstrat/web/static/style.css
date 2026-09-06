@@ -653,6 +653,8 @@ code, pre {
   color: var(--accent-orange);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .first-read-meta {
@@ -671,20 +673,24 @@ code, pre {
   min-width: 0;
 }
 
+/* The one button that spends an LLM call: solid accent, impossible to miss. */
 .first-read-regen {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--accent-orange);
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 11px;
-  padding: 2px 8px;
+  background: var(--accent-orange);
+  color: var(--bg-primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 14px;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .first-read-regen:hover:not(:disabled) {
-  color: var(--accent-orange);
-  border-color: var(--accent-orange);
+  background: #f79b5b;
+  border-color: #f79b5b;
+  box-shadow: 0 0 0 3px rgba(240, 136, 62, 0.25);
 }
 
 .first-read-regen:disabled {
@@ -814,6 +820,29 @@ code, pre {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Session-preparation strip: shown in the messages pane while the server
+   mines the selected scope; the chat input bar stays hidden until then. */
+.session-loading {
+  width: 100%;
+  max-width: 620px;
+  margin: 12px auto;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.session-loading-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.session-loading-label strong {
+  color: var(--text-primary);
 }
 
 /* Welcome Box */
