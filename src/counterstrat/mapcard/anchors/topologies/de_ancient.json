@@ -1,31 +1,27 @@
 {
   "map_name": "de_ancient",
-  "computed_at": "2026-09-06T05:46:42.029140+00:00",
-  "card_checksum": "6b146fc54d22",
+  "computed_at": "2026-09-06T06:05:09.283830+00:00",
   "game_version": "14178",
+  "generated_from": [
+    "card:6b146fc54d22"
+  ],
   "topology": {
     "Alley": {
-      "BombsiteB": 5.1,
-      "House": 7.1,
-      "blong": 6.4
+      "BombsiteB": 2.0,
+      "House": 7.1
     },
     "BombsiteA": {
       "CTSpawn": 3.4,
-      "SideHall": 4.0,
-      "broky": 1.5,
-      "default": 0.5,
-      "temple": 1.3
+      "SideHall": 4.0
     },
     "BombsiteB": {
-      "Alley": 8.1,
+      "Alley": 2.3,
       "Ramp": 7.9,
-      "SideEntrance": 1.4,
-      "blong": 2.3
+      "SideEntrance": 1.4
     },
     "CTSpawn": {
       "BombsiteA": 4.2,
-      "House": 3.6,
-      "temple": 4.7
+      "House": 3.6
     },
     "House": {
       "Alley": 0.9,
@@ -38,15 +34,12 @@
     "Middle": {
       "SideHall": 6.6,
       "TSideUpper": 0.9,
-      "TopofMid": 3.2,
-      "africa": 2.8,
-      "underheaven": 2.3
+      "TopofMid": 3.2
     },
     "Outside": {
       "MainHall": 0.3,
       "Middle": 21.2,
-      "TSpawn": 10.1,
-      "outside A main": 4.4
+      "TSpawn": 10.1
     },
     "Ramp": {
       "BombsiteB": 3.9,
@@ -86,28 +79,6 @@
     },
     "Water": {
       "Ruins": 1.0
-    },
-    "africa": {
-      "Middle": 2.7
-    },
-    "blong": {
-      "Alley": 3.8,
-      "BombsiteB": 2.0
-    },
-    "broky": {
-      "BombsiteA": 1.6
-    },
-    "default": {
-      "BombsiteA": 0.6
-    },
-    "outside A main": {
-      "Outside": 1.6
-    },
-    "temple": {
-      "BombsiteA": 1.5
-    },
-    "underheaven": {
-      "Middle": 1.9
     }
   }
 }

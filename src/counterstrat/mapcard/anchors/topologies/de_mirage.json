@@ -1,8 +1,10 @@
 {
   "map_name": "de_mirage",
-  "computed_at": "2026-09-06T05:46:42.099552+00:00",
-  "card_checksum": "2fbf17e5daf0",
+  "computed_at": "2026-09-06T06:05:09.613349+00:00",
   "game_version": "14141",
+  "generated_from": [
+    "card:2fbf17e5daf0"
+  ],
   "topology": {
     "Apartments": {
       "BackAlley": 14.4,

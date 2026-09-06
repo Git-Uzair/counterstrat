@@ -20,7 +20,7 @@ from counterstrat.llm.tools import SessionContext
 from counterstrat.mapcard.anchors import shipped_sightlines
 from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
-from counterstrat.mapcard.topologies import load_shipped_topology
+from counterstrat.mapcard.topologies import load_shipped_topology, merge_topologies
 from counterstrat.mapcard.transitions import zone_graph
 from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
@@ -357,8 +357,9 @@ def _build_session(
         gap_report=build_gap_report(
             script_list,
             team_key,
-            # Live compiled card wins; the shipped snapshot covers fresh clones.
-            topology=card.topology or load_shipped_topology(map_name),
+            # Shipped engine skeleton under the live card: the user's own
+            # custom-zone edges win wherever both know an edge.
+            topology=merge_topologies(load_shipped_topology(map_name), card.topology),
         ),
         econ_policy=build_econ_policy(script_list, team_key),
         renamer=renamer if renamer else None,

@@ -1,8 +1,10 @@
 {
   "map_name": "de_inferno",
-  "computed_at": "2026-09-06T05:46:42.085918+00:00",
-  "card_checksum": "62cacd263ff5",
+  "computed_at": "2026-09-06T06:05:09.599096+00:00",
   "game_version": "14178",
+  "generated_from": [
+    "card:62cacd263ff5"
+  ],
   "topology": {
     "Apartments": {
       "BackAlley": 8.7,
@@ -11,8 +13,8 @@
     },
     "Arch": {
       "BombsiteA": 2.5,
-      "TopofMid": 1.8,
-      "arches": 1.8
+      "CTSpawn": 1.8,
+      "TopofMid": 1.8
     },
     "BackAlley": {
       "Apartments": 3.6
@@ -24,10 +26,7 @@
     },
     "Banana": {
       "BombsiteB": 3.4,
-      "Middle": 7.4,
-      "car": 2.3,
-      "half wall": 3.8,
-      "sandbags": 2.5
+      "Middle": 7.4
     },
     "BombsiteA": {
       "Arch": 3.1,
@@ -35,20 +34,16 @@
       "Library": 3.2,
       "Pit": 6.0,
       "Quad": 0.1,
-      "TopofMid": 0.2,
-      "a short": 4.9
+      "TopofMid": 0.2
     },
     "BombsiteB": {
       "Banana": 4.5,
-      "Ruins": 2.7,
-      "coffin": 3.2,
-      "pit": 3.0,
-      "tripple": 1.0
+      "Ruins": 2.7
     },
     "CTSpawn": {
+      "Arch": 2.6,
       "Library": 2.6,
-      "Ruins": 5.0,
-      "arches": 2.1
+      "Ruins": 5.0
     },
     "Library": {
       "BombsiteA": 2.4,
@@ -68,13 +63,12 @@
       "BombsiteA": 6.8
     },
     "Quad": {
-      "TopofMid": 2.4,
-      "a short": 0.6
+      "BombsiteA": 0.6,
+      "TopofMid": 2.4
     },
     "Ruins": {
       "BombsiteB": 2.6,
-      "CTSpawn": 2.6,
-      "church": 1.1
+      "CTSpawn": 2.6
     },
     "SecondMid": {
       "Apartments": 4.6,
@@ -92,42 +86,12 @@
     "TopofMid": {
       "Apartments": 3.3,
       "Arch": 5.1,
+      "BombsiteA": 3.9,
       "Middle": 7.4,
-      "Quad": 2.2,
-      "a short": 3.9
+      "Quad": 2.2
     },
     "Underpass": {
       "Middle": 1.6
-    },
-    "a short": {
-      "BombsiteA": 2.7,
-      "Quad": 0.6,
-      "TopofMid": 0.6
-    },
-    "arches": {
-      "Arch": 2.6,
-      "CTSpawn": 2.6
-    },
-    "car": {
-      "Banana": 0.9
-    },
-    "church": {
-      "Ruins": 3.1
-    },
-    "coffin": {
-      "BombsiteB": 2.2
-    },
-    "half wall": {
-      "Banana": 0.5
-    },
-    "pit": {
-      "BombsiteB": 1.1
-    },
-    "sandbags": {
-      "Banana": 0.8
-    },
-    "tripple": {
-      "BombsiteB": 1.7
     }
   }
 }

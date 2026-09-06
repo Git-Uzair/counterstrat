@@ -1,8 +1,10 @@
 {
   "map_name": "de_nuke",
-  "computed_at": "2026-09-06T05:46:42.112240+00:00",
-  "card_checksum": "8e99fff1242e",
+  "computed_at": "2026-09-06T06:05:09.625394+00:00",
   "game_version": "14175",
+  "generated_from": [
+    "card:8e99fff1242e"
+  ],
   "topology": {
     "Admin": {
       "Hell": 2.1,

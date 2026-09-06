@@ -1,8 +1,10 @@
 {
   "map_name": "de_cache",
-  "computed_at": "2026-09-06T05:46:42.057363+00:00",
-  "card_checksum": "89b1630b8ea8",
+  "computed_at": "2026-09-06T06:05:09.507150+00:00",
   "game_version": "14178",
+  "generated_from": [
+    "card:89b1630b8ea8"
+  ],
   "topology": {
     "AHalls": {
       "Squeaky": 5.3

@@ -1,8 +1,10 @@
 {
   "map_name": "de_dust2",
-  "computed_at": "2026-09-06T05:46:42.072943+00:00",
-  "card_checksum": "a23ea7e2f180",
+  "computed_at": "2026-09-06T06:05:09.522613+00:00",
   "game_version": "14140",
+  "generated_from": [
+    "card:a23ea7e2f180"
+  ],
   "topology": {
     "ARamp": {
       "BombsiteA": 2.0,
