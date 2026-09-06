@@ -27,7 +27,6 @@ class AppConfig(BaseModel):
     gemini_model: str = "gemini-2.5-pro"
     anthropic_api_key: str | None = None
     gemini_api_key: str | None = None
-    max_input_tokens: int = 190_000  # stay under the 200k long-context tier
     data_root: Path = Path("data")
     cs2_install_path: Path | None = None
 
@@ -69,9 +68,6 @@ class AppConfig(BaseModel):
                     data.get("anthropic_api_key") or os.getenv("ANTHROPIC_API_KEY")
                 ),
                 "gemini_api_key": gemini_key,
-                "max_input_tokens": int(
-                    data.get("max_input_tokens") or os.getenv("MAX_INPUT_TOKENS") or 190_000
-                ),
                 "data_root": Path(data.get("data_root") or os.getenv("DATA_ROOT") or "data"),
                 "cs2_install_path": Path(cs2_path) if cs2_path else None,
             }

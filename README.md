@@ -157,7 +157,7 @@ Transforms granular telemetry into a compact, human- and LLM-readable RoundScrip
 Aggregates round scripts across matches into structured opponent `TeamBook` records. Mines buy categories (eco, semi-eco, semi-buy, full-buy), opening default setups, bombsite execute timings, and utility tendencies with sample sizes (`n`) and frequencies.
 
 ### 5. LLM (`counterstrat.llm`)
-Provides unified client abstraction for Anthropic Claude (with prompt caching and structured outputs) and Google Gemini. Manages token budget guards, per-round prediction evaluations, and automated scouting dossier generation verified against AST and markdown linters.
+Provides unified client abstraction for Anthropic Claude (with prompt caching and structured outputs) and Google Gemini. Manages per-round prediction evaluations and automated scouting dossier generation verified against AST and markdown linters. Input size is never capped client-side; the provider API is the only authority on context limits.
 
 ### 6. Web (`counterstrat.web`)
 FastAPI application serving a responsive HTML5/CSS3 frontend. Includes background ingestion queues, REST endpoints for matches, scout briefs and dossiers, settings management, a zoomable radar viewer with per-player tracing, and a multi-turn ReAct analyst chat agent equipped with analytical tools (`get_tendencies`, `get_playbook`, `get_utility_book`, `get_gap_report`, `get_economy_read`, `get_player_profile`, `list_rounds`, `get_round_script`, `get_role_cards`, `sql_query`).

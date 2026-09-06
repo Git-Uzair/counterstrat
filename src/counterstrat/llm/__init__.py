@@ -1,7 +1,6 @@
 from counterstrat.llm.anthropic_client import AnthropicClient
 from counterstrat.llm.base import (
     ChatTurn,
-    LLMBudgetError,
     LLMClient,
     LLMResult,
     ToolCall,
@@ -16,7 +15,6 @@ __all__ = [
     "ChatTurn",
     "DossierLint",
     "GeminiClient",
-    "LLMBudgetError",
     "LLMClient",
     "LLMResult",
     "ToolCall",

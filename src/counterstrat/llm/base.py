@@ -1,6 +1,5 @@
 """LLM client protocol and types (spec Phase 2a, Task 11 stub, Task 18 implementation)."""
 
-import json
 import time
 from collections.abc import Callable
 from typing import Literal, Protocol
@@ -9,7 +8,6 @@ from pydantic import BaseModel, Field
 
 from counterstrat.config import AppConfig
 
-CHARS_PER_TOKEN = 3.5
 RETRY_TRIES = 3
 RETRY_BASE_DELAY_S = 0.5
 
@@ -17,10 +15,6 @@ RETRY_BASE_DELAY_S = 0.5
 # response as a dict (SDK objects go through ``model_dump``). Tests inject
 # replay transports over the JSON fixtures in ``tests/fixtures/llm/``.
 Transport = Callable[[dict], dict]
-
-
-class LLMBudgetError(Exception):
-    """Raised when the estimated input tokens exceed the configured budget."""
 
 
 class LLMResult(BaseModel):
@@ -76,33 +70,6 @@ class LLMClient(Protocol):
     ) -> tuple[ChatTurn, LLMResult]: ...
 
 
-def estimate_tokens(*parts: str | None) -> int:
-    """Cheap pre-flight token estimate (~3.5 chars per token)."""
-    return int(sum(len(p) for p in parts if p) / CHARS_PER_TOKEN)
-
-
-def check_budget(max_input_tokens: int, *parts: str | None) -> int:
-    """Raises LLMBudgetError rather than silently spilling into a pricier tier."""
-    est = estimate_tokens(*parts)
-    if est > max_input_tokens:
-        raise LLMBudgetError(
-            f"estimated {est} input tokens exceeds max_input_tokens={max_input_tokens}"
-        )
-    return est
-
-
-def turn_texts(turns: list[ChatTurn]) -> list[str]:
-    """Flattens chat turns to strings for budget estimation."""
-    out: list[str] = []
-    for turn in turns:
-        if turn.text:
-            out.append(turn.text)
-        for call in turn.tool_calls:
-            out.append(call.name)
-            out.append(json.dumps(call.arguments, sort_keys=True))
-    return out
-
-
 def _status_of(exc: Exception) -> int | None:
     for attr in ("status_code", "code", "status"):
         value = getattr(exc, attr, None)
@@ -138,19 +105,11 @@ def make_client(cfg: AppConfig) -> LLMClient:
             raise ValueError("ANTHROPIC_API_KEY is required")
         from counterstrat.llm.anthropic_client import AnthropicClient
 
-        return AnthropicClient(
-            api_key=cfg.anthropic_api_key,
-            model=cfg.anthropic_model,
-            max_input_tokens=cfg.max_input_tokens,
-        )
+        return AnthropicClient(api_key=cfg.anthropic_api_key, model=cfg.anthropic_model)
     if cfg.provider == "gemini":
         if not cfg.gemini_api_key:
             raise ValueError("GEMINI_API_KEY is required")
         from counterstrat.llm.gemini_client import GeminiClient
 
-        return GeminiClient(
-            api_key=cfg.gemini_api_key,
-            model=cfg.gemini_model,
-            max_input_tokens=cfg.max_input_tokens,
-        )
+        return GeminiClient(api_key=cfg.gemini_api_key, model=cfg.gemini_model)
     raise ValueError(f"Unknown provider: {cfg.provider}")

@@ -273,8 +273,7 @@ def test_insights_system_mentions_the_new_blocks(synthetic_scripts):
 
 def test_insights_rounds_are_lite(synthetic_scripts):
     """Corpus prompt: every kill/utility/plant timestamped, but no MOVE lines
-    even when scripts carry tracks, and the whole prompt stays in budget."""
-    from counterstrat.llm.base import check_budget
+    even when scripts carry tracks."""
     from counterstrat.llm.insights import build_insights_user
     from counterstrat.roundscript.models import ZoneStint
 
@@ -292,4 +291,3 @@ def test_insights_rounds_are_lite(synthetic_scripts):
     assert "t=17s KILL p1" in user
     assert "t=45s PLANT" in user
     assert "MOVE" not in user and "SPAWNS" not in user
-    check_budget(190_000, user)  # must not raise on the corpus-wide prompt

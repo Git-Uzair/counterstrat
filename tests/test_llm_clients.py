@@ -1,4 +1,4 @@
-"""LLM adapter tests: config-driven provider switch, replayed JSON + tool-use, budget guard."""
+"""LLM adapter tests: config-driven provider switch, replayed JSON + tool-use, retries."""
 
 import json
 import os
@@ -14,7 +14,6 @@ from counterstrat.llm import (
     AnthropicClient,
     ChatTurn,
     GeminiClient,
-    LLMBudgetError,
     ToolSpec,
     make_client,
 )
@@ -60,10 +59,6 @@ class Boom(Exception):
         self.status_code = status
 
 
-def never_called(_req: dict[str, Any]) -> dict[str, Any]:
-    raise AssertionError("transport must not be called")
-
-
 @pytest.fixture
 def no_env_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
@@ -74,7 +69,6 @@ def no_env_keys(monkeypatch: pytest.MonkeyPatch) -> None:
         "LLM_PROVIDER",
         "ANTHROPIC_MODEL",
         "GEMINI_MODEL",
-        "MAX_INPUT_TOKENS",
         "DATA_ROOT",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -109,7 +103,6 @@ def test_settings_json_beats_env(monkeypatch, no_env_keys, tmp_path):
                 "provider": "gemini",
                 "gemini_model": "from-settings",
                 "gemini_api_key": "sk",
-                "max_input_tokens": 12345,
             }
         ),
         encoding="utf-8",
@@ -117,9 +110,8 @@ def test_settings_json_beats_env(monkeypatch, no_env_keys, tmp_path):
     cfg = AppConfig.load(settings)
     assert cfg.provider == "gemini"
     assert cfg.gemini_model == "from-settings"
-    assert cfg.max_input_tokens == 12345
     client = make_client(cfg)
-    assert isinstance(client, GeminiClient) and client.max_input_tokens == 12345
+    assert isinstance(client, GeminiClient) and client.model == "from-settings"
 
 
 def test_missing_key_raises():
@@ -422,30 +414,27 @@ def test_gemini_non_json_tool_result_is_wrapped():
     assert part["function_response"]["response"] == {"result": "not json"}
 
 
-def test_budget_guard():
-    anthropic_client = AnthropicClient(
-        api_key="k", model="m", max_input_tokens=1000, transport=never_called
-    )
-    with pytest.raises(LLMBudgetError, match="max_input_tokens=1000"):
-        anthropic_client.complete(system="x" * 3_000_000, user="u")
-    with pytest.raises(LLMBudgetError):
-        anthropic_client.complete_json(system="x" * 3_000_000, user="u", schema=SiteCall)
-    with pytest.raises(LLMBudgetError):
-        anthropic_client.chat(
-            system="s", turns=[ChatTurn(role="user", text="x" * 3_000_000)], tools=[]
-        )
+def test_no_input_size_limit():
+    """Oversized prompts go straight to the provider: the API itself is the only
+    authority on input size (the old client-side pre-flight guard is gone)."""
+    huge = "x" * 3_000_000  # ~857k tokens at 3.5 chars/token - far over any old ceiling
 
-    gemini_client = GeminiClient(
-        api_key="k", model="m", max_input_tokens=1000, transport=never_called
+    a_transport = ReplayTransport("anthropic_complete")
+    result = AnthropicClient(api_key="k", model="m", transport=a_transport).complete(
+        system=huge, user="u"
     )
-    with pytest.raises(LLMBudgetError):
-        gemini_client.complete(system="x" * 3_000_000, user="u")
+    assert result.text
+    assert a_transport.requests[0]["system"][0]["text"] == huge
 
-    # Just under the ceiling goes through (3.5 chars per token).
-    ok = ReplayTransport("anthropic_complete")
-    assert AnthropicClient(api_key="k", max_input_tokens=1000, transport=ok).complete(
-        system="x" * 3_000, user="u"
+    chat_transport = ReplayTransport("anthropic_chat_final")
+    AnthropicClient(api_key="k", model="m", transport=chat_transport).chat(
+        system="s", turns=[ChatTurn(role="user", text=huge)], tools=[]
     )
+    assert chat_transport.requests[0]["messages"][0]["content"][0]["text"] == huge
+
+    g_transport = ReplayTransport("gemini_complete")
+    GeminiClient(api_key="k", model="m", transport=g_transport).complete(system=huge, user="u")
+    assert g_transport.requests[0]["config"]["system_instruction"] == huge
 
 
 def test_retry_backoff_on_429_then_5xx():

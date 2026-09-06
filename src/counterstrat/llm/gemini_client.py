@@ -12,8 +12,6 @@ from counterstrat.llm.base import (
     ToolSpec,
     Transport,
     call_with_retries,
-    check_budget,
-    turn_texts,
 )
 
 PROVIDER = "gemini"
@@ -135,12 +133,10 @@ class GeminiClient:
         self,
         api_key: str,
         model: str = "gemini-2.5-pro",
-        max_input_tokens: int = 190_000,
         transport: Transport | None = None,
     ):
         self.api_key = api_key
         self.model = model
-        self.max_input_tokens = max_input_tokens
         self._transport = transport or self._sdk_transport
         self._sdk: Any = None
 
@@ -194,7 +190,6 @@ class GeminiClient:
         )
 
     def complete(self, *, system: str, user: str, max_tokens: int | None = None) -> LLMResult:
-        check_budget(self.max_input_tokens, system, user)
         resp = self._send(
             {
                 "model": self.model,
@@ -207,7 +202,6 @@ class GeminiClient:
     def complete_json[T: BaseModel](
         self, *, system: str, user: str, schema: type[T], max_tokens: int | None = None
     ) -> tuple[T, LLMResult]:
-        check_budget(self.max_input_tokens, system, user)
         resp = self._send(
             {
                 "model": self.model,
@@ -226,7 +220,6 @@ class GeminiClient:
         tools: list[ToolSpec],
         max_tokens: int | None = None,
     ) -> tuple[ChatTurn, LLMResult]:
-        check_budget(self.max_input_tokens, system, *turn_texts(turns))
         resp = self._send(
             {
                 "model": self.model,
