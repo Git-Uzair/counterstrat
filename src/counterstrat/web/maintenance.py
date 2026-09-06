@@ -278,12 +278,16 @@ def mine_team_artifacts(
     tb_dir.mkdir(parents=True, exist_ok=True)
     (tb_dir / "teambook.json").write_text(tb.model_dump_json(indent=2), encoding="utf-8")
     try:
+        from counterstrat.mapcard.topologies import load_shipped_topology
+
         brief = build_scout_brief(
             team_scripts,
             team_id,
             teambook=tb,
             utility_book=build_utility_book(team_scripts, team_id),
-            gap_report=build_gap_report(team_scripts, team_id),
+            gap_report=build_gap_report(
+                team_scripts, team_id, topology=load_shipped_topology(map_name)
+            ),
             econ_policy=build_econ_policy(team_scripts, team_id),
         )
         (tb_dir / "scout_brief.json").write_text(brief.model_dump_json(indent=2), encoding="utf-8")

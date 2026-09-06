@@ -1,0 +1,113 @@
+{
+  "map_name": "de_ancient",
+  "computed_at": "2026-09-06T05:46:42.029140+00:00",
+  "card_checksum": "6b146fc54d22",
+  "game_version": "14178",
+  "topology": {
+    "Alley": {
+      "BombsiteB": 5.1,
+      "House": 7.1,
+      "blong": 6.4
+    },
+    "BombsiteA": {
+      "CTSpawn": 3.4,
+      "SideHall": 4.0,
+      "broky": 1.5,
+      "default": 0.5,
+      "temple": 1.3
+    },
+    "BombsiteB": {
+      "Alley": 8.1,
+      "Ramp": 7.9,
+      "SideEntrance": 1.4,
+      "blong": 2.3
+    },
+    "CTSpawn": {
+      "BombsiteA": 4.2,
+      "House": 3.6,
+      "temple": 4.7
+    },
+    "House": {
+      "Alley": 0.9,
+      "CTSpawn": 2.4,
+      "TopofMid": 3.3
+    },
+    "MainHall": {
+      "BombsiteA": 9.7
+    },
+    "Middle": {
+      "SideHall": 6.6,
+      "TSideUpper": 0.9,
+      "TopofMid": 3.2,
+      "africa": 2.8,
+      "underheaven": 2.3
+    },
+    "Outside": {
+      "MainHall": 0.3,
+      "Middle": 21.2,
+      "TSpawn": 10.1,
+      "outside A main": 4.4
+    },
+    "Ramp": {
+      "BombsiteB": 3.9,
+      "TSideLower": 1.6
+    },
+    "Ruins": {
+      "TSideLower": 4.0
+    },
+    "SideEntrance": {
+      "BombsiteB": 5.6,
+      "TSideUpper": 8.8
+    },
+    "SideHall": {
+      "BombsiteA": 17.5,
+      "Middle": 5.6
+    },
+    "TSideLower": {
+      "Ramp": 1.4,
+      "Ruins": 3.2,
+      "TSideUpper": 2.3
+    },
+    "TSideUpper": {
+      "Middle": 5.0,
+      "SideEntrance": 3.8,
+      "TSideLower": 6.3
+    },
+    "TSpawn": {
+      "Outside": 3.4,
+      "Tunnel": 2.7
+    },
+    "TopofMid": {
+      "House": 1.4,
+      "Middle": 1.1
+    },
+    "Tunnel": {
+      "Water": 2.8
+    },
+    "Water": {
+      "Ruins": 1.0
+    },
+    "africa": {
+      "Middle": 2.7
+    },
+    "blong": {
+      "Alley": 3.8,
+      "BombsiteB": 2.0
+    },
+    "broky": {
+      "BombsiteA": 1.6
+    },
+    "default": {
+      "BombsiteA": 0.6
+    },
+    "outside A main": {
+      "Outside": 1.6
+    },
+    "temple": {
+      "BombsiteA": 1.5
+    },
+    "underheaven": {
+      "Middle": 1.9
+    }
+  }
+}

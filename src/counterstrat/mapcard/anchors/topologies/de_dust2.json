@@ -1,0 +1,105 @@
+{
+  "map_name": "de_dust2",
+  "computed_at": "2026-09-06T05:46:42.072943+00:00",
+  "card_checksum": "a23ea7e2f180",
+  "game_version": "14140",
+  "topology": {
+    "ARamp": {
+      "BombsiteA": 2.0,
+      "LongA": 2.8
+    },
+    "BDoors": {
+      "BombsiteB": 1.8,
+      "Hole": 2.4,
+      "MidDoors": 2.9
+    },
+    "BombsiteA": {
+      "ARamp": 3.8,
+      "ExtendedA": 3.4
+    },
+    "BombsiteB": {
+      "BDoors": 8.4,
+      "Hole": 7.8,
+      "UpperTunnel": 6.9
+    },
+    "CTSpawn": {
+      "MidDoors": 2.8,
+      "UnderA": 1.7
+    },
+    "Catwalk": {
+      "Middle": 2.3,
+      "ShortStairs": 4.8
+    },
+    "ExtendedA": {
+      "BombsiteA": 5.6,
+      "ShortStairs": 1.7,
+      "UnderA": 1.1
+    },
+    "Hole": {
+      "BDoors": 1.5,
+      "BombsiteB": 1.1
+    },
+    "LongA": {
+      "ARamp": 7.7,
+      "LongDoors": 8.0,
+      "Pit": 7.0,
+      "UnderA": 4.2
+    },
+    "LongDoors": {
+      "LongA": 10.2,
+      "OutsideLong": 8.2
+    },
+    "LowerTunnel": {
+      "Middle": 6.6,
+      "TunnelStairs": 6.2
+    },
+    "MidDoors": {
+      "BDoors": 4.6,
+      "CTSpawn": 7.5,
+      "Middle": 3.3
+    },
+    "Middle": {
+      "Catwalk": 2.8,
+      "LowerTunnel": 1.2,
+      "MidDoors": 1.3,
+      "TopofMid": 4.0
+    },
+    "OutsideLong": {
+      "LongDoors": 4.2,
+      "TopofMid": 5.1
+    },
+    "OutsideTunnel": {
+      "UpperTunnel": 3.6
+    },
+    "Pit": {
+      "LongA": 2.1
+    },
+    "ShortStairs": {
+      "Catwalk": 3.1,
+      "ExtendedA": 3.8
+    },
+    "TSpawn": {
+      "OutsideLong": 4.0,
+      "OutsideTunnel": 3.6,
+      "TopofMid": 2.6
+    },
+    "TopofMid": {
+      "Catwalk": 4.3,
+      "Middle": 8.6,
+      "OutsideLong": 0.9
+    },
+    "TunnelStairs": {
+      "LowerTunnel": 2.2,
+      "UpperTunnel": 1.8
+    },
+    "UnderA": {
+      "CTSpawn": 3.2,
+      "ExtendedA": 3.6,
+      "LongA": 3.0
+    },
+    "UpperTunnel": {
+      "BombsiteB": 7.2,
+      "TunnelStairs": 4.6
+    }
+  }
+}

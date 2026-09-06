@@ -1,0 +1,108 @@
+{
+  "map_name": "de_mirage",
+  "computed_at": "2026-09-06T05:46:42.099552+00:00",
+  "card_checksum": "2fbf17e5daf0",
+  "game_version": "14141",
+  "topology": {
+    "Apartments": {
+      "BackAlley": 14.4,
+      "BombsiteB": 12.6
+    },
+    "BackAlley": {
+      "Apartments": 6.3,
+      "Underpass": 2.6
+    },
+    "BombsiteA": {
+      "CTSpawn": 11.3,
+      "Connector": 2.2,
+      "Jungle": 1.1,
+      "PalaceInterior": 10.9,
+      "Stairs": 2.8
+    },
+    "BombsiteB": {
+      "Catwalk": 4.4,
+      "Shop": 5.2,
+      "Truck": 4.6
+    },
+    "CTSpawn": {
+      "BombsiteA": 5.0,
+      "Jungle": 4.1,
+      "Shop": 5.3,
+      "SnipersNest": 6.9
+    },
+    "Catwalk": {
+      "BombsiteB": 6.8,
+      "Middle": 5.9,
+      "Underpass": 3.9
+    },
+    "Connector": {
+      "BombsiteA": 2.8,
+      "Middle": 2.1
+    },
+    "House": {
+      "BackAlley": 3.6,
+      "SideAlley": 3.5
+    },
+    "Jungle": {
+      "BombsiteA": 2.1,
+      "CTSpawn": 3.4
+    },
+    "Middle": {
+      "Catwalk": 3.4,
+      "Connector": 4.5,
+      "SnipersNest": 7.5,
+      "TopofMid": 3.8,
+      "Underpass": 0.9
+    },
+    "PalaceAlley": {
+      "TRamp": 9.2
+    },
+    "PalaceInterior": {
+      "BombsiteA": 2.1,
+      "Scaffolding": 8.4,
+      "TRamp": 2.1
+    },
+    "Scaffolding": {
+      "BombsiteA": 0.8,
+      "PalaceInterior": 1.2
+    },
+    "Shop": {
+      "BombsiteB": 2.4,
+      "CTSpawn": 2.7
+    },
+    "SideAlley": {
+      "House": 2.2,
+      "TSpawn": 4.5,
+      "TopofMid": 4.7
+    },
+    "SnipersNest": {
+      "CTSpawn": 5.4,
+      "Middle": 0.9
+    },
+    "Stairs": {
+      "BombsiteA": 2.4
+    },
+    "TRamp": {
+      "PalaceAlley": 1.7,
+      "PalaceInterior": 3.4
+    },
+    "TSpawn": {
+      "PalaceAlley": 5.2,
+      "PalaceInterior": 4.2,
+      "SideAlley": 2.4
+    },
+    "TopofMid": {
+      "Catwalk": 4.9,
+      "Middle": 6.6,
+      "SideAlley": 3.1
+    },
+    "Truck": {
+      "Apartments": 2.0,
+      "BombsiteB": 1.4
+    },
+    "Underpass": {
+      "Catwalk": 7.4,
+      "Middle": 9.1
+    }
+  }
+}

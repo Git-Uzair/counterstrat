@@ -20,6 +20,7 @@ from counterstrat.llm.tools import SessionContext
 from counterstrat.mapcard.anchors import shipped_sightlines
 from counterstrat.mapcard.compile import MapCard, compile_card
 from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
+from counterstrat.mapcard.topologies import load_shipped_topology
 from counterstrat.mapcard.transitions import zone_graph
 from counterstrat.mapcard.vents import parse_places, unique_places
 from counterstrat.mapcard.vrf import extract_map_assets
@@ -353,7 +354,12 @@ def _build_session(
         con=_lake_connection(cfg),
         scripts=scripts,
         utility_book=build_utility_book(script_list, team_key),
-        gap_report=build_gap_report(script_list, team_key, topology=card.topology),
+        gap_report=build_gap_report(
+            script_list,
+            team_key,
+            # Live compiled card wins; the shipped snapshot covers fresh clones.
+            topology=card.topology or load_shipped_topology(map_name),
+        ),
         econ_policy=build_econ_policy(script_list, team_key),
         renamer=renamer if renamer else None,
         data_root=str(cfg.data_root),

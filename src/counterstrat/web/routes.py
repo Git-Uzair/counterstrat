@@ -558,6 +558,7 @@ def get_insights(
     try:
         from counterstrat.llm.base import make_client
         from counterstrat.llm.insights import generate_insights
+        from counterstrat.mapcard.topologies import load_shipped_topology
         from counterstrat.mining.econ_policy import build_econ_policy
         from counterstrat.mining.gaps import build_gap_report
         from counterstrat.mining.utility_book import build_utility_book
@@ -576,7 +577,13 @@ def get_insights(
             card,
             teambook=teambook,
             utility_book=build_utility_book(scripts, team_key),
-            gap_report=build_gap_report(scripts, team_key, topology=card.topology),
+            gap_report=build_gap_report(
+                scripts,
+                team_key,
+                # Live compiled card wins; the shipped snapshot keeps hold
+                # complexes working on a fresh clone with no CS2 install.
+                topology=card.topology or load_shipped_topology(map_name),
+            ),
             econ_policy=build_econ_policy(scripts, team_key),
             scripts=scripts,
             lexicon=lex,

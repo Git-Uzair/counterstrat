@@ -1,0 +1,104 @@
+{
+  "map_name": "de_nuke",
+  "computed_at": "2026-09-06T05:46:42.112240+00:00",
+  "card_checksum": "8e99fff1242e",
+  "game_version": "14175",
+  "topology": {
+    "Admin": {
+      "Hell": 2.1,
+      "Ramp": 1.7
+    },
+    "BombsiteA": {
+      "Hut": 7.8,
+      "Mini": 7.6,
+      "Squeaky": 5.4,
+      "Vents": 3.6
+    },
+    "BombsiteB": {
+      "Decon": 9.0
+    },
+    "CTSpawn": {
+      "Outside": 2.4
+    },
+    "Control": {
+      "Ramp": 2.3
+    },
+    "Decon": {
+      "BombsiteB": 5.0
+    },
+    "Garage": {
+      "Outside": 4.8
+    },
+    "Heaven": {
+      "Rafters": 1.6
+    },
+    "Hell": {
+      "Admin": 1.3,
+      "Heaven": 1.8,
+      "Outside": 1.8
+    },
+    "Hut": {
+      "BombsiteA": 1.4,
+      "Lobby": 4.5
+    },
+    "Lobby": {
+      "Hut": 15.3,
+      "Squeaky": 3.1,
+      "Vending": 2.9
+    },
+    "Mini": {
+      "BombsiteA": 3.2,
+      "Outside": 4.9
+    },
+    "Outside": {
+      "Garage": 17.2,
+      "Hell": 2.8,
+      "Lobby": 2.8,
+      "Mini": 7.1,
+      "Roof": 3.3,
+      "Secret": 22.6
+    },
+    "Rafters": {
+      "BombsiteA": 2.3,
+      "Heaven": 3.2
+    },
+    "Ramp": {
+      "Admin": 13.1,
+      "BombsiteB": 8.8,
+      "Control": 8.1
+    },
+    "Roof": {
+      "Silo": 4.0
+    },
+    "Secret": {
+      "Outside": 6.5,
+      "Tunnels": 6.5
+    },
+    "Silo": {
+      "Outside": 5.1
+    },
+    "Squeaky": {
+      "BombsiteA": 1.9,
+      "Lobby": 3.9
+    },
+    "TSpawn": {
+      "Outside": 4.6
+    },
+    "Trophy": {
+      "Control": 2.8,
+      "Vending": 3.1
+    },
+    "Tunnels": {
+      "Decon": 2.3,
+      "Vents": 11.2
+    },
+    "Vending": {
+      "Lobby": 3.2,
+      "Trophy": 2.0
+    },
+    "Vents": {
+      "BombsiteA": 7.0,
+      "Tunnels": 3.9
+    }
+  }
+}
