@@ -1,0 +1,305 @@
+map: de_dust2
+card_version: '1.0'
+game_version: '14178'
+nav_source: calibration
+frame:
+  bbox:
+    min_x: -2186.0
+    max_x: 1788.0
+    min_y: -1164.0
+    max_y: 3118.0
+  z_median: 1.0
+zones:
+  ARamp:
+    id: ARamp
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: upper
+  BDoors:
+    id: BDoors
+    aliases: []
+    tags: []
+    quadrant: north-west
+    elevation: mixed
+  BombsiteA:
+    id: BombsiteA
+    aliases: []
+    tags:
+    - site
+    quadrant: north-east
+    elevation: upper
+  BombsiteB:
+    id: BombsiteB
+    aliases: []
+    tags:
+    - site
+    quadrant: north-west
+    elevation: upper
+  CTSpawn:
+    id: CTSpawn
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: lower
+  Catwalk:
+    id: Catwalk
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  ExtendedA:
+    id: ExtendedA
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: upper
+  Hole:
+    id: Hole
+    aliases: []
+    tags: []
+    quadrant: north-west
+    elevation: upper
+  LongA:
+    id: LongA
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  LongDoors:
+    id: LongDoors
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  LowerTunnel:
+    id: LowerTunnel
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: lower
+  MidDoors:
+    id: MidDoors
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: lower
+  Middle:
+    id: Middle
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: lower
+  OutsideLong:
+    id: OutsideLong
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: mixed
+  OutsideTunnel:
+    id: OutsideTunnel
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: upper
+  Pit:
+    id: Pit
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: lower
+  ShortStairs:
+    id: ShortStairs
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Side:
+    id: Side
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  TRamp:
+    id: TRamp
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: upper
+  TSpawn:
+    id: TSpawn
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: upper
+  TopofMid:
+    id: TopofMid
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: mixed
+  TunnelStairs:
+    id: TunnelStairs
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: mixed
+  UnderA:
+    id: UnderA
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: mixed
+  UpperTunnel:
+    id: UpperTunnel
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: upper
+topology:  # seconds to move between adjacent zones
+  ARamp:
+    BombsiteA: 2.4
+    LongA: 2.6
+  BDoors:
+    BombsiteB: 1.8
+    Hole: 2.2
+    MidDoors: 3.1
+  BombsiteA:
+    ARamp: 3.8
+    ExtendedA: 3.7
+    LongA: 6.5
+    UnderA: 1.6
+  BombsiteB:
+    BDoors: 8.1
+    Hole: 7.7
+    UpperTunnel: 7.2
+  CTSpawn:
+    MidDoors: 2.7
+    UnderA: 1.4
+  Catwalk:
+    MidDoors: 3.1
+    Middle: 2.4
+    ShortStairs: 5.6
+    TopofMid: 5.3
+  ExtendedA:
+    BombsiteA: 4.1
+    ShortStairs: 1.6
+    UnderA: 1.4
+  Hole:
+    BDoors: 1.2
+    BombsiteB: 0.9
+  LongA:
+    ARamp: 6.6
+    LongDoors: 5.6
+    Pit: 6.8
+    Side: 3.1
+    UnderA: 7.2
+  LongDoors:
+    LongA: 7.5
+    OutsideLong: 9.7
+    Pit: 7.9
+  LowerTunnel:
+    Middle: 5.6
+    TunnelStairs: 3.5
+  MidDoors:
+    BDoors: 3.6
+    CTSpawn: 5.2
+    Catwalk: 0.1
+    Middle: 3.3
+  Middle:
+    Catwalk: 2.4
+    LowerTunnel: 1.1
+    MidDoors: 1.2
+    TopofMid: 3.2
+  OutsideLong:
+    LongDoors: 4.2
+    TSpawn: 4.5
+    TopofMid: 4.5
+  OutsideTunnel:
+    TRamp: 3.6
+    UpperTunnel: 3.6
+  Pit:
+    LongA: 4.6
+    LongDoors: 0.4
+  ShortStairs:
+    Catwalk: 2.8
+    ExtendedA: 3.8
+  Side:
+    LongA: 4.4
+  TRamp:
+    TSpawn: 2.8
+  TSpawn:
+    OutsideLong: 3.8
+    OutsideTunnel: 3.5
+    TRamp: 8.6
+    TopofMid: 2.6
+  TopofMid:
+    Catwalk: 4.7
+    Middle: 6.4
+    OutsideLong: 0.9
+    TSpawn: 8.3
+  TunnelStairs:
+    LowerTunnel: 1.7
+    UpperTunnel: 1.8
+  UnderA:
+    BombsiteA: 0.3
+    CTSpawn: 3.2
+    ExtendedA: 3.9
+    LongA: 3.0
+  UpperTunnel:
+    BombsiteB: 6.0
+    OutsideTunnel: 5.6
+    TunnelStairs: 4.4
+rotates:  # site-to-site routes; run_s = seconds at run speed
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - UnderA
+  - CTSpawn
+  - MidDoors
+  - BDoors
+  run_s: 12.9
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - UnderA
+  - CTSpawn
+  - MidDoors
+  - BDoors
+  - Hole
+  run_s: 14.2
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - BDoors
+  - MidDoors
+  - CTSpawn
+  - UnderA
+  run_s: 18.2
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Hole
+  - BDoors
+  - MidDoors
+  - CTSpawn
+  - UnderA
+  run_s: 19.0
+timings:  # earliest seconds each side reaches the zone
+  CT:
+    BombsiteA: 7.0
+    BombsiteB: 6.8
+  T:
+    BombsiteA: 26.2
+    BombsiteB: 11.6
+objectives:
+  sites:
+  - BombsiteA
+  - BombsiteB
+  round_seconds: 115
+  bomb_seconds: 40
+  defuse_seconds:
+  - 10
+  - 5
+sightlines: []
+checksum: 996c0c128f91

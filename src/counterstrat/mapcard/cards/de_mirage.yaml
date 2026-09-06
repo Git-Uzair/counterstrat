@@ -1,0 +1,294 @@
+map: de_mirage
+card_version: '1.0'
+game_version: '14178'
+nav_source: calibration
+frame:
+  bbox:
+    min_x: -2656.0
+    max_x: 1423.8
+    min_y: -2603.1
+    max_y: 888.0
+  z_median: -168.0
+zones:
+  Apartments:
+    id: Apartments
+    aliases: []
+    tags: []
+    quadrant: north-west
+    elevation: upper
+  BackAlley:
+    id: BackAlley
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: upper
+  BombsiteA:
+    id: BombsiteA
+    aliases: []
+    tags:
+    - site
+    quadrant: center-south
+    elevation: mixed
+  BombsiteB:
+    id: BombsiteB
+    aliases: []
+    tags:
+    - site
+    quadrant: north-west
+    elevation: mixed
+  CTSpawn:
+    id: CTSpawn
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: lower
+  Catwalk:
+    id: Catwalk
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: mixed
+  Connector:
+    id: Connector
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  House:
+    id: House
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: upper
+  Jungle:
+    id: Jungle
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  Ladder:
+    id: Ladder
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: upper
+  Middle:
+    id: Middle
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: lower
+  PalaceAlley:
+    id: PalaceAlley
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: lower
+  PalaceInterior:
+    id: PalaceInterior
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: upper
+  Scaffolding:
+    id: Scaffolding
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: upper
+  Shop:
+    id: Shop
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: mixed
+  SideAlley:
+    id: SideAlley
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: lower
+  SnipersNest:
+    id: SnipersNest
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  Stairs:
+    id: Stairs
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: upper
+  TRamp:
+    id: TRamp
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: lower
+  TSpawn:
+    id: TSpawn
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: mixed
+  TopofMid:
+    id: TopofMid
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  Truck:
+    id: Truck
+    aliases: []
+    tags: []
+    quadrant: north-west
+    elevation: upper
+  Underpass:
+    id: Underpass
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: mixed
+topology:  # seconds to move between adjacent zones
+  Apartments:
+    BackAlley: 7.8
+    BombsiteB: 8.3
+    Truck: 9.2
+  BackAlley:
+    Apartments: 7.3
+    House: 4.4
+    Underpass: 2.7
+  BombsiteA:
+    CTSpawn: 12.9
+    Connector: 3.9
+    Jungle: 1.7
+    PalaceInterior: 11.4
+    Scaffolding: 4.1
+    Stairs: 2.5
+  BombsiteB:
+    Catwalk: 4.4
+    Shop: 6.0
+    Truck: 2.8
+  CTSpawn:
+    BombsiteA: 5.1
+    Jungle: 7.6
+    Middle: 1.3
+    Shop: 5.2
+    SnipersNest: 6.7
+  Catwalk:
+    BombsiteB: 7.8
+    Ladder: 11.6
+    Middle: 4.7
+    SnipersNest: 2.4
+    TopofMid: 4.8
+    Underpass: 4.4
+  Connector:
+    BombsiteA: 3.2
+    Middle: 4.3
+  House:
+    BackAlley: 3.6
+    SideAlley: 1.5
+  Jungle:
+    BombsiteA: 2.8
+    CTSpawn: 2.6
+  Ladder:
+    Catwalk: 21.9
+    SnipersNest: 7.0
+  Middle:
+    CTSpawn: 1.0
+    Catwalk: 2.9
+    Connector: 5.2
+    SnipersNest: 7.8
+    TopofMid: 6.6
+    Underpass: 2.2
+  PalaceAlley:
+    TRamp: 6.2
+    TSpawn: 9.3
+  PalaceInterior:
+    BombsiteA: 1.8
+    Scaffolding: 19.6
+    TRamp: 2.4
+  Scaffolding:
+    BombsiteA: 0.9
+    PalaceInterior: 1.0
+  Shop:
+    BombsiteB: 2.4
+    CTSpawn: 3.5
+  SideAlley:
+    House: 2.2
+    TSpawn: 5.7
+    TopofMid: 4.8
+  SnipersNest:
+    CTSpawn: 6.1
+    Catwalk: 3.1
+    Middle: 0.9
+  Stairs:
+    BombsiteA: 3.2
+  TRamp:
+    PalaceAlley: 4.2
+    PalaceInterior: 3.7
+  TSpawn:
+    PalaceAlley: 5.3
+    PalaceInterior: 4.7
+    SideAlley: 2.9
+  TopofMid:
+    Catwalk: 4.3
+    Middle: 7.0
+    SideAlley: 4.2
+  Truck:
+    Apartments: 1.9
+    BombsiteB: 1.7
+  Underpass:
+    BackAlley: 13.4
+    Catwalk: 6.2
+    Ladder: 13.8
+    Middle: 11.0
+rotates:  # site-to-site routes; run_s = seconds at run speed
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Jungle
+  - CTSpawn
+  - Shop
+  run_s: 11.9
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Jungle
+  - CTSpawn
+  - Middle
+  - Catwalk
+  run_s: 16.3
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Catwalk
+  - SnipersNest
+  - Middle
+  - CTSpawn
+  run_s: 13.8
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Shop
+  - CTSpawn
+  run_s: 14.6
+timings:  # earliest seconds each side reaches the zone
+  CT:
+    BombsiteA: 4.3
+    BombsiteB: 6.9
+  T:
+    BombsiteA: 9.0
+    BombsiteB: 16.5
+objectives:
+  sites:
+  - BombsiteA
+  - BombsiteB
+  round_seconds: 115
+  bomb_seconds: 40
+  defuse_seconds:
+  - 10
+  - 5
+sightlines: []
+checksum: b71c9547afe1

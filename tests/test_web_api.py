@@ -181,6 +181,65 @@ def test_settings_roundtrip_never_echoes_key(client_app: TestClient):
     assert got["keys_present"]["gemini"] is True
 
 
+def test_shipped_cards_cover_the_calibrated_pool():
+    """Every calibrated map ships a real card: fresh clones must get zones,
+    measured topology and rotates without a CS2 install or the VRF CLI."""
+    from counterstrat.mapcard.cards import load_shipped_card
+
+    pool = ["de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"]
+    for map_name in pool:
+        card = load_shipped_card(map_name)
+        assert card is not None, f"missing shipped card for {map_name}"
+        assert card.map == map_name
+        assert card.zones and card.topology and card.rotates
+        assert card.objectives.get("sites") == ["BombsiteA", "BombsiteB"]
+        # Engine vocabulary only: an operator's custom zones must never ship.
+        assert all(z[0].isupper() for z in card.zones), f"non-engine zone in {map_name}"
+    assert load_shipped_card("de_overpass") is None  # off the calibrated pool
+
+
+def test_resolve_card_degrades_off_the_pool(tmp_path: Path):
+    """No user card, no shipped card, no lake to compile from: analysis still
+    gets a usable (degraded) card instead of an exception."""
+    from conftest import SYNTHETIC_TEAM, build_synthetic_scripts
+
+    from counterstrat.mining.tendencies import build_teambook
+    from counterstrat.web.cards import resolve_card
+
+    cfg = AppConfig(data_root=tmp_path)
+    teambook = build_teambook(build_synthetic_scripts(), SYNTHETIC_TEAM)
+    card = resolve_card(cfg, "de_overpass", teambook)
+    assert card.map == "de_overpass"
+    assert card.checksum == "degraded"
+    assert card.zones == {}
+
+
+def test_insights_bundle_survives_missing_card(tmp_path: Path):
+    """Fresh clone: no compiled card, no CS2 install, no lake. The First Read
+    bundle must resolve a usable card (shipped or degraded) instead of the
+    404 a cloning user hit ('Map card for de_ancient not found')."""
+    from conftest import SYNTHETIC_TEAM, build_synthetic_scripts
+
+    from counterstrat.mining.tendencies import build_teambook
+    from counterstrat.web.routes import _load_team_bundle
+
+    cfg = AppConfig(data_root=tmp_path)
+    scripts = build_synthetic_scripts()
+    tb_path = cfg.data_root / "teambooks" / SYNTHETIC_TEAM / "de_anubis" / "teambook.json"
+    tb_path.parent.mkdir(parents=True, exist_ok=True)
+    tb_path.write_text(build_teambook(scripts, SYNTHETIC_TEAM).model_dump_json(), encoding="utf-8")
+    for s in scripts:
+        s_path = cfg.data_root / "scripts" / s.match_id / f"round_{s.round_num}.json"
+        s_path.parent.mkdir(parents=True, exist_ok=True)
+        s_path.write_text(s.to_json(), encoding="utf-8")
+
+    card, teambook, loaded, lex = _load_team_bundle(cfg, SYNTHETIC_TEAM, "de_anubis")
+    assert card.map == "de_anubis"
+    assert teambook.team_key == SYNTHETIC_TEAM
+    assert loaded, "scripts must load without a card"
+    assert lex.zones, "lexicon must fall back to script/shipped vocabulary"
+
+
 def test_settings_cs2_path_roundtrip(client_app: TestClient, tmp_path: Path):
     """The CS2 install folder is a first-class setting: reported, validated,
     persisted, and clearable."""

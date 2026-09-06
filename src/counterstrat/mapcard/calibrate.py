@@ -41,8 +41,18 @@ from counterstrat.mapcard.anchors import (
 logger = logging.getLogger(__name__)
 
 TICK_STEP = 4  # mirror lake extraction sampling
-CALIBRATION_PROPS = ["X", "Y", "Z", "last_place_name", "is_alive"]
+# team_name rides along so shipped cards can measure per-side timings.
+CALIBRATION_PROPS = ["X", "Y", "Z", "last_place_name", "is_alive", "team_name"]
 DEMO_SUFFIXES = (".dem", ".zst", ".gz", ".bz2")
+MOVE_COLUMNS = [
+    "steamid",
+    "round_num",
+    "tick",
+    "clock_s",
+    "is_alive",
+    "last_place_name",
+    "team_name",
+]
 
 
 def _sha16(path: Path) -> str:
@@ -173,7 +183,7 @@ def _extract_frames(dem_path: Path) -> tuple[str, str, pl.DataFrame, pl.DataFram
             )
             .filter(pl.col("tick") <= pl.col("end"))
             .with_columns(((pl.col("tick") - pl.col("freeze_end")) / 64.0).alias("clock_s"))
-            .select(["steamid", "round_num", "tick", "clock_s", "is_alive", "last_place_name"])
+            .select([c for c in MOVE_COLUMNS if c in df.columns or c in ("round_num", "clock_s")])
             .drop_nulls(["round_num"])
         )
     return map_name, patch, occupancy, moves
@@ -272,13 +282,24 @@ def _supported_maps() -> set[str]:
     } - RETIRED_MAPS
 
 
+def _moves_stale(path: Path) -> bool:
+    """A movement cache is stale when absent or from before team_name shipped."""
+    if not path.exists():
+        return True
+    try:
+        return "team_name" not in pl.read_parquet_schema(path)
+    except Exception:  # noqa: BLE001 - torn cache: rebuild it
+        return True
+
+
 def backfill_moves(demo_dir: Path) -> int:
-    """Movement caches for demos processed before topology extraction existed.
+    """Movement caches for demos processed before the current moves schema.
 
     Reparses each cached demo once and writes ``<sha>.moves.parquet`` beside
     its occupancy cache (plus the demo's patch_version into the index), so
     ``mapcard.topologies.export_shipped_topologies`` can measure shipped
-    move-time graphs from the calibration set. Resumable and idempotent.
+    move-time graphs and ``export_shipped_cards`` can measure per-side
+    timings from the calibration set. Resumable and idempotent.
     """
     cache_dir = demo_dir / ".cache"
     work_dir = demo_dir / ".tmp"
@@ -286,7 +307,7 @@ def backfill_moves(demo_dir: Path) -> int:
     pending = [
         (sha, demo_dir / meta["file"])
         for sha, meta in sorted(index.items())
-        if not (cache_dir / f"{sha}.moves.parquet").exists() and (demo_dir / meta["file"]).exists()
+        if _moves_stale(cache_dir / f"{sha}.moves.parquet") and (demo_dir / meta["file"]).exists()
     ]
     written = 0
     for i, (sha, arc) in enumerate(pending, 1):
@@ -449,6 +470,91 @@ def run(demo_dir: Path, data_root: Path, out_dir: Path, limit: int | None = None
     return {"written": written, "missing": missing, "uncalibratable": uncalibratable}
 
 
+def export_shipped_cards(demo_dir: Path, out_dir: Path | None = None) -> dict[str, str]:
+    """Compile a calibration-grade card per fully-cached map and ship it.
+
+    Pools every calibration demo of a map: occupancy ticks give the frame and
+    zone quadrant/elevation stats, movement ticks give the measured topology
+    and per-side timings, and the map VPK gives the zone lexicon - engine
+    vocabulary only, so shipped cards never carry an operator's custom zones.
+    Writes ``src/counterstrat/mapcard/cards/<map>.yaml`` (the fresh-clone
+    fallback in ``counterstrat.web.cards.resolve_card``).
+    """
+    from collections import Counter
+
+    from counterstrat.config import AppConfig
+    from counterstrat.mapcard.cards import SHIPPED_CARDS_DIR, save_shipped_card
+    from counterstrat.mapcard.compile import compile_card
+    from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
+    from counterstrat.mapcard.transitions import zone_graph
+    from counterstrat.mapcard.vents import parse_places, unique_places
+    from counterstrat.mapcard.vrf import extract_map_assets
+    from counterstrat.web.ingest import _find_vpk_path, _find_vrf_cli
+
+    cache_dir = demo_dir / ".cache"
+    index = _load_index(cache_dir)
+    out = out_dir or SHIPPED_CARDS_DIR
+    cfg = AppConfig.load()
+    vrf = _find_vrf_cli()
+
+    by_map: dict[str, list[str]] = {}
+    for sha, meta in index.items():
+        if (cache_dir / f"{sha}.parquet").exists():
+            by_map.setdefault(meta["map"], []).append(sha)
+
+    written: dict[str, str] = {}
+    for map_name in sorted(by_map):
+        shas = sorted(by_map[map_name])
+        vpk = _find_vpk_path(map_name, cfg)
+        if vpk is None or vrf is None:
+            print(f"{map_name}: no VPK/VRF available - card not shipped")
+            continue
+        move_frames: list[pl.DataFrame] = []
+        for sha in shas:
+            mp = cache_dir / f"{sha}.moves.parquet"
+            if not mp.exists():
+                continue
+            mf = pl.read_parquet(mp)
+            if "team_name" not in mf.columns:
+                print(f"{map_name}: {sha} moves predate team_name - run --moves-only first")
+                mf = mf.with_columns(pl.lit(None, dtype=pl.String).alias("team_name"))
+            # match_id keeps zone_graph from stitching transitions across demos.
+            move_frames.append(mf.with_columns(pl.lit(sha).alias("match_id")))
+        if not move_frames:
+            print(f"{map_name}: no movement caches - card not shipped")
+            continue
+        t0 = time.time()
+        moves = pl.concat(move_frames, how="diagonal_relaxed")
+        occupancy = pl.concat([pl.read_parquet(cache_dir / f"{sha}.parquet") for sha in shas])
+        patches = Counter(str(index[sha].get("patch") or "") for sha in shas)
+        patches.pop("", None)
+        patch = patches.most_common(1)[0][0] if patches else "unknown"
+
+        assets = extract_map_assets(vpk, vrf, cfg.data_root / "tmp_assets" / map_name)
+        places = unique_places(parse_places(assets.vents))
+        overlay = get_default_overlay_path(map_name)
+        lexicon = build_lexicon(map_name, places, overlay if overlay.exists() else None)
+        card = compile_card(
+            lexicon=lexicon,
+            graph=zone_graph(moves),
+            # Occupancy rows carry X/Y/Z for zone stats; move rows carry
+            # clock_s/team_name for timings - compile_card reads both.
+            ticks=pl.concat([occupancy, moves], how="diagonal_relaxed"),
+            rounds=pl.DataFrame(),
+            map_name=map_name,
+            patch_version=patch or "unknown",
+            nav_source="calibration",
+        )
+        path = save_shipped_card(card, out)
+        written[map_name] = card.checksum
+        print(
+            f"{map_name}: shipped card {card.checksum} ({len(card.zones)} zones, "
+            f"{len(card.topology)} topology nodes, {len(card.timings.get('CT', {}))} CT timings, "
+            f"{moves.height} move rows, {time.time() - t0:.0f}s) -> {path}"
+        )
+    return written
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("demo_dir", nargs="?", default="data/calibration", type=Path)
@@ -460,6 +566,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="only backfill movement caches (leaves shipped anchors untouched)",
     )
+    ap.add_argument(
+        "--cards",
+        action="store_true",
+        help="refresh movement caches, then compile and ship calibration map cards",
+    )
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
     if not args.demo_dir.exists():
@@ -467,6 +578,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.moves_only:
         print(f"movement caches written: {backfill_moves(args.demo_dir)}")
+        return 0
+    if args.cards:
+        print(f"movement caches refreshed: {backfill_moves(args.demo_dir)}")
+        written = export_shipped_cards(args.demo_dir)
+        print(f"\nShipped cards: {', '.join(sorted(written)) or '(none)'}")
         return 0
     run(args.demo_dir, args.data_root, args.out, limit=args.limit)
     return 0

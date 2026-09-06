@@ -1,0 +1,285 @@
+map: de_inferno
+card_version: '1.0'
+game_version: '14178'
+nav_source: calibration
+frame:
+  bbox:
+    min_x: -1730.9
+    max_x: 2664.0
+    min_y: -760.5
+    max_y: 3514.0
+  z_median: 132.6
+zones:
+  Apartments:
+    id: Apartments
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: upper
+  Arch:
+    id: Arch
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  BackAlley:
+    id: BackAlley
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  Balcony:
+    id: Balcony
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: upper
+  Banana:
+    id: Banana
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  BombsiteA:
+    id: BombsiteA
+    aliases: []
+    tags:
+    - site
+    quadrant: south-east
+    elevation: mixed
+  BombsiteB:
+    id: BombsiteB
+    aliases: []
+    tags:
+    - site
+    quadrant: center-north
+    elevation: upper
+  Bridge:
+    id: Bridge
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: upper
+  CTSpawn:
+    id: CTSpawn
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: mixed
+  Deck:
+    id: Deck
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: upper
+  Kitchen:
+    id: Kitchen
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: upper
+  Library:
+    id: Library
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  LowerMid:
+    id: LowerMid
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: lower
+  Middle:
+    id: Middle
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  Pit:
+    id: Pit
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: lower
+  Quad:
+    id: Quad
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: mixed
+  Ruins:
+    id: Ruins
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: lower
+  SecondMid:
+    id: SecondMid
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  TRamp:
+    id: TRamp
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: lower
+  TSpawn:
+    id: TSpawn
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: lower
+  TopofMid:
+    id: TopofMid
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  Underpass:
+    id: Underpass
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  Upstairs:
+    id: Upstairs
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: upper
+topology:  # seconds to move between adjacent zones
+  Apartments:
+    BackAlley: 7.5
+    Balcony: 10.4
+    Bridge: 4.2
+    Middle: 11.0
+    SecondMid: 9.8
+    TopofMid: 11.6
+  Arch:
+    BombsiteA: 3.6
+    CTSpawn: 3.9
+    TopofMid: 2.9
+  BackAlley:
+    Apartments: 3.3
+    SecondMid: 3.3
+  Balcony:
+    Apartments: 0.9
+    BombsiteA: 1.5
+    Pit: 3.4
+    SecondMid: 2.1
+  Banana:
+    BombsiteB: 12.3
+    Middle: 11.0
+  BombsiteA:
+    Arch: 4.8
+    Balcony: 7.2
+    Library: 5.9
+    Pit: 7.8
+    Quad: 9.3
+    TopofMid: 6.8
+  BombsiteB:
+    Banana: 2.9
+    Ruins: 7.7
+  Bridge:
+    Apartments: 1.6
+    SecondMid: 7.1
+    Upstairs: 4.7
+  CTSpawn:
+    Arch: 3.7
+    Library: 2.6
+    Ruins: 5.4
+  Library:
+    BombsiteA: 2.4
+    CTSpawn: 2.4
+  LowerMid:
+    SecondMid: 1.9
+    TRamp: 2.1
+    Upstairs: 2.6
+  Middle:
+    Banana: 0.5
+    SecondMid: 6.6
+    TRamp: 1.3
+    TopofMid: 8.2
+    Underpass: 2.0
+  Pit:
+    BombsiteA: 6.6
+  Quad:
+    BombsiteA: 3.1
+    TopofMid: 2.7
+  Ruins:
+    BombsiteB: 2.6
+    CTSpawn: 2.9
+  SecondMid:
+    Apartments: 4.8
+    BackAlley: 7.2
+    Balcony: 10.0
+    LowerMid: 4.8
+    Middle: 7.6
+    Underpass: 4.1
+  TRamp:
+    LowerMid: 3.5
+    Middle: 2.2
+  TSpawn:
+    LowerMid: 4.8
+  TopofMid:
+    Apartments: 3.4
+    Arch: 5.4
+    BombsiteA: 4.0
+    Middle: 2.9
+    Quad: 2.9
+  Underpass:
+    Middle: 1.9
+  Upstairs:
+    Bridge: 2.1
+    Kitchen: 6.2
+    LowerMid: 2.0
+rotates:  # site-to-site routes; run_s = seconds at run speed
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Library
+  - CTSpawn
+  - Ruins
+  run_s: 16.4
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Arch
+  - CTSpawn
+  - Ruins
+  run_s: 16.8
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Ruins
+  - CTSpawn
+  - Library
+  run_s: 15.6
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Ruins
+  - CTSpawn
+  - Arch
+  run_s: 17.8
+timings:  # earliest seconds each side reaches the zone
+  CT:
+    BombsiteA: 4.1
+    BombsiteB: 6.9
+  T:
+    BombsiteA: 19.6
+    BombsiteB: 15.6
+objectives:
+  sites:
+  - BombsiteA
+  - BombsiteB
+  round_seconds: 115
+  bomb_seconds: 40
+  defuse_seconds:
+  - 10
+  - 5
+sightlines: []
+checksum: c0a606434e7f

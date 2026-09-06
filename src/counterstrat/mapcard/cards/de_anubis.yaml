@@ -1,0 +1,397 @@
+map: de_anubis
+card_version: '1.0'
+game_version: '14178'
+nav_source: calibration
+frame:
+  bbox:
+    min_x: -1971.9
+    max_x: 1804.0
+    min_y: -1745.0
+    max_y: 3155.3
+  z_median: -1.0
+zones:
+  Alley:
+    id: Alley
+    aliases:
+    - alley
+    tags:
+    - b_side
+    - choke
+    quadrant: center-west
+    elevation: mixed
+  BackofB:
+    id: BackofB
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  BombsiteA:
+    id: BombsiteA
+    aliases:
+    - A site
+    tags:
+    - site
+    quadrant: north-east
+    elevation: lower
+  BombsiteB:
+    id: BombsiteB
+    aliases:
+    - B site
+    tags:
+    - site
+    quadrant: center-west
+    elevation: mixed
+  Bricks:
+    id: Bricks
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: upper
+  Bridge:
+    id: Bridge
+    aliases:
+    - mid bridge
+    tags:
+    - choke
+    quadrant: center
+    elevation: upper
+  CTSideUpper:
+    id: CTSideUpper
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: upper
+  CTSpawn:
+    id: CTSpawn
+    aliases:
+    - ct spawn
+    tags:
+    - spawn
+    - ct_side
+    quadrant: center-north
+    elevation: lower
+  Canal:
+    id: Canal
+    aliases:
+    - canals
+    tags:
+    - connector
+    quadrant: center-east
+    elevation: lower
+  Connector:
+    id: Connector
+    aliases:
+    - connector
+    - con
+    tags:
+    - connector
+    quadrant: center-west
+    elevation: lower
+  Fountain:
+    id: Fountain
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: lower
+  Heaven:
+    id: Heaven
+    aliases:
+    - heaven
+    tags:
+    - power_position
+    - ct_side
+    quadrant: north-east
+    elevation: lower
+  LowerTunnel:
+    id: LowerTunnel
+    aliases:
+    - lower tunnel
+    tags:
+    - connector
+    quadrant: north-west
+    elevation: lower
+  Main:
+    id: Main
+    aliases:
+    - A main
+    tags:
+    - t_side_entry
+    - choke
+    quadrant: center-east
+    elevation: lower
+  MidDoors:
+    id: MidDoors
+    aliases:
+    - mid doors
+    tags:
+    - choke
+    quadrant: center
+    elevation: lower
+  Middle:
+    id: Middle
+    aliases:
+    - mid
+    tags:
+    - mid_control
+    quadrant: center
+    elevation: lower
+  OutsideLong:
+    id: OutsideLong
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: upper
+  PalaceInterior:
+    id: PalaceInterior
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Ruins:
+    id: Ruins
+    aliases:
+    - ruins
+    tags:
+    - b_side
+    quadrant: south-west
+    elevation: upper
+  SnipersNest:
+    id: SnipersNest
+    aliases: []
+    tags: []
+    quadrant: north-west
+    elevation: upper
+  Street:
+    id: Street
+    aliases:
+    - street
+    tags:
+    - ct_side
+    quadrant: south-east
+    elevation: lower
+  TSideUpper:
+    id: TSideUpper
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  TSpawn:
+    id: TSpawn
+    aliases:
+    - t spawn
+    tags:
+    - spawn
+    quadrant: center-south
+    elevation: mixed
+  TStairs:
+    id: TStairs
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: lower
+  Tunnel:
+    id: Tunnel
+    aliases:
+    - B tunnels
+    - upper tunnel
+    tags:
+    - t_side_entry
+    quadrant: center-north
+    elevation: lower
+  TunnelStairs:
+    id: TunnelStairs
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: lower
+  Walkway:
+    id: Walkway
+    aliases:
+    - A long
+    - walkway
+    tags:
+    - t_side_entry
+    quadrant: center-east
+    elevation: lower
+  Water:
+    id: Water
+    aliases:
+    - water
+    - canal-water
+    tags:
+    - mid_control
+    quadrant: center-north
+    elevation: lower
+topology:  # seconds to move between adjacent zones
+  Alley:
+    BombsiteB: 2.2
+    LowerTunnel: 4.1
+    SnipersNest: 2.8
+  BackofB:
+    BombsiteB: 5.9
+  BombsiteA:
+    Fountain: 4.4
+    Heaven: 6.4
+    Main: 3.2
+    Walkway: 4.9
+  BombsiteB:
+    Alley: 4.6
+    BackofB: 4.4
+    Bricks: 4.0
+    Connector: 3.8
+    OutsideLong: 6.1
+  Bricks:
+    BombsiteB: 1.3
+    PalaceInterior: 1.0
+  Bridge:
+    MidDoors: 7.4
+    Middle: 10.4
+    Ruins: 7.6
+    Street: 5.9
+  CTSideUpper:
+    CTSpawn: 2.6
+    LowerTunnel: 2.2
+    PalaceInterior: 2.0
+    SnipersNest: 2.3
+  CTSpawn:
+    CTSideUpper: 4.3
+    Tunnel: 1.9
+    Water: 3.0
+  Canal:
+    Connector: 12.8
+    Main: 6.0
+    TSideUpper: 9.0
+    TStairs: 2.0
+  Connector:
+    BombsiteB: 5.4
+    Canal: 4.2
+  Fountain:
+    BombsiteA: 2.7
+    Main: 1.9
+  Heaven:
+    BombsiteA: 1.9
+    TunnelStairs: 3.5
+    Walkway: 3.2
+  LowerTunnel:
+    Alley: 2.2
+    CTSideUpper: 2.1
+  Main:
+    BombsiteA: 4.2
+    Canal: 6.9
+    Fountain: 7.8
+  MidDoors:
+    Bridge: 4.9
+    Canal: 3.2
+    Middle: 3.8
+  Middle:
+    Bridge: 9.1
+    MidDoors: 6.1
+    PalaceInterior: 6.3
+    Walkway: 3.4
+  OutsideLong:
+    BombsiteB: 9.2
+    Ruins: 6.4
+  PalaceInterior:
+    Bricks: 5.2
+    CTSideUpper: 3.4
+    Middle: 1.9
+  Ruins:
+    Bridge: 4.8
+    OutsideLong: 5.2
+    TSpawn: 5.9
+  SnipersNest:
+    Alley: 2.0
+    CTSideUpper: 3.9
+  Street:
+    Bridge: 3.5
+    TSideUpper: 4.6
+    TSpawn: 4.1
+    TStairs: 3.2
+  TSideUpper:
+    Canal: 5.6
+    Street: 4.6
+  TSpawn:
+    Ruins: 3.0
+    Street: 4.9
+  TStairs:
+    Canal: 1.5
+    Street: 1.7
+  Tunnel:
+    CTSpawn: 2.1
+    TunnelStairs: 2.2
+  TunnelStairs:
+    Heaven: 1.9
+    Tunnel: 1.0
+  Walkway:
+    BombsiteA: 1.8
+    Heaven: 2.3
+    Middle: 4.9
+  Water:
+    CTSpawn: 6.2
+rotates:  # site-to-site routes; run_s = seconds at run speed
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Walkway
+  - Middle
+  - PalaceInterior
+  - Bricks
+  run_s: 22.6
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Heaven
+  - TunnelStairs
+  - Tunnel
+  - CTSpawn
+  - CTSideUpper
+  - SnipersNest
+  - Alley
+  run_s: 23.8
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Bricks
+  - PalaceInterior
+  - Middle
+  - Walkway
+  run_s: 12.0
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Bricks
+  - PalaceInterior
+  - Middle
+  - Walkway
+  - Heaven
+  run_s: 14.5
+timings:  # earliest seconds each side reaches the zone
+  CT:
+    Alley: 3.6
+    BombsiteA: 7.9
+    BombsiteB: 5.7
+    Bridge: 8.0
+    Main: 10.3
+    MidDoors: 7.0
+    Middle: 3.0
+    Water: 27.5
+  T:
+    Alley: 13.8
+    BombsiteA: 16.2
+    BombsiteB: 10.1
+    Bridge: 6.7
+    Main: 13.0
+    MidDoors: 11.9
+    Middle: 12.9
+    Water: 64.0
+objectives:
+  sites:
+  - BombsiteA
+  - BombsiteB
+  round_seconds: 115
+  bomb_seconds: 40
+  defuse_seconds:
+  - 10
+  - 5
+sightlines: []
+checksum: dc4c854b1c0e

@@ -152,6 +152,7 @@ def test_calibrate_run_dedupes_resumes_and_writes(tmp_path: Path, monkeypatch):
             "clock_s": [1.0],
             "is_alive": [True],
             "last_place_name": ["Mid"],
+            "team_name": ["CT"],  # current moves schema: shipped-card timings need the side
         }
     )
     parsed: list[str] = []

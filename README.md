@@ -211,9 +211,12 @@ uv run counterstrat           # run the app
 - Architecture: demos → Parquet lake (`lake/`) → map cards & zone lexicon
   (`mapcard/`) → per-round tactical scripts (`roundscript/`) → mined books
   (`mining/`) → tool-grounded LLM analyst (`llm/`) → FastAPI + vanilla JS UI
-  (`web/`). Shipped per-map calibration (anchors, topologies, radar art)
-  lives inside the package under `src/counterstrat/mapcard/anchors/` and
-  `src/counterstrat/radar/assets/`.
+  (`web/`). Shipped per-map calibration (anchors, topologies, full map
+  cards, radar art) lives inside the package under
+  `src/counterstrat/mapcard/anchors/`, `src/counterstrat/mapcard/cards/`
+  and `src/counterstrat/radar/assets/`; it is regenerated only via
+  `uv run python -m counterstrat.mapcard.calibrate` over the curated
+  calibration demos.
 - Tests marked `demo` need real demo fixtures in `demos/`; `live` tests need
   API keys. Both are excluded by default.
 

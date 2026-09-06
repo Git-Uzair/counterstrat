@@ -1,0 +1,342 @@
+map: de_nuke
+card_version: '1.0'
+game_version: '14178'
+nav_source: calibration
+frame:
+  bbox:
+    min_x: -2639.7
+    max_x: 2894.5
+    min_y: -2480.0
+    max_y: 935.0
+  z_median: -416.0
+zones:
+  Admin:
+    id: Admin
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: mixed
+  BombsiteA:
+    id: BombsiteA
+    aliases: []
+    tags:
+    - site
+    quadrant: center
+    elevation: mixed
+  BombsiteB:
+    id: BombsiteB
+    aliases: []
+    tags:
+    - site
+    quadrant: center
+    elevation: lower
+  CTSpawn:
+    id: CTSpawn
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  Catwalk:
+    id: Catwalk
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  Control:
+    id: Control
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: mixed
+  Crane:
+    id: Crane
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Decon:
+    id: Decon
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  Garage:
+    id: Garage
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: mixed
+  Heaven:
+    id: Heaven
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  Hell:
+    id: Hell
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  Hut:
+    id: Hut
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  HutRoof:
+    id: HutRoof
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Lobby:
+    id: Lobby
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  LockerRoom:
+    id: LockerRoom
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  Mini:
+    id: Mini
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: mixed
+  Observation:
+    id: Observation
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: lower
+  Outside:
+    id: Outside
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: mixed
+  Rafters:
+    id: Rafters
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Ramp:
+    id: Ramp
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: mixed
+  Roof:
+    id: Roof
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Secret:
+    id: Secret
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: lower
+  Silo:
+    id: Silo
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: upper
+  Squeaky:
+    id: Squeaky
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  TSpawn:
+    id: TSpawn
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: mixed
+  Trophy:
+    id: Trophy
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  Tunnels:
+    id: Tunnels
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  Vending:
+    id: Vending
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: mixed
+  Vents:
+    id: Vents
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+topology:  # seconds to move between adjacent zones
+  Admin:
+    Hell: 2.2
+    Ramp: 1.8
+  BombsiteA:
+    Hut: 8.3
+    HutRoof: 7.5
+    Mini: 6.6
+    Squeaky: 6.0
+    Vents: 2.9
+  BombsiteB:
+    Decon: 4.7
+    Observation: 2.5
+    Ramp: 11.2
+    Tunnels: 4.7
+  CTSpawn:
+    Outside: 2.4
+  Catwalk:
+    Heaven: 2.1
+    Outside: 5.2
+  Control:
+    Ramp: 2.9
+    Trophy: 3.2
+  Crane:
+    HutRoof: 0.9
+    Rafters: 2.2
+  Decon:
+    BombsiteB: 2.1
+    Tunnels: 2.3
+  Garage:
+    Outside: 6.2
+  Heaven:
+    Catwalk: 1.7
+    Hell: 2.3
+    Rafters: 1.6
+  Hell:
+    Admin: 1.3
+    Heaven: 1.8
+    LockerRoom: 1.9
+    Outside: 1.9
+  Hut:
+    BombsiteA: 1.9
+    Lobby: 3.9
+  HutRoof:
+    BombsiteA: 7.3
+    Hut: 2.5
+  Lobby:
+    Hut: 6.8
+    Outside: 5.2
+    Roof: 4.1
+    Squeaky: 4.2
+    Vending: 3.1
+  LockerRoom:
+    Hell: 5.9
+    Outside: 5.1
+  Mini:
+    BombsiteA: 3.0
+    Outside: 3.2
+  Observation:
+    BombsiteB: 6.6
+    Tunnels: 3.3
+  Outside:
+    Catwalk: 27.7
+    Garage: 8.1
+    Hell: 2.8
+    Lobby: 2.8
+    Mini: 8.4
+    Roof: 3.1
+    Secret: 16.1
+    TSpawn: 3.9
+  Rafters:
+    BombsiteA: 2.4
+    Crane: 2.8
+    Heaven: 2.8
+    Hut: 2.9
+    HutRoof: 3.1
+  Ramp:
+    Admin: 13.2
+    BombsiteB: 7.4
+    Control: 8.0
+  Roof:
+    Outside: 3.4
+    Silo: 4.1
+  Secret:
+    Outside: 6.1
+    Tunnels: 5.2
+  Silo:
+    Outside: 10.2
+    Roof: 6.1
+  Squeaky:
+    BombsiteA: 2.6
+    Lobby: 4.8
+  TSpawn:
+    Outside: 4.6
+  Trophy:
+    Control: 1.8
+    Vending: 2.4
+  Tunnels:
+    BombsiteB: 9.8
+    Decon: 3.2
+    Observation: 13.6
+    Secret: 10.4
+    Vents: 7.2
+  Vending:
+    Lobby: 3.0
+    Trophy: 2.7
+  Vents:
+    BombsiteA: 5.4
+    Tunnels: 3.1
+rotates:  # site-to-site routes; run_s = seconds at run speed
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Vents
+  - Tunnels
+  - Decon
+  run_s: 11.3
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - Vents
+  - Tunnels
+  run_s: 15.8
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Tunnels
+  - Vents
+  run_s: 17.3
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Observation
+  - Tunnels
+  - Vents
+  run_s: 18.4
+timings:  # earliest seconds each side reaches the zone
+  CT:
+    BombsiteA: 9.0
+    BombsiteB: 11.5
+  T:
+    BombsiteA: 10.3
+    BombsiteB: 17.5
+objectives:
+  sites:
+  - BombsiteA
+  - BombsiteB
+  round_seconds: 115
+  bomb_seconds: 40
+  defuse_seconds:
+  - 10
+  - 5
+sightlines: []
+checksum: 23fbc71999e2

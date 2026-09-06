@@ -28,8 +28,6 @@ from counterstrat.aliases import alias_fingerprint, load_aliases, load_renamer, 
 from counterstrat.config import AppConfig
 from counterstrat.corpus import _sha256_16, load_manifest
 from counterstrat.customzones import CustomZone, load_custom_zones, save_custom_zones
-from counterstrat.mapcard.compile import MapCard
-from counterstrat.mapcard.lexicon import build_lexicon, get_default_overlay_path
 from counterstrat.mining.tendencies import TeamBook
 from counterstrat.roundscript.models import RoundScript
 from counterstrat.teams import load_or_build_clusters, resolve_team_id
@@ -407,25 +405,22 @@ def get_scout_brief(team_key: str, map_name: str, cfg: ConfigDep) -> dict[str, A
 
 
 def _load_team_bundle(cfg: AppConfig, team_key: str, map_name: str):
-    """Card, teambook, re-keyed scripts and lexicon for one (team, map); raises 404s.
+    """Card, teambook, re-keyed scripts and lexicon for one (team, map).
 
     ``team_key`` must already be the canonical cluster id. Scripts are re-keyed
-    to it so miners see one team identity across stand-in lineups.
+    to it so miners see one team identity across stand-in lineups. Only a
+    missing teambook 404s - the card always resolves (user card, shipped
+    calibration card, VPK compile, degraded - see ``counterstrat.web.cards``),
+    so a fresh clone gets a First Read without a CS2 install.
     """
-    card_path = cfg.data_root / "mapcards" / map_name / "card.yaml"
-    if not card_path.exists():
-        raise HTTPException(status_code=404, detail=f"Map card for {map_name} not found")
+    from counterstrat.web.cards import resolve_card, resolve_lexicon
+
     tb_path = cfg.data_root / "teambooks" / team_key / map_name / "teambook.json"
     if not tb_path.exists():
         raise HTTPException(
             status_code=404, detail=f"TeamBook for {team_key} on {map_name} not found"
         )
-    card = MapCard(**yaml.safe_load(card_path.read_text(encoding="utf-8")))
     teambook = TeamBook.model_validate_json(tb_path.read_text(encoding="utf-8"))
-    overlay_path = get_default_overlay_path(map_name)
-    lex = build_lexicon(
-        map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
-    )
     cluster = load_or_build_clusters(cfg.data_root).get(team_key)
     keys = cluster.all_keys() if cluster else {team_key}
     scripts: list[RoundScript] = []
@@ -435,6 +430,8 @@ def _load_team_bundle(cfg: AppConfig, team_key: str, map_name: str):
             for sp in sorted(scripts_dir.glob("round_*.json")):
                 script = RoundScript.model_validate_json(sp.read_text(encoding="utf-8"))
                 scripts.append(_rekey(script, keys, team_key))
+    card = resolve_card(cfg, map_name, teambook)
+    lex = resolve_lexicon(cfg, map_name, card, scripts, teambook)
     return card, teambook, scripts, lex
 
 

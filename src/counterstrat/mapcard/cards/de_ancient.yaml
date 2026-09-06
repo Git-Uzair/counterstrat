@@ -1,0 +1,242 @@
+map: de_ancient
+card_version: '1.0'
+game_version: '14178'
+nav_source: calibration
+frame:
+  bbox:
+    min_x: -2267.0
+    max_x: 1396.0
+    min_y: -2531.1
+    max_y: 1772.0
+  z_median: 30.7
+zones:
+  Alley:
+    id: Alley
+    aliases: []
+    tags: []
+    quadrant: north-east
+    elevation: upper
+  BombsiteA:
+    id: BombsiteA
+    aliases:
+    - A site
+    tags:
+    - site
+    quadrant: north-west
+    elevation: upper
+  BombsiteB:
+    id: BombsiteB
+    aliases:
+    - B site
+    tags:
+    - site
+    quadrant: center-east
+    elevation: upper
+  CTSpawn:
+    id: CTSpawn
+    aliases:
+    - ct spawn
+    tags:
+    - spawn
+    - ct_side
+    quadrant: center-north
+    elevation: lower
+  House:
+    id: House
+    aliases: []
+    tags: []
+    quadrant: center-north
+    elevation: upper
+  MainHall:
+    id: MainHall
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: upper
+  Middle:
+    id: Middle
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Outside:
+    id: Outside
+    aliases: []
+    tags: []
+    quadrant: south-west
+    elevation: mixed
+  Ramp:
+    id: Ramp
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  Ruins:
+    id: Ruins
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: lower
+  SideEntrance:
+    id: SideEntrance
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: upper
+  SideHall:
+    id: SideHall
+    aliases: []
+    tags: []
+    quadrant: center-west
+    elevation: upper
+  TSideLower:
+    id: TSideLower
+    aliases: []
+    tags: []
+    quadrant: center-east
+    elevation: mixed
+  TSideUpper:
+    id: TSideUpper
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  TSpawn:
+    id: TSpawn
+    aliases:
+    - t spawn
+    tags:
+    - spawn
+    quadrant: center-south
+    elevation: lower
+  TopofMid:
+    id: TopofMid
+    aliases: []
+    tags: []
+    quadrant: center
+    elevation: upper
+  Tunnel:
+    id: Tunnel
+    aliases: []
+    tags: []
+    quadrant: center-south
+    elevation: lower
+  Water:
+    id: Water
+    aliases: []
+    tags: []
+    quadrant: south-east
+    elevation: lower
+topology:  # seconds to move between adjacent zones
+  Alley:
+    BombsiteB: 5.1
+    House: 6.4
+  BombsiteA:
+    CTSpawn: 10.8
+    MainHall: 6.0
+    SideHall: 5.1
+  BombsiteB:
+    Alley: 6.7
+    Ramp: 8.6
+    SideEntrance: 1.7
+  CTSpawn:
+    BombsiteA: 4.9
+    House: 3.6
+  House:
+    Alley: 1.0
+    CTSpawn: 2.8
+    TopofMid: 3.2
+  MainHall:
+    BombsiteA: 7.1
+    Outside: 10.6
+  Middle:
+    Outside: 8.7
+    SideHall: 6.0
+    TSideUpper: 8.1
+    TopofMid: 6.8
+  Outside:
+    MainHall: 8.0
+    Middle: 9.9
+    TSpawn: 12.7
+  Ramp:
+    BombsiteB: 3.8
+    TSideLower: 1.8
+  Ruins:
+    TSideLower: 4.0
+    Water: 3.5
+  SideEntrance:
+    BombsiteB: 8.5
+    TSideUpper: 7.4
+  SideHall:
+    BombsiteA: 7.9
+    Middle: 6.4
+  TSideLower:
+    Ramp: 1.5
+    Ruins: 2.8
+    TSideUpper: 2.3
+  TSideUpper:
+    Middle: 5.0
+    SideEntrance: 4.0
+    TSideLower: 6.1
+  TSpawn:
+    Outside: 3.3
+    Tunnel: 2.6
+  TopofMid:
+    House: 2.5
+    Middle: 1.1
+  Tunnel:
+    TSpawn: 2.8
+    Water: 2.8
+  Water:
+    Ruins: 1.0
+    Tunnel: 1.2
+rotates:  # site-to-site routes; run_s = seconds at run speed
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - CTSpawn
+  - House
+  - Alley
+  run_s: 20.6
+- from: BombsiteA
+  to: BombsiteB
+  via:
+  - SideHall
+  - Middle
+  - TopofMid
+  - House
+  - Alley
+  run_s: 27.0
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - Alley
+  - House
+  - CTSpawn
+  run_s: 20.9
+- from: BombsiteB
+  to: BombsiteA
+  via:
+  - SideEntrance
+  - TSideUpper
+  - Middle
+  - SideHall
+  run_s: 28.0
+timings:  # earliest seconds each side reaches the zone
+  CT:
+    BombsiteA: 3.4
+    BombsiteB: 8.6
+  T:
+    BombsiteA: 13.7
+    BombsiteB: 12.1
+objectives:
+  sites:
+  - BombsiteA
+  - BombsiteB
+  round_seconds: 115
+  bomb_seconds: 40
+  defuse_seconds:
+  - 10
+  - 5
+sightlines: []
+checksum: 9d6060066567
