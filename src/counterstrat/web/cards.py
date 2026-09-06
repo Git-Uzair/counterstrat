@@ -156,12 +156,19 @@ def resolve_lexicon(
     teambook: TeamBook,
 ) -> Lexicon:
     """Card zones when present; otherwise the vocabulary observed in the
-    corpus itself (script places plus lake tick places plus overlay zones)."""
+    corpus itself (script places plus lake tick places plus overlay zones).
+    The user's custom zones always join in: a shipped card cannot know them,
+    yet re-zoned lakes and scripts already speak them."""
+    from counterstrat.customzones import load_custom_zones
+
+    custom = [z.name for z in load_custom_zones(cfg.data_root, map_name)]
     overlay_path = get_default_overlay_path(map_name)
     if card.zones:
-        return build_lexicon(
-            map_name, list(card.zones.keys()), overlay_path if overlay_path.exists() else None
-        )
+        places = sorted(set(card.zones.keys()) | set(custom))
+        try:
+            return build_lexicon(map_name, places, overlay_path if overlay_path.exists() else None)
+        except Exception:  # noqa: BLE001 - overlay/vocab clash must not fail closed
+            return build_lexicon(map_name, places, None)
 
     places_set: set[str] = set()
     for s in scripts:
@@ -207,7 +214,7 @@ def resolve_lexicon(
         except Exception:  # noqa: BLE001
             valid_overlay = None
 
-    all_places = sorted(places_set | set(overlay_zones))
+    all_places = sorted(places_set | set(overlay_zones) | set(custom))
     if not all_places:
         all_places = ["Default"]
 

@@ -198,6 +198,43 @@ def test_shipped_cards_cover_the_calibrated_pool():
     assert load_shipped_card("de_overpass") is None  # off the calibrated pool
 
 
+def test_resolve_lexicon_carries_custom_zones_over_shipped_card(tmp_path: Path):
+    """A custom zone saved before the user's own card exists must still enter
+    the analyst vocabulary: shipped cards cannot know it, but re-zoned lakes
+    and scripts already speak it."""
+    import json as _json
+
+    from conftest import SYNTHETIC_TEAM, build_synthetic_scripts
+
+    from counterstrat.mining.tendencies import build_teambook
+    from counterstrat.web.cards import resolve_card, resolve_lexicon
+
+    cfg = AppConfig(data_root=tmp_path)
+    zones_path = cfg.data_root / "mapcards" / "de_anubis" / "zones.json"
+    zones_path.parent.mkdir(parents=True, exist_ok=True)
+    zones_path.write_text(
+        _json.dumps(
+            [
+                {
+                    "name": "ninja",
+                    "x": -105.0,
+                    "y": 186.0,
+                    "z": 0.0,
+                    "half_x": 60.0,
+                    "half_y": 60.0,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    scripts = build_synthetic_scripts()
+    teambook = build_teambook(scripts, SYNTHETIC_TEAM)
+    card = resolve_card(cfg, "de_anubis", teambook)
+    assert card.checksum != "degraded", "shipped card expected for de_anubis"
+    lex = resolve_lexicon(cfg, "de_anubis", card, scripts, teambook)
+    assert "ninja" in lex.zones
+
+
 def test_resolve_card_degrades_off_the_pool(tmp_path: Path):
     """No user card, no shipped card, no lake to compile from: analysis still
     gets a usable (degraded) card instead of an exception."""
