@@ -1,163 +1,233 @@
 # Counter-Strat
 
-Counter-Strat is a local CS2 tactical anti-stratting and opponent tendency analysis web application. It ingests match demos, compiles topological map cards from game VPKs, mines structured opponent books, and provides an interactive LLM analyst chat and downloadable scouting dossiers grounded in tick-level telemetry.
+**Scout your CS2 opponents like a pro team - on your own PC.**
+
+Drop in demos of the team you're about to face. Counter-Strat parses every
+round tick by tick, mines the other team's habits - their defaults, utility
+lineups, economy calls, rotations, and the holes in their setups - and then
+lets you *talk to an AI analyst* that answers only from that evidence:
+
+> *"When do they hit B on full buys?"*
+> *"What does their mid player do after they lose a pistol?"*
+> *"Where is their A site weakest at 30 seconds?"*
+
+Everything runs locally. The only thing that ever leaves your PC is the chat
+text sent to the AI provider **you** configure with **your own** key.
 
 ---
 
-## Quickstart
+## What you get
 
-### Environment & Prerequisites
+- **AI First Read** - a scouting report per team and map: how they play
+  pistols, ecos, and full buys on both sides, and how to punish it.
+- **Analyst chat** - ask follow-ups; the AI checks mined stats, round
+  timelines, and even runs read-only SQL over the parsed data before it
+  answers. Sample sizes are always shown, so you know what's real.
+- **Tendency books** - opening setups, per-player positions, utility lineups
+  with timings, economy policy, rotation tells, retake habits.
+- **Site-hold gaps** - where and when they leave a bombsite genuinely
+  uncovered (post-plant chaos and man-down rounds don't pollute the numbers).
+- **Your callouts** - rename any zone ("camera", "ninja", "topmid"...) in a
+  radar editor; the analyst speaks *your* language, not the game's.
+- **Downloadable dossier** - a full anti-strat document you can share with
+  your team.
 
-- **Python**: 3.13 or newer
-- **Package manager**: [`uv`](https://docs.astral.sh/uv/)
-- **Platform**: Windows, Linux, macOS (ValveResourceFormat CLI is vendored for Windows x64; on Linux/macOS, provide the matching platform binary of `Source2Viewer-CLI` if compiling map cards directly from raw VPKs)
+Seven maps work out of the box with bundled radar and calibration data:
+**Ancient, Anubis, Cache, Dust2, Inferno, Mirage, Nuke.**
 
-### Installation
+---
 
-Clone the repository and synchronize dependencies:
+## What you need
 
-```bash
-uv sync
+| Thing | Why | Cost |
+|---|---|---|
+| Windows 10/11 PC | CS2 demos parse fastest where CS2 lives | - |
+| [uv](https://docs.astral.sh/uv/) | Installs and runs the app (brings its own Python) | Free |
+| An AI key: [Google Gemini](https://aistudio.google.com/apikey) or [Anthropic](https://console.anthropic.com/) | Powers the First Read and chat | Gemini has a free tier; typical use is pennies |
+| Counter-Strike 2 installed | The app reads radar images and map data from the game files (the app reminds you until it's set) | You own it already |
+| Demos of your opponents | The evidence | Free (see below) |
+
+> No Python knowledge needed. You will copy-paste about three commands total.
+
+---
+
+## Install
+
+### Step 1 - Install uv (one command)
+
+Open **PowerShell** (press `Win`, type `powershell`, Enter) and paste:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-### Vendoring VRF CLI
+Close and reopen PowerShell, then check it worked:
 
-The ValveResourceFormat CLI decompiles Source 2 entity lumps (`.vents_c`) and extracts navigation meshes (`.nav`) from map VPKs.
-
-- **Vendored binary path**: `tools/vrf/Source2Viewer-CLI.exe`
-- **Upstream release**: ValveResourceFormat v20.0 ([GitHub Release](https://github.com/ValveResourceFormat/ValveResourceFormat/releases/tag/20.0))
-- **SHA-256**: `d32ab327b8bbb42a2528866afb03bb582bdb779d0005488da32b90292afd3ff5`
-- **Status**: Pre-vendored in the repository.
-
-### Configuration
-
-Create a `.env` file in the project root with your API key of choice:
-
-```env
-# Anthropic Claude (recommended default: claude-sonnet-5)
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# Or Google Gemini (default: gemini-2.5-pro; dev/eval: gemini-3.8-flash)
-GEMINI_API_KEY=your_gemini_api_key
+```powershell
+uv --version
 ```
 
-*Note:* API keys can also be configured dynamically in the web UI Settings dialog (gear icon in the navigation bar). Demo ingestion, lake extraction, and tendency mining run completely offline; only interactive chat, dossier compilation, and the map quiz require an LLM API key.
+You should see a version number. That's it - uv will download the right
+Python and every dependency automatically on first run.
 
-### Starting the App
+### Step 2 - Get Counter-Strat
 
-Start the local server:
+**Option A - with Git:**
 
-```bash
+```powershell
+git clone https://github.com/Git-Uzair/counterstrat.git
+cd counterstrat
+```
+
+**Option B - no Git:** on the [GitHub page](https://github.com/Git-Uzair/counterstrat)
+click the green **Code** button → **Download ZIP**, extract it somewhere
+(e.g. `D:\counterstrat`), then in PowerShell:
+
+```powershell
+cd D:\counterstrat
+```
+
+(Use the folder you extracted to - it's the one containing `pyproject.toml`.)
+
+### Step 3 - Run it
+
+```powershell
 uv run counterstrat
 ```
 
-The application starts on `http://127.0.0.1:8710`.
+The first run downloads dependencies and takes a couple of minutes. When you
+see the server line, open your browser at:
 
-### Browser Walkthrough
+**http://localhost:8710**
 
-1. Open `http://127.0.0.1:8710` in your web browser.
-2. **Upload Demo**: Drag and drop one or more CS2 demos (`.dem`, FACEIT `.dem.zst`, `.dem.gz`, `.dem.bz2`) into the dropzone. A sample fixture demo is located at `demos/1-7065ab7c-bc8f-4995-adf1-ac774327c5db-1-1.dem`.
-3. **Background Ingestion**: Monitor real-time status as the ingest worker processes the demo:
-   - Registers demo in corpus manifest
-   - Extracts Parquet telemetry lake and DuckDB views
-   - Compiles MapCard from map VPK (if not already compiled)
-   - Generates RoundScript DSL for each round
-   - Mines opponent tendencies into `TeamBook`
-4. **Select Team & Map**: Use the dropdown menus to select the team you want to analyze and the map.
-5. **Interactive Analysis Chat**: Ask tactical anti-stratting questions:
-   - *"What does this team do on full buys?"*
-   - *"How do they execute onto A site?"*
-   - *"What are their early round defaults on T side?"*
-   - *"Where do they throw smokes on B site?"*
-   
-   The ReAct analyst agent uses inspection tools (`get_tendencies`, `get_playbook`, `get_utility_book`, `get_gap_report`, `get_economy_read`, `get_player_profile`, `list_rounds`, `get_round_script`, `get_role_cards`, `sql_query`) to retrieve verified evidence, cites specific `match:round` examples, and reports exact sample sizes.
-6. **Download Dossier**: Click **Generate Dossier** to produce and download a structured Markdown scouting dossier (`.md`) summarizing defaults, setups, execute timing, economy patterns, and counter-strat recommendations.
+Leave the PowerShell window open while you use the app. `Ctrl+C` in that
+window stops it.
 
 ---
 
-## Map VPKs
+## First-time setup (the app walks you through it)
 
-Counter-Strat uses Valve Pak (`.vpk`) files to decompile map entities and extract official place names and walkable area geometry.
+On first launch a banner and the Settings window will tell you what's missing:
 
-- **Placement**: `maps/<map>/<map>.vpk` (e.g. `maps/de_anubis/de_anubis.vpk`, `maps/de_ancient/de_ancient.vpk`)
-- **Source**: `<SteamLibrary>/steamapps/common/Counter-Strike Global Offensive/game/csgo/maps/de_*.vpk`
-- **Vanity files**: `de_*_vanity.vpk` files are **not needed** (they contain no entity or nav data used by the system).
-- **Included maps**: VPKs for `de_anubis` and `de_ancient` are provided in the repository.
-- **Game updates**: Map Cards are keyed to `(map, patch_version)`. When a CS2 patch alters map geometry or callouts, copy the updated `de_<map>.vpk` into `maps/<map>/<map>.vpk` to regenerate the card.
+1. **CS2 install folder** - the app extracts radar images and map data from
+   the game's files. To find yours: Steam → Library → right-click
+   **Counter-Strike 2** → **Manage** → **Browse local files**, then copy the
+   path from the Explorer address bar. It usually looks like:
+   `C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive`
+   Paste it into **Settings → CS2 Install Folder** and save. The banner stays
+   until the folder checks out - this one is required.
 
----
+2. **AI provider + key** - in the same Settings window pick **Google Gemini**
+   (free tier, recommended to start) or **Anthropic (Claude)**, paste your API
+   key, save. The key is stored only on your PC, in `data/settings.json`, and
+   is never displayed again.
 
-## Research Harnesses
-
-Counter-Strat includes command-line research and evaluation harnesses:
-
-### 1. Map Card Quiz Harness
-
-Tests semantic callouts, area adjacency, and topological reasoning against compiled map cards:
-
-```bash
-uv run python -m counterstrat.mapcard.quiz de_anubis
-# Options:
-#   -n 50                 Number of questions (default: 50)
-#   --seed 0              Random seed
-#   --card-path <path>    Path to compiled card.yaml
-#   --output <path>       Output path for results JSON
-```
-
-### 2. Evaluation Benchmark
-
-Runs the multi-arm per-round prediction benchmark (evaluating baseline frequency models vs. LLM reasoning arms across round outcomes):
-
-```bash
-uv run python -m counterstrat.eval.benchmark --arms majority,freq_table --side T
-# Options:
-#   --arms majority,freq_table,llm_no_profile,full
-#   --side T or CT
-#   --train-ratio 0.8
-#   --card-path <path>
-#   --output data/eval/report.json
-```
-
-### 3. Utility Lineup Sweep
-
-Runs a DBSCAN parameter sweep (`eps` clustering) over utility throws and landings from an extracted lake:
-
-```bash
-uv run python -m counterstrat.roundscript.utility --eps-sweep --lake-root data/lake/<match_id> --map de_anubis
-# Options:
-#   --out data/mapcards/<map>/lineup_sweep.json
-```
+3. **Maps beyond the built-in seven** *(optional)* - to analyze other maps,
+   download the **Source2Viewer CLI** (`cli-windows-x64.zip`) from
+   [ValveResourceFormat releases](https://github.com/ValveResourceFormat/ValveResourceFormat/releases)
+   and extract it so this file exists:
+   `counterstrat\tools\vrf\Source2Viewer-CLI.exe`
+   The built-in seven maps need none of this.
 
 ---
 
-## Architecture Overview
+## Getting opponent demos
 
-The repository is structured as a layered monorepo under `src/counterstrat`:
+Any CS2 GOTV/match demo works: `.dem`, or compressed `.dem.zst`, `.dem.gz`,
+`.dem.bz2` - no need to unpack them first.
 
+- **Your own matches:** in CS2 go to **Watch → Your Matches → Download**.
+  The file lands in `...\Counter-Strike Global Offensive\game\csgo\replays\`.
+- **FACEIT / other platforms:** every match room has a "Download demo" link.
+- **Scrims/leagues:** ask for the GOTV demos - most organizers keep them.
+
+The more matches of the same team on the same map, the stronger every read.
+Three or more is where it gets interesting.
+
+---
+
+## Using it
+
+1. **Drag the demo files** onto the drop zone (top-left). Multiple at once is
+   fine. Parsing takes a minute or two per demo - progress is shown per file.
+2. Teams appear in the **Catalog**. Pick the enemy team, tick the matches you
+   want (or keep all), and hit **Analyze**.
+3. Wait for the progress bar - the app is mining every round - then read the
+   **AI First Read** cards: pistols, ecos, full buys, gotchas, and how to
+   punish each.
+4. **Ask questions** in the chat. Good openers:
+   - *"What's their T pistol default and how do we counter it?"*
+   - *"Show their smoke lineups on mid and when they throw them."*
+   - *"Which player takes the fights and who lurks?"*
+   - *"What changes after they lose two rounds in a row?"*
+5. **Set your callouts** in the Callouts tab (click a label on the radar,
+   type your name for it). Do this once per map - every future answer and
+   report uses your words.
+6. Hit **Regenerate** on the First Read after ingesting new demos of the same
+   team so the report covers the new games.
+
+Everything mined is saved in the `data/` folder next to the app - your demos,
+books, chats, and callouts survive restarts. Delete `data/` and you start
+clean.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `uv: command not found` | Reopen PowerShell (the installer edits PATH), or reinstall uv (Step 1). |
+| Browser shows nothing at localhost:8710 | Check the PowerShell window for errors; the app only listens on your own PC (`127.0.0.1`), which is by design. |
+| "CS2 install folder required" banner won't go away | The folder you picked must contain `game\csgo`. Point it at the folder named `Counter-Strike Global Offensive`, not `steamapps`. |
+| Upload says "card missing" for a map | That map isn't in the built-in seven - set the CS2 folder and add the Source2Viewer CLI (setup step 3), then re-ingest. Analysis still works meanwhile, just without map-graph extras. |
+| First Read says "No API key configured" | Settings → pick provider → paste key → Save. |
+| A demo fails to parse | Very old demos (pre-CS2 or from ancient game builds) aren't supported by the parser. Recent match demos work. |
+| Antivirus flags `Source2Viewer-CLI.exe` | It's the standard open-source Valve-format tool; download only from the official releases page linked above. |
+
+---
+
+## Privacy & cost
+
+- Demos, parsed data, mined books, callouts, chats: **all local**, under
+  `data/`. Nothing is uploaded anywhere.
+- Only the text of your chat/First Read requests goes to the AI provider you
+  chose, using your key. With Gemini's free tier the bill is usually zero;
+  paid usage is typically cents per scouting session.
+- The app binds to `127.0.0.1` only - nothing on your network can reach it.
+
+---
+
+## For developers
+
+```powershell
+uv sync                       # create the environment
+uv run python -m pytest -q    # full test suite; runs without any API keys
+uv run ruff check src tests   # lint
+uv run counterstrat           # run the app
 ```
-src/counterstrat/
-├── lake/          # Telemetry ingestion: Parquet storage + DuckDB views
-├── mapcard/       # Spatial semantics: VPK decompilation, nav graphs, KNN zone classifier
-├── roundscript/   # Tactical DSL: round event serialization, utility clustering, AST linter
-├── mining/        # Tendency mining: buy categories, defaults, executes, TeamBook
-├── llm/           # Model integration: Anthropic + Gemini adapters, caching, dossier synthesis, eval
-└── web/           # Application layer: FastAPI, background ingest worker, ReAct chat agent, web UI
-```
 
-### 1. Lake (`counterstrat.lake`)
-Parses raw CS2 demos using `demoparser2` and `awpy` into a Parquet-backed data lake with DuckDB SQL views (`ticks`, `kills`, `rounds`, `grenades`, `damages`, `bomb_events`). Handles demo deduplication via content hashing and tracks metadata in `corpus.jsonl`.
+- `uv run counterstrat` then `http://localhost:8710/?mock=1` exercises chat
+  without spending LLM calls.
+- Architecture: demos → Parquet lake (`lake/`) → map cards & zone lexicon
+  (`mapcard/`) → per-round tactical scripts (`roundscript/`) → mined books
+  (`mining/`) → tool-grounded LLM analyst (`llm/`) → FastAPI + vanilla JS UI
+  (`web/`). Shipped per-map calibration (anchors, topologies, radar art)
+  lives inside the package under `src/counterstrat/mapcard/anchors/` and
+  `src/counterstrat/radar/assets/`.
+- Tests marked `demo` need real demo fixtures in `demos/`; `live` tests need
+  API keys. Both are excluded by default.
 
-### 2. MapCard (`counterstrat.mapcard`)
-Compiles spatial ground truth for each map. Decompiles `default_ents.vents_c` via VRF CLI into `env_cs_place` volumes and parses `.nav` walkable areas. Builds a closed zone lexicon, an area adjacency graph, and a 3D KNN zone mapper that accurately classifies arbitrary `(x, y, z)` coordinates into callout zones.
+---
 
-### 3. RoundScript (`counterstrat.roundscript`)
-Transforms granular telemetry into a compact, human- and LLM-readable RoundScript DSL. Serializes economy categories, opening setups, map control timings, grenade lineups (clustered via DBSCAN), and bombsite executions. A built-in linter validates syntax and prevents zone name hallucinations.
+## License
 
-### 4. Mining (`counterstrat.mining`)
-Aggregates round scripts across matches into structured opponent `TeamBook` records. Mines buy categories (eco, semi-eco, semi-buy, full-buy), opening default setups, bombsite execute timings, and utility tendencies with sample sizes (`n`) and frequencies.
+**Free for personal use.** Analyze your matches, prep your hobby team, mod it,
+share it - enjoy.
 
-### 5. LLM (`counterstrat.llm`)
-Provides unified client abstraction for Anthropic Claude (with prompt caching and structured outputs) and Google Gemini. Manages per-round prediction evaluations and automated scouting dossier generation verified against AST and markdown linters. Input size is never capped client-side; the provider API is the only authority on context limits.
+**Commercial use needs a license.** If you want Counter-Strat (or any part of
+it) inside your commercial website, software, service, or product, contact me
+first via [GitHub](https://github.com/Git-Uzair) and we'll sort out a
+commercial license.
 
-### 6. Web (`counterstrat.web`)
-FastAPI application serving a responsive HTML5/CSS3 frontend. Includes background ingestion queues, REST endpoints for matches, scout briefs and dossiers, settings management, a zoomable radar viewer with per-player tracing, and a multi-turn ReAct analyst chat agent equipped with analytical tools (`get_tendencies`, `get_playbook`, `get_utility_book`, `get_gap_report`, `get_economy_read`, `get_player_profile`, `list_rounds`, `get_round_script`, `get_role_cards`, `sql_query`).
+Full terms in [LICENSE](LICENSE). CS2, its map data and radar images belong to
+Valve; demo files belong to their owners.

@@ -1,6 +1,10 @@
 [project]
 name = "counterstrat"
 version = "0.1.0"
+description = "Local CS2 anti-strat analyst: parse your opponents' demos, mine their tendencies, and chat with a tool-grounded AI about how to beat them."
+readme = "README.md"
+authors = [{ name = "Uzair (Git-Uzair)" }]
+license = { file = "LICENSE" }
 requires-python = ">=3.13"
 dependencies = [
   "demoparser2==0.42.0",

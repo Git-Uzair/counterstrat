@@ -8,6 +8,8 @@ scratch/
 demos/
 maps/
 .env
+# Private research notes - never published
+docs/research.md
 __pycache__/
 *.parquet
 # Shipped calibration evidence (kill endpoints for sightline derivation)

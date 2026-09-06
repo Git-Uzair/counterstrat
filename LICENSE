@@ -1,0 +1,84 @@
+Counter-Strat Dual License
+Copyright (c) 2026 Uzair (https://github.com/Git-Uzair)
+
+Plain-language summary (the sections below are what counts): Counter-Strat is
+free for personal, non-commercial use. If you want to use it - or any part of
+it - in a commercial website, service, software, or product of your own, you
+must first obtain a commercial license from the author.
+
+================================================================================
+1. DEFINITIONS
+================================================================================
+
+"Software" means this repository: its source code, shipped data files,
+documentation, and any modified versions of them.
+
+"Personal Use" means use by an individual, or by a non-commercial hobby team
+or community group, where the Software and its output are not sold, licensed,
+rented, offered as a paid or ad-supported service, used to provide services to
+paying customers, or used in the internal operations of a business or other
+commercial entity.
+
+"Commercial Use" means any use that is not Personal Use. This includes,
+without limitation: embedding the Software or substantial portions of it in a
+commercial website, application, or product; offering the Software (or a
+service built on it) for a fee, subscription, or advertising revenue; using it
+to deliver coaching, scouting, or analytics services for payment; and use by
+or for a company, organization, or professional esports team in the course of
+business.
+
+================================================================================
+2. PERSONAL USE LICENSE (FREE)
+================================================================================
+
+Subject to the terms of this license, the author grants you a worldwide,
+royalty-free, non-exclusive, non-transferable license to use, copy, modify,
+and run the Software for Personal Use.
+
+You may share unmodified or modified copies for Personal Use by others,
+provided that:
+  (a) this license file and the copyright notice above are included, intact,
+      with every copy; and
+  (b) you clearly mark any modifications as your own.
+
+================================================================================
+3. COMMERCIAL USE (BY PERMISSION ONLY)
+================================================================================
+
+Commercial Use of the Software, in whole or in part, is NOT permitted under
+this license. If you want to use the Software commercially - in your website,
+your software, your product, or your service - you must first obtain a
+separate written commercial license from the author.
+
+Contact for commercial licensing: https://github.com/Git-Uzair
+(open an issue on this repository or use the contact details on that profile).
+
+================================================================================
+4. THINGS THIS LICENSE DOES NOT COVER
+================================================================================
+
+- Counter-Strike 2, its game files, radar images, and map data are the
+  property of Valve Corporation. This license covers none of them; your use of
+  game files is governed by Valve's terms.
+- Demo files you analyze belong to whoever recorded or distributed them.
+- Third-party dependencies (see pyproject.toml) and the Source2Viewer CLI are
+  licensed under their own terms.
+
+================================================================================
+5. NO WARRANTY
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+6. TERMINATION
+================================================================================
+
+This license terminates automatically if you breach it. On termination you
+must stop using the Software and destroy your copies. Sections 4, 5, and 6
+survive termination.
