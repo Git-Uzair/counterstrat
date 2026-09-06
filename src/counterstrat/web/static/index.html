@@ -133,6 +133,12 @@
         </section>
 
         <div class="chat-input-bar" id="chat-input-bar">
+          <div id="first-read-wait" class="first-read-wait hidden">
+            <div class="session-loading-label" id="first-read-wait-label"></div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill progress-indeterminate"></div>
+            </div>
+          </div>
           <form id="chat-form" class="chat-form">
             <div class="input-wrapper">
               <textarea
@@ -220,7 +226,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=10"></script>
   <script src="/static/callouts.js?v=12"></script>
 </body>
 </html>

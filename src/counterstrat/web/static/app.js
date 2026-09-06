@@ -13,6 +13,7 @@
     currentMapName: null,
     currentTeamData: null,
     currentMatchIds: null, // null = full corpus scope; array = subset
+    readGate: null, // token: chat stays gated while the CURRENT First Read runs
     isProcessing: false,
     pollTimers: {}, // jobId -> interval handle (one per queued ingest)
     settings: null,
@@ -43,6 +44,8 @@
 
     messagesContainer: document.getElementById("messages-container"),
     firstReadPanel: document.getElementById("first-read-panel"),
+    firstReadWait: document.getElementById("first-read-wait"),
+    firstReadWaitLabel: document.getElementById("first-read-wait-label"),
     chatWelcome: document.getElementById("chat-welcome"),
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
@@ -604,6 +607,23 @@
     if (strip) strip.remove();
   }
 
+  // While the AI First Read generates (Analyze click), the chat form is
+  // replaced by a progress bar INSIDE the input bar - the transcript replay
+  // can't wipe it and the Callouts tab toggle hides it with the bar.
+  function gateChatBehindFirstRead(displayName, mapName) {
+    el.firstReadWaitLabel.innerHTML =
+      "AI First Read in progress for " +
+      `<strong>${escapeHtml(displayName)}</strong> on <code>${escapeHtml(mapName)}</code>` +
+      " \u2014 the analyst is reading the selected games. Chat opens when the report is ready\u2026";
+    el.chatForm.classList.add("hidden");
+    el.firstReadWait.classList.remove("hidden");
+  }
+
+  function ungateChat() {
+    el.firstReadWait.classList.add("hidden");
+    el.chatForm.classList.remove("hidden");
+  }
+
   function createChatSession(teamKey, mapName, displayName, matchIds, autoGenerate) {
     el.chatInput.disabled = true;
     el.sendBtn.disabled = true;
@@ -636,19 +656,41 @@
         // The First Read panel renders for EVERY scope, but only an explicit
         // Analyze click spends an LLM call; picking a match title just probes
         // the cache and otherwise waits for Generate/Regenerate.
-        renderFirstRead(teamKey, mapName, matchIds, autoGenerate ? "generate" : "probe");
+        const readPromise = renderFirstRead(
+          teamKey, mapName, matchIds, autoGenerate ? "generate" : "probe"
+        );
 
         removeSessionLoading();
         if (!sameScope) {
           el.messagesContainer.innerHTML = "";
           replayTranscript(data.session_id, displayName, mapName, matchIds);
         }
-
-        el.chatInputBar.classList.remove("hidden");
-        el.chatInput.disabled = false;
-        el.sendBtn.disabled = false;
         el.deleteChatBtn.classList.remove("hidden");
-        el.chatInput.focus();
+        el.chatInputBar.classList.remove("hidden");
+
+        if (autoGenerate) {
+          // Analyze: no chat until the First Read lands - the input form is
+          // swapped for a progress bar until the report (or its error card)
+          // is on screen. The gate token keeps a stale finally from ungating
+          // a newer Analyze still in flight.
+          const gate = {};
+          state.readGate = gate;
+          gateChatBehindFirstRead(displayName, mapName);
+          readPromise.finally(function () {
+            if (state.readGate !== gate) return;
+            state.readGate = null;
+            ungateChat();
+            el.chatInput.disabled = false;
+            el.sendBtn.disabled = false;
+            el.chatInput.focus();
+          });
+        } else {
+          state.readGate = null;
+          ungateChat();
+          el.chatInput.disabled = false;
+          el.sendBtn.disabled = false;
+          el.chatInput.focus();
+        }
       })
       .catch(function (err) {
         removeSessionLoading();
@@ -762,7 +804,8 @@
     if (mode === "force") params.set("force", "1");
     if (isMock) params.set("mock", "1");
     if (matchIds && matchIds.length) params.set("matches", matchIds.join(","));
-    fetch(
+    // Returned so Analyze can hold the chat gate until the read settles.
+    return fetch(
       `/api/teams/${encodeURIComponent(teamKey)}/${encodeURIComponent(mapName)}/insights?` +
         params.toString()
     )
