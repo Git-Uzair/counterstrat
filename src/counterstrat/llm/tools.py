@@ -215,15 +215,20 @@ def tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_gap_report",
             description=(
-                "Where this team leaves key zones (bombsites) UNCOVERED, by 15s beat "
-                "window, with the trigger that opens the gap (after_loss, after_win, "
-                "behind, ahead, first contact won/lost, utility dump) and the lift over "
-                "the unconditioned baseline. A zone counts as held when someone stands "
-                "in its hold complex (the zone or any position within ~5s of it - see "
-                "site_complexes); vacancy_rate is the share of rounds the WHOLE complex "
-                "was empty, and top_holds names the zones that provided cover. Windows "
-                "come from 15s formation beats, so sub-15s rotations are invisible. "
-                "Use for 'where are they weak and when'."
+                "Where this team's defensive SETUP leaves key zones (bombsites) "
+                "UNCOVERED, by 15s beat window, with the trigger that opens the gap "
+                "(after_loss, after_win, behind, ahead, first contact won/lost, utility "
+                "dump) and the lift over the unconditioned baseline. A zone counts as "
+                "held when someone stands in its hold complex (the zone or any position "
+                "within ~5s of it - see site_complexes); vacancy_rate is the share of "
+                "SETUP-INTACT rounds (bomb not down, 4+ alive) where the WHOLE complex "
+                "was empty, so it reads setup design, not lost rounds. top_holds names "
+                "the zones that provided cover; watched_n/top_watch_zones count vacant "
+                "rounds that still had eyes-on from outside the complex; pressured_n "
+                "counts vacant rounds with enemies or their utility inside the complex "
+                "(conceded under pressure, not open by design). Windows come from 15s "
+                "formation beats, so sub-15s rotations are invisible. Use for 'where "
+                "are they weak and when'."
             ),
             input_schema={
                 "type": "object",
@@ -544,8 +549,13 @@ def _tool_get_gap_report(ctx: SessionContext, args: dict) -> str:
             "window_note": (
                 "Windows are 15s formation beats; sub-15s rotations are invisible. "
                 "A zone counts as held when someone stands in its hold complex "
-                "(site_complexes); vacancy_rate = share of rounds the WHOLE complex "
-                "was empty. top_holds names the zones that provided cover."
+                "(site_complexes); vacancy_rate = share of SETUP-INTACT rounds (bomb "
+                "not down, 4+ alive) where the WHOLE complex was empty - post-plant "
+                "collapses and man-down rounds never count. top_holds names the zones "
+                "that provided cover; watched_n/top_watch_zones = vacant rounds that "
+                "still had eyes-on from outside the complex; pressured_n = vacant "
+                "rounds with enemies or their utility inside the complex (conceded "
+                "under pressure, not open by design)."
             ),
             "findings": findings,
         }

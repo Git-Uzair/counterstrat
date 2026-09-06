@@ -83,6 +83,39 @@ def test_insights_gap_lines_carry_site_complexes(synthetic_scripts):
     assert "cover comes from" in user and "BombsiteA x" in user
 
 
+def test_insights_gap_header_states_setup_intact_semantics(synthetic_scripts):
+    b = _bundle(synthetic_scripts)
+    user = build_insights_user(scripts=synthetic_scripts, **b)
+    assert "setup INTACT" in user
+    assert "setup-intact rounds" in user
+
+
+def test_insights_setup_posts_block_from_tracks(synthetic_scripts):
+    """With movement tracks present, the prompt carries per-player full-buy
+    posts at 20s - the evidence formation claims must come from."""
+    from counterstrat.roundscript.models import ZoneStint
+
+    for s in synthetic_scripts:
+        if s.ct_team_key != SYNTHETIC_TEAM:
+            continue
+        s.sides = {"c1": "CT", "c2": "CT", "t1": "T"}
+        s.tracks = {
+            "c1": [ZoneStint(t0=5, t1=30, zone="BombsiteA")],
+            "c2": [ZoneStint(t0=10, t1=25, zone="Middle")],
+            "t1": [ZoneStint(t0=0, t1=40, zone="TSpawn")],
+        }
+    user = build_insights_user(scripts=synthetic_scripts, **_bundle(synthetic_scripts))
+    assert "## Full-Buy Setup Posts" in user
+    assert "- CT c1: `BombsiteA` x4 (4 of 4 tracked rounds)" in user
+    assert "- CT c2: `Middle` x4 (4 of 4 tracked rounds)" in user
+    assert "t1" not in user.split("## Full-Buy Setup Posts")[1].split("##")[0]
+
+
+def test_insights_setup_posts_block_absent_without_tracks(synthetic_scripts):
+    user = build_insights_user(scripts=synthetic_scripts, **_bundle(synthetic_scripts))
+    assert "## Full-Buy Setup Posts" not in user
+
+
 def test_generate_insights_calls_llm_and_lints(synthetic_scripts):
     b = _bundle(synthetic_scripts)
     card = build_synthetic_card()

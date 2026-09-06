@@ -9,6 +9,7 @@ model connecting causes, not in us pre-chewing the data.
 """
 
 import re
+from collections import Counter, defaultdict
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +24,7 @@ from counterstrat.mining.gaps import SITE_HOLD_RADIUS_S, GapReport
 from counterstrat.mining.range_profile import build_range_profile
 from counterstrat.mining.retakes import build_retake_report
 from counterstrat.mining.rotations import build_rotation_report
-from counterstrat.mining.tendencies import TeamBook
+from counterstrat.mining.tendencies import TeamBook, iter_round_states
 from counterstrat.mining.utility_book import UtilityBook
 from counterstrat.mining.utility_roi import build_utility_roi
 from counterstrat.roundscript.models import RoundScript
@@ -32,6 +33,10 @@ from counterstrat.roundscript.models import RoundScript
 # timelines own the prompt, these blocks stay compact.
 SECTION_ROW_CAP = 15
 EVIDENCE_CAP = 3
+# Setup posts are read from movement tracks at this round clock: late enough
+# that everyone reached their spot, early enough that contact has not
+# reshuffled the setup on most rounds.
+SETUP_POST_T_S = 20.0
 
 
 class Insights(BaseModel):
@@ -112,6 +117,11 @@ Hard rules:
   CTs leaving the other site post-plant to retake; Ts not standing on bombsites
   early; teams saving on a lost eco. A read must be something a different team in
   the same situation would plausibly do differently.
+- Setup and formation claims (a 1-3-1, "site left open", who anchors where) come
+  from the Full-Buy Setup Posts and Gap Findings blocks ONLY - both already
+  exclude post-plant and man-down states. Never infer a standing setup from a
+  single state@ snapshot in the timelines, and never inflate a rate into
+  "always/completely" language: quote the rate and n as given.
 - Prefer conditioned reads (previous round, economy state, first-contact outcome,
   utility spent) over raw frequencies. Cross-reference the round scripts - they are
   the ground truth.
@@ -194,6 +204,42 @@ def _death_lines(scripts: list[RoundScript], team_key: str, labels: dict[str, st
     return lines
 
 
+def _setup_post_lines(scripts: list[RoundScript], team_key: str) -> list[str]:
+    """Per-player full-buy posts at 20s from movement tracks - the setup ground truth.
+
+    The tendency table's Opening Formation column is a one-tick multiset
+    signature that fragments across rounds; the 7yrant First Read compressed it
+    into a wrong '1-2-2 with A solo'. This block shows where each PLAYER
+    actually stands, with per-player sample sizes, so formation claims come
+    from evidence. Empty on pre-v2 corpora (no tracks).
+    """
+    posts: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    n_by_side: Counter[str] = Counter()
+    for st in iter_round_states(scripts, team_key):
+        if st.buy_class != "full_buy":
+            continue
+        s = st.script
+        counted = False
+        for player, side in sorted(s.sides.items()):
+            if side != st.side:
+                continue
+            zone = next(
+                (z.zone for z in s.tracks.get(player, []) if z.t0 <= SETUP_POST_T_S <= z.t1),
+                None,
+            )
+            if zone is not None:
+                posts[(st.side, player)][zone] += 1
+                counted = True
+        if counted:
+            n_by_side[st.side] += 1
+    lines: list[str] = []
+    for (side, player), zone_counts in sorted(posts.items()):
+        total = sum(zone_counts.values())
+        top = ", ".join(f"`{z}` x{c}" for z, c in zone_counts.most_common(3))
+        lines.append(f"- {side} {player}: {top} ({total} of {n_by_side[side]} tracked rounds)")
+    return lines
+
+
 def _retake_lines(scripts: list[RoundScript], team_key: str, labels: dict[str, str]) -> list[str]:
     report = build_retake_report(scripts, team_key)
     lines: list[str] = []
@@ -254,10 +300,16 @@ def build_insights_user(
     sections += [
         "",
         (
-            "## Gap Findings (15s formation windows; a zone counts as HELD when someone "
+            "## Gap Findings (defensive setup reads; a zone counts as HELD when someone "
             f"stands in its hold complex - the zone or any position within "
             f"~{SITE_HOLD_RADIUS_S:.0f}s of it, listed below; 'uncovered' means the "
-            "whole complex was empty; plant rows = the planted site only)"
+            "whole complex was empty at the window. n counts only rounds with the "
+            "setup INTACT - bomb not down and 4+ alive - so a rate here is about "
+            "setup design, never post-plant rotations or lost man-down rounds; "
+            "plant rows = the planted site only. Vacant-round annotations: "
+            "'eyes-on' = a player outside the complex still watched into it; "
+            "'under pressure' = enemies or their utility were in the complex "
+            "(conceded under pressure, not open by design)"
         ),
     ]
     for zone, members in sorted(gap_report.site_complexes.items()):
@@ -269,11 +321,31 @@ def build_insights_user(
             if f.top_holds
             else ""
         )
+        notes = ""
+        if f.watched_n:
+            watch_src = ", ".join(f"{z} x{c}" for z, c in f.top_watch_zones.items())
+            notes += f"; {f.watched_n} vacant round(s) still had eyes-on from {watch_src}"
+        if f.pressured_n:
+            notes += f"; {f.pressured_n} vacant round(s) were under enemy pressure"
+        if evidence:
+            notes += f"; evidence: {evidence}"
+        rounds_word = "post-plant rounds" if f.window == "post-PL" else "setup-intact rounds"
         sections.append(
             f"- {f.side} leave `{f.zone}` uncovered {_friendly_window(f.window)} on "
-            f"'{f.trigger}': {f.vacancy_rate:.0%} of {f.n} (baseline {f.baseline_rate:.0%}, "
-            f"lift {f.lift:+.0%}{holds}; evidence: {evidence})"
+            f"'{f.trigger}': {f.vacancy_rate:.0%} of {f.n} {rounds_word} "
+            f"(baseline {f.baseline_rate:.0%}, lift {f.lift:+.0%}{holds}{notes})"
         )
+    setup_lines = _setup_post_lines(scripts, teambook.team_key)
+    if setup_lines:
+        sections += [
+            "",
+            (
+                "## Full-Buy Setup Posts (where each player actually is 20s in, from "
+                "movement tracks, with per-player sample sizes; formation/setup claims "
+                "come from HERE, never from single-tick formation signatures)"
+            ),
+        ]
+        sections += setup_lines
     sections += ["", "## Economy Policy"]
     for state, dist in econ_policy.policy.items():
         dist_str = ", ".join(f"{b} {p:.0%}" for b, p in dist.items())

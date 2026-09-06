@@ -11,6 +11,7 @@ from counterstrat.roundscript.models import (
     PlantEvent,
     RoundScript,
     UtilEvent,
+    ZoneStint,
 )
 from counterstrat.roundscript.serialize import serialize_match
 
@@ -25,8 +26,12 @@ def _script(
     winner: str,
     utility: list[UtilEvent] | None = None,
     plant_site: str | None = "BombsiteB",
+    plant_t: float = 45.0,
+    team_side: str = "CT",
+    tracks: dict[str, list[ZoneStint]] | None = None,
+    sides: dict[str, str] | None = None,
 ) -> RoundScript:
-    """A CT-side round for TEAM with configurable beats/winner/utility."""
+    """A round for TEAM (CT by default) with configurable beats/winner/utility."""
     return RoundScript(
         match_id="gm1",
         map_name="de_anubis",
@@ -34,8 +39,8 @@ def _script(
         round_num=round_num,
         score_t=0,
         score_ct=0,
-        t_team_key=OPP,
-        ct_team_key=TEAM,
+        t_team_key=TEAM if team_side == "T" else OPP,
+        ct_team_key=TEAM if team_side == "CT" else OPP,
         economy={
             "CT": EconSummary(buy_type="full_buy", spend=20000, equip=25000, awps=1, loss_streak=0),
             "T": EconSummary(buy_type="full_buy", spend=20000, equip=25000, awps=1, loss_streak=0),
@@ -44,7 +49,7 @@ def _script(
         kills=[],
         utility=utility or [],
         plant=(
-            PlantEvent(t=45.0, site=plant_site, planter="e1", alive_t=3, alive_ct=2)
+            PlantEvent(t=plant_t, site=plant_site, planter="e1", alive_t=3, alive_ct=2)
             if plant_site
             else None
         ),
@@ -53,6 +58,8 @@ def _script(
         reason="bomb_defused" if winner == "CT" else "t_killed",
         clock_used_s=60.0,
         movements=[],
+        tracks=tracks or {},
+        sides=sides or {},
     )
 
 
@@ -233,6 +240,149 @@ def test_gap_report_respects_explicit_key_zones(after_loss_scripts):
 def test_gap_report_empty_for_unknown_team(synthetic_scripts):
     rep = build_gap_report(synthetic_scripts, "nobody")
     assert rep.findings == []
+
+
+# --- Setup-intact semantics (2026-09-06): vacancy is only a read while the
+# --- defensive setup exists - pre-plant, enough players alive, defending side.
+
+
+def test_no_round_start_window():
+    """B+00 vacancy is a tautology (everyone is at spawn), never a window."""
+    beats = [
+        _beat("B+00", 0.0, [(5, "CTSpawn")]),
+        _beat("B+15", 15.0, [(2, "BombsiteB"), (3, "BombsiteA")]),
+    ]
+    scripts = [_script(rn, beats=beats, winner="CT") for rn in (1, 2, 3, 4)]
+    rep = build_gap_report(scripts, TEAM)
+    assert not any(f.window == "B+00" for f in rep.findings)
+    assert any(f.window == "B+15" for f in rep.findings)
+
+
+def test_beats_after_the_plant_are_not_setup_windows():
+    """Once the bomb is down, leaving a site is retake rotation, not a gap.
+
+    Regression: 14 of the 33 'vacant BombsiteA at B+45' rounds behind the
+    'they abandon A (45%)' First Read had the bomb already planted.
+    """
+    beats = [
+        _beat("B+15", 15.0, [(2, "BombsiteB"), (3, "BombsiteA")]),
+        _beat("B+30", 30.0, [(5, "BombsiteB")]),  # collapsed to the planted site
+    ]
+    scripts = [
+        _script(rn, beats=beats, winner="T", plant_site="BombsiteB", plant_t=20.0)
+        for rn in (1, 2, 3, 4)
+    ]
+    rep = build_gap_report(scripts, TEAM)
+    assert not any(f.window == "B+30" for f in rep.findings), (
+        "post-plant beats must not feed setup windows"
+    )
+
+
+def test_man_down_beats_are_not_setup_observations():
+    """A 2-man CT side has no setup to read; vacancy there is not a gap."""
+    intact = [_beat("B+15", 15.0, [(4, "BombsiteA"), (1, "BombsiteB")])]
+    broken = [_beat("B+15", 15.0, [(2, "Middle")])]  # 3 dead, site empty
+    scripts = [
+        _script(1, beats=intact, winner="CT"),
+        _script(2, beats=intact, winner="CT"),
+        _script(3, beats=intact, winner="CT"),
+        _script(4, beats=broken, winner="T"),
+        _script(5, beats=broken, winner="T"),
+    ]
+    rep = build_gap_report(scripts, TEAM, key_zones=["BombsiteA"])
+    f = next(
+        f
+        for f in rep.findings
+        if f.trigger == "base" and f.zone == "BombsiteA" and f.window == "B+15"
+    )
+    assert f.n == 3, "man-down rounds must not count as setup observations"
+    assert f.vacancy_rate == 0.0
+
+
+def test_pre_plant_site_rows_are_defense_only():
+    """T-side pre-plant 'site vacancy' is structural (Ts hold sites only when
+    executing); only the post-plant hold of the planted site is a T read."""
+    t_beats = [
+        Beat(
+            label="B+15",
+            t=15.0,
+            t_form=Formation(zones=[(3, "Middle"), (2, "TSpawn")]),
+            ct_form=Formation(zones=[(5, "CTSpawn")]),
+        ),
+        Beat(
+            label="PL+40",
+            t=40.0,
+            t_form=Formation(zones=[(4, "BombsiteB"), (1, "Middle")]),
+            ct_form=Formation(zones=[(3, "CTSpawn")]),
+        ),
+    ]
+    scripts = [
+        _script(rn, beats=t_beats, winner="T", team_side="T", plant_t=35.0) for rn in (1, 2, 3, 4)
+    ]
+    rep = build_gap_report(scripts, TEAM)
+    assert not any(f.side == "T" and f.window.startswith("B+") for f in rep.findings), (
+        "attacking-side pre-plant vacancy is a tautology"
+    )
+    post_pl = [f for f in rep.findings if f.side == "T" and f.window == "post-PL"]
+    assert post_pl and post_pl[0].zone == "BombsiteB"
+    assert post_pl[0].vacancy_rate == 0.0
+
+
+def test_stint_cover_counts_when_the_snapshot_misses():
+    """A CT whose movement track covers the beat instant from inside the
+    complex counts as cover even when the one-tick formation missed him."""
+    topo = {"BombsiteA": {"Walkway": 2.1, "Main": 3.1}}
+    beats = [_beat("B+15", 15.0, [(5, "Canal")])]  # snapshot: nobody near A
+    covered = _script(
+        1,
+        beats=beats,
+        winner="CT",
+        plant_site="BombsiteA",
+        tracks={"c1": [ZoneStint(t0=10, t1=20, zone="Main")]},
+        sides={"c1": "CT"},
+    )
+    bare = [_script(rn, beats=beats, winner="CT") for rn in (2, 3, 4)]
+    rep = build_gap_report(scripts=[covered, *bare], team_key=TEAM, topology=topo)
+    f = next(
+        f
+        for f in rep.findings
+        if f.trigger == "base" and f.zone == "BombsiteA" and f.window == "B+15"
+    )
+    assert abs(f.vacancy_rate - 3 / 4) < 1e-9, "the tracked round must count as covered"
+    assert "gm1:1" not in f.evidence
+    assert f.top_holds.get("Main") == 1
+
+
+def test_vacant_round_annotations_watchers_and_pressure():
+    """Vacant-but-watched and vacant-under-pressure are distinct from open."""
+    topo = {"BombsiteA": {"Walkway": 2.1, "Main": 3.1}}
+    held = [_beat("B+15", 15.0, [(4, "BombsiteA"), (1, "Middle")])]
+    vacant_beat = [
+        Beat(
+            label="B+15",
+            t=15.0,
+            t_form=Formation(zones=[(4, "TSpawn"), (1, "Walkway")]),  # T entering the complex
+            ct_form=Formation(zones=[(4, "Middle"), (1, "CTSpawn")]),
+        )
+    ]
+    watcher = _script(
+        4,
+        beats=vacant_beat,
+        winner="T",
+        tracks={"c1": [ZoneStint(t0=5, t1=25, zone="Middle", watched="Walkway", locked=True)]},
+        sides={"c1": "CT"},
+    )
+    scripts = [_script(rn, beats=held, winner="CT") for rn in (1, 2, 3)] + [watcher]
+    rep = build_gap_report(scripts, TEAM, key_zones=["BombsiteA"], topology=topo)
+    f = next(
+        f
+        for f in rep.findings
+        if f.trigger == "base" and f.zone == "BombsiteA" and f.window == "B+15"
+    )
+    assert abs(f.vacancy_rate - 1 / 4) < 1e-9
+    assert f.watched_n == 1, "the Middle watcher had eyes on the complex"
+    assert f.top_watch_zones == {"Middle": 1}
+    assert f.pressured_n == 1, "a T inside the complex means contested, not open"
 
 
 @pytest.mark.demo
