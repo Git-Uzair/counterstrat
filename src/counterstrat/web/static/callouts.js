@@ -72,15 +72,23 @@
 
   function panStart(ev) {
     if (state.placing || state.view.k === 1) return;
+    // Text selection inside a rename box wins over panning.
+    if (ev.target.closest && ev.target.closest("input")) return;
     state.pan = { x: ev.clientX, y: ev.clientY, moved: false };
-    el.frame.setPointerCapture(ev.pointerId);
   }
 
   function panMove(ev) {
     if (!state.pan) return;
     const dx = ev.clientX - state.pan.x;
     const dy = ev.clientY - state.pan.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) state.pan.moved = true;
+    if (!state.pan.moved) {
+      // Still a click, not a drag: leave the pointer alone so the click lands
+      // on its label (renaming must work while zoomed in). Capturing on
+      // pointerdown would retarget the click at the frame.
+      if (Math.abs(dx) + Math.abs(dy) <= 4) return;
+      state.pan.moved = true;
+      el.frame.setPointerCapture(ev.pointerId);
+    }
     state.view.tx += dx;
     state.view.ty += dy;
     state.pan.x = ev.clientX;
@@ -612,7 +620,12 @@
     el.frame.addEventListener("pointerdown", panStart);
     el.frame.addEventListener("pointermove", panMove);
     el.frame.addEventListener("pointerup", panEnd);
-    el.frame.addEventListener("dblclick", resetView);
+    el.frame.addEventListener("dblclick", function (ev) {
+      // Double-click selects a word in the rename box (or hits a label);
+      // only empty ground resets the view.
+      if (ev.target.closest && ev.target.closest("button, input")) return;
+      resetView();
+    });
     el.frame.addEventListener(
       "click",
       function (ev) {

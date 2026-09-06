@@ -147,6 +147,15 @@ def test_callouts_view_static(client_app: TestClient) -> None:
     # Zoom/pan for precision placement.
     assert "callouts-zoom" in js
     assert "onWheel" in js and "resetView" in js
+    # Zoomed-in rename regression: capturing the pointer on pointerdown
+    # retargeted the click at the frame, so labels were only clickable at
+    # k == 1. Capture must be deferred until a real drag (one capture site,
+    # behind the 4px threshold), the rename input is never a pan handle, and
+    # dblclick resets the view only from empty ground.
+    assert js.count("setPointerCapture") == 1
+    assert "if (Math.abs(dx) + Math.abs(dy) <= 4) return;" in js
+    assert 'closest("input")' in js
+    assert 'closest("button, input")' in js
     # Game-zone occupancy overlay (Areas toggle).
     assert "showAreas" in js and "zone-area" in js
     css = client_app.get("/static/style.css").text
