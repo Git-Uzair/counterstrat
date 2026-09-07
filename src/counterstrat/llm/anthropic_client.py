@@ -34,6 +34,16 @@ THINKING_HEADROOM = 8_192
 # assembles the final message.
 STREAM_THRESHOLD = 16_000
 
+# Bounded waiting: the SDK default is a 600s timeout with 2 internal retries,
+# and call_with_retries wraps more attempts around that - an unreachable
+# api.anthropic.com (blocked route, AV proxy) spun a First Read for tens of
+# minutes with zero feedback (field bug, 2026-09-07). Connect fails fast; the
+# read window only trips when the stream goes DEAD (httpx read timeout is
+# per-chunk, so healthy long generations keep flowing).
+CONNECT_TIMEOUT_S = 15.0
+REQUEST_TIMEOUT_S = 180.0
+SDK_MAX_RETRIES = 1
+
 
 def _wire_cap(max_tokens: int | None) -> int:
     """Visible-text cap -> wire ceiling (headroom for thinking tokens)."""
@@ -104,11 +114,20 @@ class AnthropicClient:
         self._transport = transport or self._sdk_transport
         self._sdk: Any = None
 
-    def _sdk_transport(self, req: dict[str, Any]) -> dict[str, Any]:
+    def _ensure_sdk(self) -> Any:
         import anthropic
+        import httpx
 
         if self._sdk is None:
-            self._sdk = anthropic.Anthropic(api_key=self.api_key)
+            self._sdk = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(REQUEST_TIMEOUT_S, connect=CONNECT_TIMEOUT_S),
+                max_retries=SDK_MAX_RETRIES,
+            )
+        return self._sdk
+
+    def _sdk_transport(self, req: dict[str, Any]) -> dict[str, Any]:
+        self._ensure_sdk()
         req = dict(req)
         kind = req.pop("kind")
         stream = req.pop("stream", False)

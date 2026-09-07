@@ -121,6 +121,13 @@ def _parts(resp: dict[str, Any]) -> list[dict[str, Any]]:
     return (candidates[0].get("content") or {}).get("parts") or []
 
 
+# Bounded waiting, mirroring anthropic_client: a dead route to the API must
+# surface as an error card within minutes, never an endless spinner. The unit
+# is MILLISECONDS (google-genai HttpOptions.timeout) and it caps the WHOLE
+# non-streaming request, so it stays generous enough for big First Reads.
+REQUEST_TIMEOUT_MS = 300_000
+
+
 class GeminiClient:
     """LLMClient over `google-genai`; `transport` swaps the SDK out for replay in tests.
 
@@ -140,11 +147,19 @@ class GeminiClient:
         self._transport = transport or self._sdk_transport
         self._sdk: Any = None
 
-    def _sdk_transport(self, req: dict[str, Any]) -> dict[str, Any]:
+    def _ensure_sdk(self) -> Any:
         from google import genai
+        from google.genai import types
 
         if self._sdk is None:
-            self._sdk = genai.Client(api_key=self.api_key)
+            self._sdk = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
+            )
+        return self._sdk
+
+    def _sdk_transport(self, req: dict[str, Any]) -> dict[str, Any]:
+        self._ensure_sdk()
         resp = self._sdk.models.generate_content(**req)
         return resp.model_dump(mode="json", exclude_none=True)
 

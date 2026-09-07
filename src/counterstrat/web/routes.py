@@ -602,6 +602,17 @@ def get_insights(
         )
 
         client = make_client(cfg)
+        # Visible BEFORE the provider call: uvicorn only logs completed
+        # requests, so a hung provider looked like "no call was ever made"
+        # (field report, 2026-09-07).
+        logger.info(
+            "First Read generation started: provider=%s model=%s team=%s map=%s scope=%d match(es)",
+            cfg.provider,
+            cfg.anthropic_model if cfg.provider == "anthropic" else cfg.gemini_model,
+            team_key,
+            map_name,
+            len(scope_ids),
+        )
         insights = generate_insights(
             client,
             card,
