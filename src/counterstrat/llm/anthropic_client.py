@@ -38,10 +38,11 @@ STREAM_THRESHOLD = 16_000
 # and call_with_retries wraps more attempts around that - an unreachable
 # api.anthropic.com (blocked route, AV proxy) spun a First Read for tens of
 # minutes with zero feedback (field bug, 2026-09-07). Connect fails fast; the
-# read window only trips when the stream goes DEAD (httpx read timeout is
-# per-chunk, so healthy long generations keep flowing).
+# read window (5 min - large models think long between chunks) only trips
+# when the stream goes DEAD (httpx read timeout is per-chunk, so healthy
+# generations keep flowing).
 CONNECT_TIMEOUT_S = 15.0
-REQUEST_TIMEOUT_S = 180.0
+REQUEST_TIMEOUT_S = 300.0
 SDK_MAX_RETRIES = 1
 
 
