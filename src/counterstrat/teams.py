@@ -130,6 +130,9 @@ def write_team_clusters(data_root: Path, index: dict[str, TeamCluster]) -> None:
         "built_from": sorted(manifest),
         "clusters": [unique[tid].model_dump() for tid in sorted(unique)],
     }
+    # First page load on a fresh clone reaches here before anything else has
+    # created data/ (field 500, 2026-09-07).
+    data_root.mkdir(parents=True, exist_ok=True)
     (data_root / "teams.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 

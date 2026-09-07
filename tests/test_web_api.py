@@ -197,6 +197,21 @@ def test_settings_roundtrip_never_echoes_key(client_app: TestClient):
     assert got["keys_present"]["gemini"] is True
 
 
+def test_core_reads_survive_a_virgin_data_root(tmp_path: Path):
+    """A truly fresh clone has NO data/ directory at first page load; every
+    read the UI fires on boot must still answer (field bug 2026-09-07:
+    /api/teams 500'd writing teams.json into a nonexistent folder)."""
+    cfg = AppConfig(data_root=tmp_path / "data")  # deliberately never created
+    client = TestClient(create_app(cfg))
+    r = client.get("/api/teams")
+    assert r.status_code == 200
+    assert r.json() == []
+    assert client.get("/api/demos").status_code == 200
+    assert client.get("/api/maps").status_code == 200
+    assert client.get("/api/readiness").status_code == 200
+    assert client.get("/api/settings").status_code == 200
+
+
 def test_ingest_gate_blocks_until_setup_complete(bare_client: TestClient, monkeypatch):
     """No CS2 folder, no decompiler, no key: uploads are refused with the
     full checklist instead of starting an ingest that trips lazy work."""
